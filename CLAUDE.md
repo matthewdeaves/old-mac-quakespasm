@@ -111,6 +111,23 @@ Pass `-nolauncher` in args (handled in `MacOSX/AppController.m:135`) to
 skip the launcher GUI window and go straight to the game. `bench.sh`
 passes this automatically.
 
+## Panther's `/bin/sleep` is integer-only
+
+`sleep 0.2` on Panther (10.3) returns immediately — old BSD sleep doesn't
+parse fractional seconds. Tiger's `sleep` does. **Any poll loop running on
+G3 must use integer sleeps**, otherwise it busy-spins through `POLLS` in
+~20 seconds and SIGKILLs Quake before the timedemo line lands in
+qconsole.log. `bench.sh` uses `sleep 1` for this reason — the 1-second
+detection latency is fine.
+
+## ssh remote `cd && X &` puts cd in the subshell
+
+`ssh host "cd /foo && rm -f bar && ./prog &"` parses as `(cd && rm && ./prog) &`
+because `&&` binds tighter than `&`. The whole chain runs in a background
+subshell, the parent shell's cwd never changes, and `[ -f bar ]` in the
+parent shell checks `$HOME/bar`, not `/foo/bar`. Put `cd` and `rm` on
+their own foreground lines and `&` only the long-running command.
+
 ## Killing the engine reliably
 
 QuakeSpasm spawns SDL/CoreAudio threads that don't always respond to

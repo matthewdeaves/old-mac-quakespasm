@@ -42,29 +42,34 @@ declare -a FPS
 for i in $(seq 1 $RUNS); do
   echo "[bench $TARGET $DEMO $RES] run $i/$RUNS"
   # Belt-and-suspenders: pkill any stale quakespasm before each run.
-  # Poll granularity: 0.2s (max 5 polls/sec). Detection latency cap = 0.2s.
+  # Poll: integer `sleep 1` because Panther's /bin/sleep is integer-only
+  # (sleep 0.2 returns instantly → busy-spin, kills demo at ~20s in).
   # On match: SIGKILL immediately — the log is already on disk because Quake's
   # qconsole.log uses raw write() (no stdio buffering, see Quake/console.c:473).
-  # No SIGTERM grace needed.
-  POLLS=$((TIMEOUT * 5))
-  ssh "$HOST" "killall -KILL quakespasm 2>/dev/null; sleep 1; cd ~/Desktop/quake && rm -f qconsole.log && \
-    ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
-      -fullscreen -width $W -height $H \
-      +vid_wait 0 \
+  # `cd` MUST run BEFORE `&` (own line) so the parent shell's cwd is
+  # ~/Desktop/quake — otherwise `[ -f qconsole.log ]` checks $HOME and never
+  # matches. (`cd && X &` backgrounds the whole chain in a subshell.)
+  ssh "$HOST" "killall -KILL quakespasm 2>/dev/null
+    sleep 1
+    cd ~/Desktop/quake
+    rm -f qconsole.log
+    ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
+      -fullscreen -width $W -height $H \\
+      +vid_wait 0 \\
       +timedemo $DEMO > /dev/null 2>&1 &
     PID=\$!
     j=0
-    while [ \$j -lt $POLLS ]; do
+    while [ \$j -lt $TIMEOUT ]; do
       if [ -f qconsole.log ] && grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
-      sleep 0.2; j=\$((j+1))
+      sleep 1; j=\$((j+1))
     done
     killall -KILL quakespasm 2>/dev/null
     wait \$PID 2>/dev/null
     true" 2>&1 | grep -v "^$" | tail -3 || true
 
   LOG_NAME="${COMMIT}_${TARGET}_${DEMO}_${RES}_run${i}.log"
-  scp -q "$HOST:Desktop/quake/qconsole.log" "$RAW_DIR/$LOG_NAME"
-  FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" | tail -1 | awk '{print $5}')
+  scp -q "$HOST:Desktop/quake/qconsole.log" "$RAW_DIR/$LOG_NAME" || true
+  FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | awk '{print $5}' || true)
   FPS+=("${FPS_VAL:-NA}")
   echo "  -> ${FPS_VAL:-NA} fps"
 done

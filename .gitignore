@@ -18,3 +18,7 @@ Quake/quakespasm.ppc
 .DS_Store
 *.swp
 *~
+
+# Claude Code transient state
+.claude/scheduled_tasks.lock
+.claude/settings.local.json

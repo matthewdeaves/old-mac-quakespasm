@@ -1,8 +1,8 @@
-LOG started on: 05/06/2026 16:57:22 
+LOG started on: 05/06/2026 19:21:10 
 Playing registered version.
 Console initialized.
 UDP Initialized
-Exe: 16:00:30 May  6 2026
+Exe: 18:19:41 May  6 2026
 256.0 megabyte heap
 Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
@@ -33,27 +33,30 @@ execing default.cfg
 execing config.cfg
 execing autoexec.cfg
 Unknown command "vid_wait"
-Playing demo from demo3.dem.
+Playing demo from demo1.dem.
 3 demo(s) in loop
 
 
 
-The Door To Chthon
+the Necropolis
 Using protocol 15
 You got the shells
-You got the rockets
-You get 2 rockets  
-You receive 25 health
-You got the Rocket Launcher
+You got the Grenade Launcher
 You receive 25 health
 You get 2 rockets  
-You got armor
 You got the rockets
-You receive 100 health
+You got the nailgun
+You got the nails
+You got the nails
+You receive 15 health
+You receive 15 health
+You got the rockets
 You get 2 rockets  
 You got the nails
-You got the silver runekey
+You got the nails
+You receive 25 health
 
-        Your way has been lit...
+         You need the gold key
 
-1090 frames 212.6 seconds   5.1 fps
+You got the gold key
+969 frames  38.9 seconds  24.9 fps

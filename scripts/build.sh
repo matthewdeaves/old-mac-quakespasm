@@ -31,9 +31,11 @@ esac
 SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
 
 echo "[build] sync sources Ubuntu → $LION"
+# exclude prereqs/ (5 GB of installer DMGs; only used locally for setup)
+# and benchmarks/raw/ + build/ (output dirs that shouldn't bounce through Lion)
 rsync -av --partial --inplace --delete \
   --exclude='.git' --exclude='*.o' --exclude='*.d' \
-  --exclude='build/' --exclude='benchmarks/raw/' \
+  --exclude='build/' --exclude='benchmarks/' --exclude='prereqs/' \
   --exclude='quakespasm' --exclude='quakespasm-g3' --exclude='quakespasm-g4' \
   -e 'ssh -o ServerAliveInterval=15' \
   "$REPO_ROOT/" "$LION:quakespasm/" | tail -3
