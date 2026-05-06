@@ -90,9 +90,9 @@ void PL_ErrorDialog(const char *errorMsg)
     NSRunCriticalAlertPanel (@"Quake Error", @"%@", @"OK", nil, nil, msg);
 #else
     NSAlert *alert = [[[NSAlert alloc] init] autorelease];
-    alert.alertStyle = NSAlertStyleCritical;
-    alert.messageText = @"Quake Error";
-    alert.informativeText = msg;
+    [alert setAlertStyle: NSAlertStyleCritical];
+    [alert setMessageText: @"Quake Error"];
+    [alert setInformativeText: msg];
     [alert runModal];
 #endif
 }

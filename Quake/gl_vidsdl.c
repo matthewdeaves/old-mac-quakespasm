@@ -1379,13 +1379,17 @@ static void GL_Init (void)
 	GL_CheckExtensions (); //johnfitz
 
 #ifdef __APPLE__
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1040
 	// ericw -- enable multi-threaded OpenGL, gives a decent FPS boost.
 	// https://developer.apple.com/library/mac/technotes/tn2085/
+	// kCGLCEMPEngine is 10.4.8+; gate so 10.3 builds still compile.
+	// Single-core G3s are no-op anyway (numcpus check fails first).
 	if (host_parms->numcpus > 1 &&
 	    kCGLNoError != CGLEnable(CGLGetCurrentContext(), kCGLCEMPEngine))
 	{
 		Con_Warning ("Couldn't enable multi-threaded OpenGL");
 	}
+#endif
 #endif
 
 	//johnfitz -- intel video workarounds from Baker

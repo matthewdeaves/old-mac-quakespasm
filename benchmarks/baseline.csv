@@ -1,0 +1,2 @@
+commit,patches,machine,cpu_mhz,gpu,os,demo,res,run1_fps,run2_fps,run3_fps,median_fps,sdk,cpuflags,notes
+6baceeac,pl_osx+gl_vidsdl,g4,733,ATI Radeon 9000,10.4.11,demo1,640x480 windowed,125.1,128.2,126.0,127.1,MacOSX10.4u.sdk,-mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450,unmodified upstream + the two mandatory build patches; -nosound; vid_wait 0
