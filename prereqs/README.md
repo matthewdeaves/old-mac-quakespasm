@@ -21,9 +21,11 @@
 
 **Xcode 2.5 Developer Tools** (only used to extract the 10.3.9 SDK):
 
-- Apple Developer: <https://developer.apple.com/download/all/> search "Xcode 2.5"
-- archive.org mirror: <https://archive.org/details/XCode2.5> (file
-  `xcode25_8m2558_developerdvd.dmg`)
+- Apple Developer (free Apple ID required): <https://developer.apple.com/download/all/>
+  search "Xcode 2.5"
+- Direct authenticated link (same file): <https://download.developer.apple.com/Developer_Tools/xcode_2.5_developer_tools/xcode25_8m2558_developerdvd.dmg>
+- archive.org mirror (no Apple ID): <https://archive.org/details/XCode2.5>
+  (file `xcode25_8m2558_developerdvd.dmg`)
 
 **SDL 1.2.15 source** (to rebuild SDL.framework for Panther):
 
