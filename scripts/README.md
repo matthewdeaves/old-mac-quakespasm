@@ -19,6 +19,9 @@ scripts/bench.sh g4 demo1 1024x768
 
 # Run the full v2 baseline matrix (3 demos × 2 res × 3 runs each, both machines)
 scripts/full-bench.sh both
+
+# Same matrix, but G3 and G4 in parallel (≈ half the wall time)
+scripts/parallel-bench.sh
 ```
 
 Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw/`.
@@ -30,8 +33,24 @@ Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw
 | `build.sh <g3\|g4>` | rsync sources to Lion, compile, install_name fixup, fetch binary to `build/quakespasm-<target>` |
 | `deploy.sh <g3\|g4>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<HOST>:~/Desktop/quake/` |
 | `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv` |
-| `full-bench.sh [g3\|g4\|both]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs |
+| `full-bench.sh [g3\|g4\|both]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when `both`) |
+| `parallel-bench.sh [--keep-csv]` | same sweep on G3 + G4 concurrently; clears `results.csv` + `raw/` first unless `--keep-csv` |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
+
+## Parallel-safety notes
+
+`parallel-bench.sh` runs two `bench.sh` instances concurrently, one per machine.
+Two races to know about:
+
+- **CSV header init.** `bench.sh` creates the CSV with a header on first use.
+  Two parallel procs racing on a missing CSV could both write a header.
+  Worked around with bash `noclobber` (`set -C`, atomic `O_CREAT|O_EXCL`).
+- **CSV row appends.** `>>` is atomic on Linux/macOS for writes ≤ PIPE_BUF
+  (4 KB). Our rows are ~80 bytes, well under, so rows from the two machines
+  never interleave inside a line.
+
+Raw log filenames include the machine name (`<commit>_<g3|g4>_<demo>_<res>_runN.log`)
+so they never collide. SSH connections to the two hosts are independent.
 
 ## Bundle layout (what `deploy.sh` builds)
 

@@ -14,7 +14,8 @@ heredocs; invoke the scripts:
 scripts/build.sh <g3|g4>          cross-compile on Lion, fetch binary
 scripts/deploy.sh <g3|g4>         assemble Quakespasm.app, ship to target
 scripts/bench.sh <target> <demo> <WxH>   run timedemo, append to results.csv
-scripts/full-bench.sh [g3|g4|both]       full v2 matrix sweep
+scripts/full-bench.sh [g3|g4|both]       full v2 matrix sweep (sequential)
+scripts/parallel-bench.sh                same sweep, G3+G4 concurrently
 scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
 ```

@@ -33,10 +33,10 @@ RAW_DIR="$REPO_ROOT/benchmarks/raw"
 CSV="$REPO_ROOT/benchmarks/results.csv"
 mkdir -p "$RAW_DIR"
 
-# CSV header (initialize once)
-if [ ! -f "$CSV" ]; then
-  echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV"
-fi
+# CSV header (initialize once). Atomic via bash noclobber (`set -C` →
+# O_CREAT|O_EXCL), so two parallel bench.sh procs racing on a missing
+# CSV will result in exactly one header row.
+( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV" ) 2>/dev/null || true
 
 declare -a FPS
 for i in $(seq 1 $RUNS); do
