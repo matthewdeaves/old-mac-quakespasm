@@ -170,7 +170,11 @@ NSString *FQPrefScreenModeKey = @"ScreenMode";
     else
         [arguments addArgument:@"-window"];
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1040
+    NSString *path = [NSString stringWithCString:gArgv[0]];
+#else
     NSString *path = [NSString stringWithCString:gArgv[0] encoding:NSASCIIStringEncoding];
+#endif
     
     int i;
     for (i = 0; i < 4; i++)

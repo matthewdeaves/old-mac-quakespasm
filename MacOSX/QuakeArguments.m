@@ -21,6 +21,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #import "QuakeArguments.h"
 #import "QuakeArgument.h"
 
+/* stringWithCString:encoding: and cStringUsingEncoding: are 10.4+; on
+   Panther only the deprecated cString variants exist. */
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1040
+#define QSpasmStringFromCString(s)   [NSString stringWithCString:(s)]
+#define QSpasmCStringFromString(ns)  [(ns) cString]
+#else
+#define QSpasmStringFromCString(s)   [NSString stringWithCString:(s) encoding:NSASCIIStringEncoding]
+#define QSpasmCStringFromString(ns)  [(ns) cStringUsingEncoding:NSASCIIStringEncoding]
+#endif
+
 @implementation QuakeArguments
 
 - (id)init {
@@ -44,9 +54,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
     
     if (argc > 0) {
         for (i = 0; argv[i]; i++) {
-            current = [NSString stringWithCString:argv[i] encoding:NSASCIIStringEncoding];
+            current = QSpasmStringFromCString(argv[i]);
             if (i < argc-1) {
-                next = [NSString stringWithCString:argv[i+1] encoding:NSASCIIStringEncoding];
+                next = QSpasmStringFromCString(argv[i+1]);
             } else {
                 next = nil;
             }
@@ -187,10 +197,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
     QuakeArgument *argument;
     
     while ((argument = [enumerator nextObject])) {
-        args[i++] = (char *)[[argument name] cStringUsingEncoding:NSASCIIStringEncoding];
+        args[i++] = (char *)QSpasmCStringFromString([argument name]);
 
         if ([argument hasValue])
-            args[i++] = (char *)[[argument value] cStringUsingEncoding:NSASCIIStringEncoding];
+            args[i++] = (char *)QSpasmCStringFromString([argument value]);
     }
 }
 
