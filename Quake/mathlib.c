@@ -24,6 +24,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
+// PowerPC frsqrte: 5-bit hardware estimate of 1/sqrt(x), ~6 cycles vs
+// ~30 for a software sqrt. Two Newton-Raphson iterations refine to
+// ~22-bit float precision — well under the noise floor for any vector
+// magnitude or normalisation that Quake performs.
+static inline float Q_rsqrt_ppc (float x)
+{
+	double y;
+	__asm__ ("frsqrte %0,%1" : "=f" (y) : "f" ((double) x));
+	y = 0.5 * y * (3.0 - x * y * y);
+	y = 0.5 * y * (3.0 - x * y * y);
+	return (float) y;
+}
+#endif
+
 vec3_t vec3_origin = {0,0,0};
 
 /*-----------------------------------------------------------------*/
@@ -275,13 +290,36 @@ void CrossProduct (vec3_t v1, vec3_t v2, vec3_t cross)
 
 vec_t VectorLength(vec3_t v)
 {
+#if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
+	float d = DotProduct(v,v);
+	if (d > 0.0f)
+		return d * Q_rsqrt_ppc(d);	// length = d * (1/sqrt(d))
+	return 0.0f;
+#else
 	return sqrt(DotProduct(v,v));
+#endif
 }
 
 float VectorNormalize (vec3_t v)
 {
 	float	length, ilength;
 
+#if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
+	float d = DotProduct(v,v);
+	if (d > 0.0f)
+	{
+		ilength = Q_rsqrt_ppc(d);
+		length = d * ilength;
+		v[0] *= ilength;
+		v[1] *= ilength;
+		v[2] *= ilength;
+	}
+	else
+	{
+		length = 0.0f;
+	}
+	return length;
+#else
 	length = sqrt(DotProduct(v,v));
 
 	if (length)
@@ -293,6 +331,7 @@ float VectorNormalize (vec3_t v)
 	}
 
 	return length;
+#endif
 }
 
 void VectorInverse (vec3_t v)

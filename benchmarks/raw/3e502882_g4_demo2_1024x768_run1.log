@@ -1,8 +1,8 @@
-LOG started on: 05/06/2026 19:15:44 
+LOG started on: 05/06/2026 19:50:21 
 Playing registered version.
 Console initialized.
 UDP Initialized
-Exe: 18:19:22 May  6 2026
+Exe: 19:48:41 May  6 2026
 256.0 megabyte heap
 Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
@@ -35,30 +35,34 @@ execing default.cfg
 execing config.cfg
 execing autoexec.cfg
 Unknown command "vid_wait"
-Playing demo from demo1.dem.
+Playing demo from demo2.dem.
 3 demo(s) in loop
 
 
 
-the Necropolis
+the Grisly Grotto
 Using protocol 15
 You got the shells
-You got the Grenade Launcher
-You receive 25 health
-You get 2 rockets  
-You got the rockets
-You got the nailgun
-You got the nails
-You got the nails
-You receive 15 health
-You receive 15 health
-You got the rockets
-You get 2 rockets  
-You got the nails
-You got the nails
-You receive 25 health
 
-         You need the gold key
+          Only 1 more to go...
 
-You got the gold key
-969 frames   8.9 seconds 109.3 fps
+
+          Sequence completed!
+
+
+        You found a secret area!
+
+You got the shells
+You got the nails
+You got armor
+You got the nails
+You receive 25 health
+You got the Super Nailgun
+You got the nails
+You get 2 rockets  
+You receive 25 health
+You got the shells
+You get 2 rockets  
+You got the nails
+You get 2 rockets  
+985 frames   9.1 seconds 108.2 fps
