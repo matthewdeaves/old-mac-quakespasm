@@ -79,29 +79,128 @@ Lion never touches git — receives sources, produces binary, hands binary back.
 - Capture `qconsole.log` via `-condebug`. Tag every result with `(commit-hash, machine, demo)`.
 - **NO source changes until clean baseline numbers exist on both G3 and G4 from unmodified upstream.**
 
-## Optimization List
+## GL Capability Audit (from v2 baseline raw logs)
 
-### G4-only (require AltiVec)
+`benchmarks/raw/*_run1.log` captures the full startup banner. Side-by-side:
 
-1. ~~AltiVec the 8→32 palette blit (software renderer hot path)~~ — **dropped**, no software renderer.
-2. AltiVec sound mixer inner loops:
-   - `SND_PaintChannelFrom8` — `Quake/snd_mix.c:472`
-   - `SND_PaintChannelFrom16` — `Quake/snd_mix.c:498`
-3. AltiVec mathlib batch ops (vertex transforms in bulk).
+| Capability | G4 (Radeon 9000) | G3 (Rage 128) | Notes |
+|---|---|---|---|
+| GL_VERSION | 1.3 ATI-1.4.18 | 1.1 ATI-1.3.0 | G3 driver is 7+ years older |
+| GL_MAX_TEXTURE_UNITS | 6 | 2 | both enough for single-pass lightmap MT |
+| ARB_multitexture | ✓ | ✓ | already wired up (`gl_vidsdl.c:1030`) |
+| ARB_texture_env_combine/add | ✓ | ✓ | full MT pipeline available |
+| EXT_texture_filter_anisotropic | ✓ | ✗ | G3 stuck on bilinear |
+| ARB_vertex_buffer_object | ✗ (need GL 1.5) | ✗ | both stuck immediate-mode |
+| GLSL (need GL 2.0) | ✗ | ✗ | "Fitz renderer" used; alias-model GLSL path off |
+| glGenerateMipmap (GL 3.0) | ✗ | ✗ | liquids no mipmap → distance shimmer |
+| EXT_packed_pixels | disabled (BE) | disabled (BE) | QuakeSpasm policy on PPC |
+| texture_non_power_of_two | ✗ | ✗ | engine internally rescales |
 
-### G3 + G4 (universal PPC)
+Five warnings on both, six on G3 (anisotropy missing). Three are actionable:
 
-4. `frsqrte`-based normalize. Replaces `sqrt` in `VectorLength` (`Quake/mathlib.c:276`) and `VectorNormalize` (`Quake/mathlib.c:281`). `frsqrte` is base PowerPC since 601, ~6 cycles vs ~30 for `sqrt`.
-5. Audit any remaining immediate-mode `glBegin/glEnd` paths and convert to vertex arrays.
-6. Multitexture lightmaps (single pass instead of double pass). Rage 128 supports exactly 2 texture units, which is enough.
-7. ~~Cache-friendly inner loops in software renderer~~ — **dropped**, no software renderer.
-8. ~~Unrolled scalar palette blit~~ — **dropped**, no software renderer.
-9. **Reversed**: tune hunk/zone sizes *down* for the G3 (leave G4 at defaults). Default heap 256 MB; B&W G3 with limited RAM probably wants less.
-10. ~~Verify renderer doesn't assume SSE~~ — **done**, confirmed nothing to patch.
+- **glGenerateMipmap missing** — visual. Fix via `SGIS_generate_mipmap` extension fallback (available on both GPUs). Auto-generates mip chain on `TexImage2D`.
+- **VBOs unavailable** — perf. Fix via `EXT_compiled_vertex_array` (`glLockArraysEXT` / `glUnlockArraysEXT`). Pre-VBO vertex caching, supported by basically every GL 1.1+ driver.
+- **EXT_packed_pixels disabled on BE** — perf. Defensive disable; investigate enabling for lightmap re-upload (every frame for moving lights). Risk: if Apple's PPC drivers misread BE order we get colour-channel swap.
 
-### Candidate not in original list
+Multitexture single-pass lightmaps are **already implemented** in QuakeSpasm (`gl_vidsdl.c:1030`, `r_world.c:440`); previous plan item #6 is moot.
 
-- `TexMgr_LoadImage8` 8→32 expansion at level load (`Quake/gl_texmgr.c`). CPU-bound now that disks are fast. AltiVec on G4 / unrolled scalar on G3. Affects load times, not framerate.
+## Optimization Plan (post-baseline, v2)
+
+Stratified by cost. Per-machine impact informed by baseline regime:
+
+- **G3 1024×768**: GPU fillrate-bound (3× speedup at 640 confirms it)
+- **G3 640×480**:  CPU-bound
+- **G4 1024×768**: ~50/50 GPU/CPU
+- **G4 640×480**:  CPU-bound (the ceiling)
+
+### Phase 0 — cvar tuning (free, no rebuild)
+
+Goes in an `autoexec.cfg` next to `pak0.pak`. Per-target since defaults differ.
+
+| cvar | G3 | G4 | rationale |
+|---|---|---|---|
+| `r_oldwater` | **1** | 0 | G3 1024 has blue-water bug from the screen-copy refraction pass; classic warp dodges the copy entirely. G4's Radeon 9000 handles the refraction cleanly — keep new water. |
+| `gl_texture_anisotropy` | n/a | **8** | G3 has no aniso extension. G4 max is usually 16; 8× is the diminishing-returns sweet spot. |
+| `r_particles` | **2** | 1 | G3 force-classic (square) particles to cut overdraw on demo3. G4 has the headroom for round (default). |
+| `r_dynamic` | 1 | 1 | dynamic lights are part of the look; keep on |
+
+### Phase 1 — shared source patches (G3 + G4)
+
+Ordered by expected impact, biggest first. Each applies to both binaries.
+
+**1. `EXT_compiled_vertex_array` support** — `Quake/gl_vidsdl.c`, `Quake/r_world.c`, `Quake/r_alias.c`
+   - QuakeSpasm builds vertex arrays per-frame and submits via `glDrawArrays`
+   - Wrapping the array setup in `glLockArraysEXT`/`glUnlockArraysEXT` lets the driver cache transformed/lit vertices across draw calls
+   - **Biggest win on G3 640** (CPU-bound, immediate mode is the bottleneck) — projected +20-40%
+   - Smaller win on G4 (CPU-bound at 640 too, but less dominant) — projected +5-15%
+   - No effect on G3 1024 (fillrate-bound, vertex submission isn't the wall)
+
+**2. `frsqrte` VectorLength + VectorNormalize** — `Quake/mathlib.c:276,281`
+   - PowerPC 601+ instruction; ~6 cycles vs ~30 for `sqrt`
+   - One `frsqrte` + one Newton-Raphson refinement = 2-3 fp ops vs library `sqrt`
+   - Benefits both uniformly. Most-called from rendering and physics
+   - **Projected +2-5% in CPU-bound regimes (G3 640, G4 both)**
+
+**3. `SGIS_generate_mipmap` for liquids** — `Quake/gl_texmgr.c`
+   - Set `GL_GENERATE_MIPMAP_SGIS = GL_TRUE` before liquid `TexImage2D` calls
+   - Both ATI drivers expose this (it's older than GL 1.4)
+   - **Visual quality only** — eliminates water/lava/slime shimmer at distance
+   - One-shot cost at texture load; per-frame cost zero
+
+**4. `EXT_packed_pixels` re-enable on PPC (with verification)** — `Quake/gl_texmgr.c`, lightmap upload
+   - Currently QuakeSpasm forces `EXT_packed_pixels` off on big-endian
+   - Lightmaps re-upload every frame for moving lights; packed format would halve bandwidth
+   - **Verify carefully**: build a test pattern, compare on-screen colours vs G4 Mesa reference
+   - Roll back if anything is colour-shifted
+
+### Phase 2 — G4-only AltiVec
+
+Phase 1 of build strategy keeps G3/G4 binaries separate; runtime dispatch comes later (Phase 3 of build strategy).
+
+**5. AltiVec mathlib batch ops** — `Quake/mathlib.c`
+   - `vec_re` (reciprocal estimate), `vec_rsqrte` (inverse sqrt) — already 4-wide hardware
+   - Vectorized dot product, cross product, 4-vert transform batches
+   - **Projected +5-10% in CPU-bound regimes (G4 640)**
+
+**6. AltiVec sound mixer** — `Quake/snd_mix.c:472,498`
+   - `SND_PaintChannelFrom8` / `SND_PaintChannelFrom16` inner loops
+   - Bench is `-nosound` so won't move the timedemo numbers, but matters at runtime
+   - **Frees ~3-5% CPU during gameplay with sound on**
+
+### Phase 3 — experimental / nice-to-have
+
+**7. Texture compression on Radeon 9000** (G4-only) — `Quake/gl_texmgr.c`
+   - `ARB_texture_compression` + `EXT_texture_compression_s3tc` for DXT1/DXT5
+   - Halves VRAM, may help fillrate at 1024
+   - Confirm Rage 128 doesn't expose these (otherwise turn on for both)
+
+**8. `TexMgr_LoadImage8` 8→32 expansion** — `Quake/gl_texmgr.c`
+   - One-shot at level load. AltiVec on G4, unrolled scalar on G3
+   - Affects load time, not framerate. Lower priority.
+
+**9. Heap-size tuning** — `-heapsize` arg
+   - G4 has 1 GB RAM, G3 has 896 MB. Default 256 MB is fine for both.
+   - Bumping G4 to 512 MB might keep more textures cached across map changes; doesn't move timedemo numbers.
+
+### Won't-do (already verified or unreachable)
+
+- **GLSL anything** — both machines < GL 2.0, hardware can't reach
+- **VBOs** — both < GL 1.5; Phase 1.1 CVAs are the substitute
+- **Anisotropic filtering on G3** — Rage 128 driver doesn't expose extension
+- **glGenerateMipmap** — GL 3.0; Phase 1.3 SGIS replacement covers it
+- **Multitexture lightmaps** — already done in upstream
+- **Heap shrink for G3** — 896 MB RAM is plenty; 256 MB heap doesn't push swap
+
+## Methodology — proving each item helps
+
+For every Phase 1+ patch:
+1. Build with **only that patch** on top of `f14a7427` baseline (no overlap)
+2. `scripts/parallel-bench.sh --quick` → 12 rows in 3-4 min
+3. Compare median vs the equivalent row in `benchmarks/results.csv` (commit `4c165e6f`)
+4. Threshold: ≥1 fps improvement on G4 (run-to-run noise was 0.1-2 fps); any improvement on G3 (variance was zero)
+5. If positive: run full `parallel-bench.sh` (no flag) for the per-demo breakdown
+6. Commit with the bench numbers in the message
+7. Update `benchmarks/results.csv` with a new commit-tagged row set
 
 ## Compile Flags Per CPU
 
