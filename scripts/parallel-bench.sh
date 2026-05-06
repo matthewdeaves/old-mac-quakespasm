@@ -2,9 +2,13 @@
 # Run the v2 baseline matrix on G3 and G4 concurrently.
 # Cuts wall time roughly in half versus full-bench.sh both (which is sequential).
 #
-# usage: scripts/parallel-bench.sh [--keep-csv]
-#   default: clears benchmarks/raw/ and benchmarks/results.csv before running
+# usage: scripts/parallel-bench.sh [--keep-csv] [--quick]
+#   default:    clears benchmarks/raw/ and benchmarks/results.csv before running
 #   --keep-csv: preserves existing results.csv (appends new rows instead)
+#   --quick:    demo1 only × both res × 3 runs (forwarded to full-bench.sh)
+#
+# env vars (DEMOS / RESES / RUNS) are forwarded to full-bench.sh — see that
+# script for the full set of overrides.
 #
 # pre: bundles deployed to both targets (scripts/deploy.sh g3 && scripts/deploy.sh g4)
 #
@@ -19,9 +23,15 @@
 set -euo pipefail
 
 KEEP_CSV=0
-if [ "${1:-}" = "--keep-csv" ]; then
-  KEEP_CSV=1
-fi
+PASSTHRU=()  # extra flags forwarded to each full-bench.sh invocation (--quick etc)
+for arg in "$@"; do
+  case "$arg" in
+    --keep-csv) KEEP_CSV=1 ;;
+    --quick)    PASSTHRU+=("$arg") ;;
+    -h|--help)  sed -n '2,11p' "$0"; exit 0 ;;
+    *) echo "unknown arg: $arg" >&2; exit 2 ;;
+  esac
+done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CSV="$REPO_ROOT/benchmarks/results.csv"
@@ -53,9 +63,9 @@ echo "[parallel-bench] start: $(date)"
 echo "[parallel-bench] G4 log: $G4_LOG"
 echo "[parallel-bench] G3 log: $G3_LOG"
 
-"$REPO_ROOT/scripts/full-bench.sh" g4 > "$G4_LOG" 2>&1 &
+"$REPO_ROOT/scripts/full-bench.sh" g4 "${PASSTHRU[@]}" > "$G4_LOG" 2>&1 &
 PID_G4=$!
-"$REPO_ROOT/scripts/full-bench.sh" g3 > "$G3_LOG" 2>&1 &
+"$REPO_ROOT/scripts/full-bench.sh" g3 "${PASSTHRU[@]}" > "$G3_LOG" 2>&1 &
 PID_G3=$!
 
 echo "[parallel-bench] g4 pid=$PID_G4, g3 pid=$PID_G3"

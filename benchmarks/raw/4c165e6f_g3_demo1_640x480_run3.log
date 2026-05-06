@@ -1,0 +1,62 @@
+LOG started on: 05/06/2026 17:19:07 
+Playing registered version.
+Console initialized.
+UDP Initialized
+Exe: 16:00:30 May  6 2026
+256.0 megabyte heap
+Video mode 640x480x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: ATI Technologies Inc.
+GL_RENDERER: ATI Rage 128 OpenGL Engine
+GL_VERSION: 1.1 ATI-1.3.0
+Warning: OpenGL version < 1.5, skipping ARB_vertex_buffer_object check
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 2
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SWAP_CONTROL
+Warning: texture_filter_anisotropic not supported
+Warning: texture_non_power_of_two not supported
+Warning: OpenGL version < 2, GLSL not available
+Warning: GLSL gamma not available, using hardware gamma
+Warning: GLSL alias model rendering not available, using Fitz renderer
+Warning: EXT_packed_pixels disabled on big endian systemsWarning: glGenerateMipmap not available, liquids won't have mipmaps
+Couldn't init SDL cdrom: SDL not built with cdrom support
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '.'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Unknown command "vid_wait"
+Playing demo from demo1.dem.
+3 demo(s) in loop
+
+
+
+the Necropolis
+Using protocol 15
+You got the shells
+You got the Grenade Launcher
+You receive 25 health
+You get 2 rockets  
+You got the rockets
+You got the nailgun
+You got the nails
+You got the nails
+You receive 15 health
+You receive 15 health
+You got the rockets
+You get 2 rockets  
+You got the nails
+You got the nails
+You receive 25 health
+
+         You need the gold key
+
+You got the gold key
+969 frames  40.6 seconds  23.9 fps

@@ -42,6 +42,11 @@ declare -a FPS
 for i in $(seq 1 $RUNS); do
   echo "[bench $TARGET $DEMO $RES] run $i/$RUNS"
   # Belt-and-suspenders: pkill any stale quakespasm before each run.
+  # Poll granularity: 0.2s (max 5 polls/sec). Detection latency cap = 0.2s.
+  # On match: SIGKILL immediately — the log is already on disk because Quake's
+  # qconsole.log uses raw write() (no stdio buffering, see Quake/console.c:473).
+  # No SIGTERM grace needed.
+  POLLS=$((TIMEOUT * 5))
   ssh "$HOST" "killall -KILL quakespasm 2>/dev/null; sleep 1; cd ~/Desktop/quake && rm -f qconsole.log && \
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
       -fullscreen -width $W -height $H \
@@ -49,13 +54,10 @@ for i in $(seq 1 $RUNS); do
       +timedemo $DEMO > /dev/null 2>&1 &
     PID=\$!
     j=0
-    while [ \$j -lt $TIMEOUT ]; do
+    while [ \$j -lt $POLLS ]; do
       if [ -f qconsole.log ] && grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
-      sleep 1; j=\$((j+1))
+      sleep 0.2; j=\$((j+1))
     done
-    # SIGTERM, give it 2s to flush the log, then SIGKILL the process tree.
-    kill -TERM \$PID 2>/dev/null
-    sleep 2
     killall -KILL quakespasm 2>/dev/null
     wait \$PID 2>/dev/null
     true" 2>&1 | grep -v "^$" | tail -3 || true
@@ -67,12 +69,20 @@ for i in $(seq 1 $RUNS); do
   echo "  -> ${FPS_VAL:-NA} fps"
 done
 
-# Median of runs 2+3 (or last run if RUNS<3)
+# Median rule:
+#   RUNS>=3: mean(run2, run3)        — drops the cold/warmup run 1
+#   RUNS==2: mean(run1, run2)        — both kept (warmup bias is noise at this scale)
+#   RUNS==1: run1
 if [ "$RUNS" -ge 3 ] && [ "${FPS[1]:-NA}" != "NA" ] && [ "${FPS[2]:-NA}" != "NA" ]; then
   MEDIAN=$(awk -v a="${FPS[1]}" -v b="${FPS[2]}" 'BEGIN{printf "%.2f", (a+b)/2}')
+  MEDIAN_LABEL="median(run2,run3)"
+elif [ "$RUNS" -eq 2 ] && [ "${FPS[0]:-NA}" != "NA" ] && [ "${FPS[1]:-NA}" != "NA" ]; then
+  MEDIAN=$(awk -v a="${FPS[0]}" -v b="${FPS[1]}" 'BEGIN{printf "%.2f", (a+b)/2}')
+  MEDIAN_LABEL="mean(run1,run2)"
 else
   MEDIAN="${FPS[$((RUNS-1))]:-NA}"
+  MEDIAN_LABEL="run${RUNS}"
 fi
 
 echo "$TS,$COMMIT,$TARGET,$DEMO,$RES,${FPS[0]:-NA},${FPS[1]:-NA},${FPS[2]:-NA},$MEDIAN" >> "$CSV"
-echo "[bench] median(run2,run3) = $MEDIAN fps  →  $CSV"
+echo "[bench] $MEDIAN_LABEL = $MEDIAN fps  →  $CSV"

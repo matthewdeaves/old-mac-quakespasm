@@ -22,6 +22,12 @@ scripts/full-bench.sh both
 
 # Same matrix, but G3 and G4 in parallel (≈ half the wall time)
 scripts/parallel-bench.sh
+
+# Quick iteration loop: demo1 only at both res, both machines in parallel (~3-4 min)
+scripts/parallel-bench.sh --quick
+
+# Custom subsets via env vars
+DEMOS=demo1 RESES=640x480 RUNS=2 scripts/full-bench.sh g4
 ```
 
 Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw/`.
@@ -33,8 +39,8 @@ Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw
 | `build.sh <g3\|g4>` | rsync sources to Lion, compile, install_name fixup, fetch binary to `build/quakespasm-<target>` |
 | `deploy.sh <g3\|g4>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<HOST>:~/Desktop/quake/` |
 | `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv` |
-| `full-bench.sh [g3\|g4\|both]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when `both`) |
-| `parallel-bench.sh [--keep-csv]` | same sweep on G3 + G4 concurrently; clears `results.csv` + `raw/` first unless `--keep-csv` |
+| `full-bench.sh [g3\|g4\|both] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when `both`); `--quick` = demo1 only |
+| `parallel-bench.sh [--keep-csv] [--quick]` | same sweep on G3 + G4 concurrently; clears `results.csv` + `raw/` first unless `--keep-csv` |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
 
 ## Parallel-safety notes
