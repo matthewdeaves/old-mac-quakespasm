@@ -1,0 +1,63 @@
+# scripts/ — PPC build, deploy, bench tooling
+
+Three-host workflow: edit on Ubuntu → cross-compile on Lion → run on G3/G4.
+SSH config aliases (`lion`, `g4`, `PowerMacG3`) are expected in `~/.ssh/config`.
+
+## Quick start
+
+```bash
+# Build PPC binaries on Lion
+scripts/build.sh g3
+scripts/build.sh g4
+
+# Deploy to PPC machines (assemble Quakespasm.app + ship)
+scripts/deploy.sh g3
+scripts/deploy.sh g4
+
+# Run a single bench
+scripts/bench.sh g4 demo1 1024x768
+
+# Run the full v2 baseline matrix (3 demos × 2 res × 3 runs each, both machines)
+scripts/full-bench.sh both
+```
+
+Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw/`.
+
+## Scripts
+
+| script | purpose |
+|---|---|
+| `build.sh <g3\|g4>` | rsync sources to Lion, compile, install_name fixup, fetch binary to `build/quakespasm-<target>` |
+| `deploy.sh <g3\|g4>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<HOST>:~/Desktop/quake/` |
+| `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv` |
+| `full-bench.sh [g3\|g4\|both]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs |
+| `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
+
+## Bundle layout (what `deploy.sh` builds)
+
+```
+Quakespasm.app/
+  Contents/
+    Info.plist             scripts/bundle/Info.plist
+    MacOS/
+      quakespasm           build/quakespasm-<target>
+      lib*.dylib           MacOSX/codecs/lib/*.dylib (10 codec libs)
+      SDL.framework/       MacOSX/SDL.framework + (G3 only) SDL-panther.dylib swapped in
+    Resources/
+      QuakeSpasm.icns      MacOSX/QuakeSpasm.icns
+      English.lproj/       MacOSX/English.lproj (Launcher.nib + InfoPlist.strings)
+```
+
+The G3 needs a 10.3-targeted SDL because `MacOSX/SDL.framework` was built against
+the 10.6 SDK and crashes inside `SDL_VideoInit` on Panther. `MacOSX/SDL-panther.dylib`
+is a PPC-only build of SDL 1.2.15 (built on Lion against the 10.3.9 SDK) that
+deploy.sh swaps into the framework's `Versions/A/SDL` slot for G3 deployments only.
+
+## Why all the SSH knob-twiddling
+
+Lion's OpenSSH 5.6 and Panther's older one don't speak modern algorithms. The
+SSH config entries pin the legacy crypto. The `bench.sh` and `deploy.sh` scripts
+inherit that — no inline `-o` flags needed.
+
+For G3 specifically, rsync runs in `--protocol=29` mode because Panther ships
+rsync 2.5.x.

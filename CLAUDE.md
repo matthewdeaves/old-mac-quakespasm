@@ -5,6 +5,29 @@ that's expensive to re-derive. **The full plan lives in `PPC_PLAN.md`** — read
 that for hardware inventory, decisions, the bench script, optimization list,
 etc. This file is just the sticky facts.
 
+## Tooling — DON'T reinvent these inline
+
+The full build/deploy/bench loop is scripted. Don't write inline ssh+make
+heredocs; invoke the scripts:
+
+```
+scripts/build.sh <g3|g4>          cross-compile on Lion, fetch binary
+scripts/deploy.sh <g3|g4>         assemble Quakespasm.app, ship to target
+scripts/bench.sh <target> <demo> <WxH>   run timedemo, append to results.csv
+scripts/full-bench.sh [g3|g4|both]       full v2 matrix sweep
+scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
+scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
+```
+
+There's also a `ppc-ops` skill (`.claude/skills/ppc-ops/SKILL.md`) and
+`/bench` + `/deploy` slash commands that wrap these. See
+`scripts/README.md` for the full contract.
+
+`prereqs/` contains vendored installers (Xcode 3.2.6 DMG, Xcode 2.5 DMG
+for the 10.3.9 SDK only, SDL 1.2.15 source) so the project remains
+self-buildable if Apple's archive ever goes dark. Total ~5 GB; do not
+push to a free GitHub remote without git-lfs.
+
 ## Goal in one line
 
 Optimize QuakeSpasm framerate + visual quality on PowerPC Macs (G3 Panther +
@@ -50,10 +73,53 @@ Per-target flags (full set, including the `-isysroot` and version-min):
 Cosmetic linker warnings about `-mlong-branch` from Apple's `crt1.o`/`crt2.o`
 are harmless. Suppress with `-Wl,-w` if noisy.
 
+## SDL.framework on Panther needs a custom build
+
+The bundled `MacOSX/SDL.framework` is built against the 10.6 SDK and
+**crashes on Panther** inside `SDL_VideoInit + 608` (jumps to invalid
+address — calls a Quartz API that doesn't exist on 10.3). For G3
+deployments we ship `MacOSX/SDL-panther.dylib` — a PPC-only SDL 1.2.15
+built on Lion against the 10.3.9 SDK with `--disable-video-x11
+--disable-altivec --disable-cdrom`. `scripts/deploy.sh g3` automatically
+swaps it into the framework's `Versions/A/SDL` slot. G4 (Tiger) runs
+the bundled SDL fine.
+
+The bundled SDL also presents a version mismatch on G4 even when it
+loads: the system `/Library/Frameworks/SDL.framework` (if present from
+Fruitz of Dojo) is 1.2.7, too old for our binary (linked against
+current_version=12.5.0). We always ship our own SDL alongside the
+binary, never rely on the system one.
+
+## Tiger/Panther Cocoa requires a real .app bundle
+
+Bare-binary launch via SSH fails with `"No Info.plist file in application
+bundle or no NSPrincipalClass in the Info.plist file"`. After fixing
+that, you also need `NSMainNibFile=Launcher` referencing the compiled
+`MacOSX/English.lproj/Launcher.nib/`. Required Info.plist keys:
+
+```
+CFBundleExecutable=quakespasm
+NSPrincipalClass=SDLApplication
+NSMainNibFile=Launcher
+CFBundleIconFile=QuakeSpasm
+CFBundlePackageType=APPL
+```
+
+Pass `-nolauncher` in args (handled in `MacOSX/AppController.m:135`) to
+skip the launcher GUI window and go straight to the game. `bench.sh`
+passes this automatically.
+
+## Killing the engine reliably
+
+QuakeSpasm spawns SDL/CoreAudio threads that don't always respond to
+SIGTERM. Use `killall -KILL quakespasm` after a brief SIGTERM grace
+period. **Don't use `pkill`** — Tiger and Panther don't have it.
+`bench.sh` does this dance automatically.
+
 ## Required patches for our target build (already applied in working tree)
 
-These are minimum patches needed to compile cleanly with gcc-4.0 + 10.3.9
-SDK. Both kept local; not upstream-able without sniff macros.
+Four patches needed for clean compile + runtime on G3 Panther + G4 Tiger.
+All committed; not upstream-able without sniff macros.
 
 **1. `Quake/pl_osx.m:92-95`** — replace Obj-C 2.0 dot-notation (gcc-4.0 can't
 parse it) with traditional setter calls:
@@ -64,7 +130,16 @@ parse it) with traditional setter calls:
 [alert setInformativeText: msg];
 ```
 
-**2. `Quake/gl_vidsdl.c:1381–1390`** — wrap the multi-threaded OpenGL block
+**2. `MacOSX/QuakeArguments.m`** — wrap `[NSString stringWithCString:encoding:]`
+and `[NSString cStringUsingEncoding:]` (10.4+ APIs) in
+`QSpasmStringFromCString` / `QSpasmCStringFromString` macros that route
+to the deprecated `cString` / `stringWithCString:` variants on Panther.
+Without this the binary crashes inside `[QuakeArguments init]` with
+"unrecognized selector" when targeting 10.3.
+
+**3. `MacOSX/AppController.m`** — same NSString-encoding fix at line 173.
+
+**4. `Quake/gl_vidsdl.c:1381–1390`** — wrap the multi-threaded OpenGL block
 in `#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1040`. `kCGLCEMPEngine` is 10.4.8+
 and doesn't exist in the 10.3.9 SDK headers. B&W G3 is single-core so the
 runtime check would skip the call anyway:

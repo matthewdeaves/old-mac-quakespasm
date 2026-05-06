@@ -209,29 +209,29 @@ make
 # Then build the framework bundle (Xcode/SDL.xcodeproj works) and replace MacOSX/SDL.framework.
 ```
 
-## Path to Baseline (resume here)
+## Status (as of 2026-05-06)
 
-**Status check:**
+**Build infrastructure: complete.**
 
-- ✅ Xcode 3.2.6 + 10.4u SDK + 10.5 SDK + 10.3.9 SDK installed on Lion (`/Developer/SDKs/`). PPC `hi.c` smoke-tests pass for all three SDKs.
-- ✅ SSH alias `lion` in `~/.ssh/config`, key auth verified (`id_rsa_tiger`).
-- ✅ SSH alias `PowerMacG3` in `~/.ssh/config` (pre-existing). Key auth status pending — need G3 powered on to verify.
-- ❌ G4 not in `~/.ssh/config` yet, no key bootstrap.
-- ✅ `pl_osx.m:92-95` setter-syntax patch applied.
-- ✅ `gl_vidsdl.c:1381-1390` `kCGLCEMPEngine` version-gate applied (discovered during first G3 build).
-- ✅ G4 binary builds cleanly (`Mach-O executable ppc`, 726 KB, 10.4u SDK, mcpu=7400 +AltiVec, all codecs).
-- ✅ G3 binary builds cleanly (`Mach-O executable ppc`, 726 KB, 10.3.9 SDK, mcpu=750, all codecs).
-- ✅ G4 binary verified on real hardware (G4 733 MHz / Radeon 9000 / 10.4.11). Runs cleanly.
-- ❌ G3 binary not tested (Panther machine still off).
-- ✅ G4 baseline captured: demo1 = 127.1 fps median (`benchmarks/baseline.csv`, commit 6baceeac + 2 build patches).
-- ❌ G3 baseline not captured.
-- ❓ Bundled SDL.framework 1.2.16 built against 10.6 SDK — G4 needed our shipped copy (system SDL was 1.2.7, too old). Same will apply on G3. Whether our 10.6-SDK-built framework loads on Panther is the contingency to watch for.
+- ✅ Lion build host fully provisioned (Xcode 3.2.6 + 10.3.9/10.4u/10.5 SDKs)
+- ✅ All four PPC patches applied + committed (`pl_osx.m`, `gl_vidsdl.c`, `QuakeArguments.m`, `AppController.m`)
+- ✅ SDL.framework rebuilt for Panther (`MacOSX/SDL-panther.dylib`, ppc-only, 10.3 target)
+- ✅ SSH aliases for `lion`, `g4`, `PowerMacG3` (legacy crypto)
+- ✅ Both binaries build cleanly: `quakespasm-g4` (10.4u + AltiVec), `quakespasm-g3` (10.3.9, no AltiVec)
+- ✅ Both binaries verified running on real hardware
+- ✅ Tooling: `scripts/{build,deploy,bench,full-bench,setup-lion,parse_qconsole.py}` + `.claude/{commands,skills}/`
+- ✅ Vendored prereqs: `prereqs/` with the Xcode 3.2.6 DMG, Xcode 2.5 DMG, SDL 1.2.15 source
 
-Outstanding before first baseline run:
+**v1 baseline: captured (640x480 windowed, demo1 only).**
 
-- G3 + G4 powered on.
-- Asset paths known on G3 and G4 (e.g. `~/quake/id1/pak0.pak`?).
-- Hostnames known. Plan assumes `lion`, `PowerMacG3`, and a future G4 alias — adjust as needed.
+- G4 733 MHz / Radeon 9000 / 10.4.11: **127.1 fps median**
+- G3 449 MHz / Rage 128   / 10.3:     **19.35 fps median**
+- ratio ≈ 6.6×
+
+**v2 baseline: in progress.**
+
+- 1024x768 fullscreen + 640x480 fullscreen, demo1+demo2+demo3, 3 runs each
+- See `benchmarks/results.csv` for results, `benchmarks/raw/` for raw logs
 
 Bench script — drop in `~/bin/bench.sh` on Ubuntu, `chmod +x`:
 

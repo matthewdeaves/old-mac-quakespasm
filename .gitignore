@@ -1,0 +1,20 @@
+# Build artifacts (produced by scripts/build.sh)
+/build/
+
+# Vendored installers (~5 GB) — not in git. README.md inside is committed
+# and lists download URLs + checksums; setup-lion.sh expects these locally.
+/prereqs/*
+!/prereqs/README.md
+
+# Make outputs from in-tree builds
+Quake/*.o
+Quake/*.d
+Quake/quakespasm
+Quake/quakespasm.x86
+Quake/quakespasm.x86_64
+Quake/quakespasm.ppc
+
+# Editor crud
+.DS_Store
+*.swp
+*~
