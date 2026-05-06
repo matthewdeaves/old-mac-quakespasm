@@ -184,6 +184,14 @@ extern PFNGLGENBUFFERSARBPROC  GL_GenBuffersFunc;
 extern	qboolean	gl_vbo_able;
 //ericw
 
+// PPC port -- EXT_compiled_vertex_array (CVA).
+// 10.3.9 / 10.4 SDK headers don't define these typedefs; provide our own.
+typedef void (APIENTRYP QS_PFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
+typedef void (APIENTRYP QS_PFNGLUNLOCKARRAYSEXTPROC) (void);
+extern QS_PFNGLLOCKARRAYSEXTPROC    GL_LockArraysEXTFunc;
+extern QS_PFNGLUNLOCKARRAYSEXTPROC  GL_UnlockArraysEXTFunc;
+extern	qboolean	gl_cva_able;
+
 //ericw -- GLSL
 
 // SDL 1.2 has a bug where it doesn't provide these typedefs on OS X!

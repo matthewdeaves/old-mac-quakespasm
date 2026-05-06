@@ -189,35 +189,44 @@ void GL_SubdivideSurface (msurface_t *fa)
 /*
 ================
 DrawWaterPoly -- johnfitz
+PPC port -- client vertex arrays. Texcoords mutate per draw (WARPCALC),
+so we can't point GL at glpoly_t::verts directly the way DrawGLPoly does.
+Use a per-call C99 VLA so the warp scratch always tracks p->numverts —
+gl_subdivide_size is a user-tunable cvar with no hard cap, and dropping
+a draw to fit a fixed buffer would leave visible holes in water.
 ================
 */
 void DrawWaterPoly (glpoly_t *p)
 {
+	float	st[p->numverts * 2];
 	float	*v;
 	int		i;
 
+	v = p->verts[0];
 	if (load_subdivide_size > 48)
 	{
-		glBegin (GL_POLYGON);
-		v = p->verts[0];
-		for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
+		for (i = 0; i < p->numverts; i++, v += VERTEXSIZE)
 		{
-			glTexCoord2f (WARPCALC2(v[3],v[4]), WARPCALC2(v[4],v[3]));
-			glVertex3fv (v);
+			st[i*2+0] = WARPCALC2(v[3], v[4]);
+			st[i*2+1] = WARPCALC2(v[4], v[3]);
 		}
-		glEnd ();
 	}
 	else
 	{
-		glBegin (GL_POLYGON);
-		v = p->verts[0];
-		for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
+		for (i = 0; i < p->numverts; i++, v += VERTEXSIZE)
 		{
-			glTexCoord2f (WARPCALC(v[3],v[4]), WARPCALC(v[4],v[3]));
-			glVertex3fv (v);
+			st[i*2+0] = WARPCALC(v[3], v[4]);
+			st[i*2+1] = WARPCALC(v[4], v[3]);
 		}
-		glEnd ();
 	}
+
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][0]);
+	glTexCoordPointer (2, GL_FLOAT, 0, st);
+	glEnableClientState (GL_VERTEX_ARRAY);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDrawArrays (GL_POLYGON, 0, p->numverts);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
 }
 
 //==============================================================================

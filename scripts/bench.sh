@@ -63,6 +63,12 @@ for i in $(seq 1 $RUNS); do
       if [ -f qconsole.log ] && grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
       sleep 1; j=\$((j+1))
     done
+    # PPC port -- Panther's Rage 128 driver leaves the display LUT
+    # corrupt if Quake is hard-killed in fullscreen mode. Send TERM
+    # first so SDL_Quit has a chance to restore display state, then
+    # KILL the SDL/CoreAudio threads that don't respond to TERM.
+    killall -TERM quakespasm 2>/dev/null
+    sleep 2
     killall -KILL quakespasm 2>/dev/null
     wait \$PID 2>/dev/null
     true" 2>&1 | grep -v "^$" | tail -3 || true

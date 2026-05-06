@@ -76,41 +76,37 @@ texture_t *R_TextureAnimation (texture_t *base, int frame)
 
 /*
 ================
-DrawGLPoly
+DrawGLPoly -- PPC port -- client vertex arrays. glpoly_t::verts is already
+interleaved (xyz, s0,t0, s1,t1) at VERTEXSIZE stride, so we point GL
+straight at it without copying. We submit GL_POLYGON (convex, same as
+the original glBegin/glEnd path) rather than GL_TRIANGLE_FAN — this
+keeps the driver's "small polygon" fast path engaged on the ATI/Apple
+1.4.18 stack on Tiger.
 ================
 */
 void DrawGLPoly (glpoly_t *p)
 {
-	float	*v;
-	int		i;
-
-	glBegin (GL_POLYGON);
-	v = p->verts[0];
-	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
-	{
-		glTexCoord2f (v[3], v[4]);
-		glVertex3fv (v);
-	}
-	glEnd ();
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][0]);
+	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][3]);
+	glEnableClientState (GL_VERTEX_ARRAY);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDrawArrays (GL_POLYGON, 0, p->numverts);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
 }
 
 /*
 ================
-DrawGLTriangleFan -- johnfitz -- like DrawGLPoly but for r_showtris
+DrawGLTriangleFan -- johnfitz -- like DrawGLPoly but for r_showtris.
+PPC port -- client vertex arrays.
 ================
 */
 void DrawGLTriangleFan (glpoly_t *p)
 {
-	float	*v;
-	int		i;
-
-	glBegin (GL_TRIANGLE_FAN);
-	v = p->verts[0];
-	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
-	{
-		glVertex3fv (v);
-	}
-	glEnd ();
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][0]);
+	glEnableClientState (GL_VERTEX_ARRAY);
+	glDrawArrays (GL_TRIANGLE_FAN, 0, p->numverts);
+	glDisableClientState (GL_VERTEX_ARRAY);
 }
 
 /*

@@ -105,6 +105,7 @@ qboolean gl_anisotropy_able = false; //johnfitz
 float gl_max_anisotropy; //johnfitz
 qboolean gl_texture_NPOT = false; //ericw
 qboolean gl_vbo_able = false; //ericw
+qboolean gl_cva_able = false; // PPC port -- EXT_compiled_vertex_array
 qboolean gl_glsl_able = false; //ericw
 GLint gl_max_texture_units = 0; //ericw
 qboolean gl_glsl_gamma_able = false; //ericw
@@ -119,6 +120,9 @@ PFNGLBUFFERDATAARBPROC GL_BufferDataFunc = NULL; //ericw
 PFNGLBUFFERSUBDATAARBPROC GL_BufferSubDataFunc = NULL; //ericw
 PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
 PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
+
+QS_PFNGLLOCKARRAYSEXTPROC   GL_LockArraysEXTFunc   = NULL; // PPC port
+QS_PFNGLUNLOCKARRAYSEXTPROC GL_UnlockArraysEXTFunc = NULL; // PPC port
 
 QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
 QS_PFNGLDELETESHADERPROC GL_DeleteShaderFunc = NULL; //ericw
@@ -1018,6 +1022,44 @@ static void GL_CheckExtensions (void)
 		else
 		{
 			Con_Warning ("ARB_vertex_buffer_object not available\n");
+		}
+	}
+
+	// EXT_compiled_vertex_array (CVA) -- PPC port
+	// Caches transformed verts across multipass draws (chiefly the alias
+	// overbright + fullbright sequence). Universally present on GL 1.1+
+	// install base; if absent, the array path still runs and we just
+	// skip the lock.
+	//
+	// IMPORTANT: this gate applies ONLY to the explicit glLockArraysEXT
+	// hint. The full client-vertex-array path (DrawGLPoly, lightmaps,
+	// GL_DrawAliasFrame, particles, sky, water) runs unconditionally on
+	// every target — that's where the bulk of the Phase 1.1 win comes
+	// from. CVA Lock is a tiny extra cache hint we drop on the floor
+	// where the driver mishandles it; the array optimisations are NOT
+	// removed by gating this.
+	//
+	// Empirical: on Rage 128 (Panther 10.3), CVA Lock causes IN-GAME
+	// colour-band corruption — observed live during bench runs, not just
+	// post-exit. Confirmed reproducible. Skip the Lock hint on that
+	// renderer; arrays still flow.
+	//
+	if (COM_CheckParm("-nocva"))
+		Con_Warning ("EXT_compiled_vertex_array Lock disabled at command line\n");
+	else if (gl_renderer && strstr(gl_renderer, "Rage 128"))
+		Con_Warning ("EXT_compiled_vertex_array Lock skipped on Rage 128 (in-game corruption; arrays unaffected)\n");
+	else if (GL_ParseExtensionList(gl_extensions, "GL_EXT_compiled_vertex_array"))
+	{
+		GL_LockArraysEXTFunc   = (QS_PFNGLLOCKARRAYSEXTPROC)   SDL_GL_GetProcAddress("glLockArraysEXT");
+		GL_UnlockArraysEXTFunc = (QS_PFNGLUNLOCKARRAYSEXTPROC) SDL_GL_GetProcAddress("glUnlockArraysEXT");
+		if (GL_LockArraysEXTFunc && GL_UnlockArraysEXTFunc)
+		{
+			Con_Printf("FOUND: EXT_compiled_vertex_array\n");
+			gl_cva_able = true;
+		}
+		else
+		{
+			Con_Warning ("Couldn't link to EXT_compiled_vertex_array functions\n");
 		}
 	}
 

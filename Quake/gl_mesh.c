@@ -361,9 +361,14 @@ static void GL_MakeAliasModelDisplayLists_VBO (qmodel_t *aliasmodel, aliashdr_t 
 	unsigned short *indexes;
 	unsigned short *remap;
 	aliasmesh_t *desc;
+	meshst_t *st;
+	float hscale, vscale;
 
-	if (!gl_glsl_alias_able)
-		return;
+	// PPC port -- the index buffer + meshdesc were originally gated on
+	// gl_glsl_alias_able because only the GLSL path consumed them. The
+	// legacy CPU path GL_DrawAliasFrame now also consumes them (Phase 1.1)
+	// so we always generate them. The VBO upload itself stays GLSL-only,
+	// guarded inside GLMesh_LoadVertexBuffer.
 
 	// first, copy the verts onto the hunk
 	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts * sizeof(trivertx_t));
@@ -430,7 +435,20 @@ static void GL_MakeAliasModelDisplayLists_VBO (qmodel_t *aliasmodel, aliashdr_t 
 	// free temporary data
 	Hunk_FreeToLowMark (mark);
 
-	// upload immediately
+	// PPC port -- bake a normalised [0,1] texcoord array for the legacy
+	// path. desc[].st stays as raw pixel ints because GLMesh_LoadVertexBuffer
+	// normalises them during VBO upload and we don't want to perturb that.
+	st = (meshst_t *) Hunk_Alloc (sizeof (meshst_t) * pheader->numverts_vbo);
+	pheader->meshst = (intptr_t) st - (intptr_t) pheader;
+	hscale = 1.0f / (float) TexMgr_PadConditional (pheader->skinwidth);
+	vscale = 1.0f / (float) TexMgr_PadConditional (pheader->skinheight);
+	for (i = 0; i < pheader->numverts_vbo; i++)
+	{
+		st[i].st[0] = hscale * ((float) desc[i].st[0] + 0.5f);
+		st[i].st[1] = vscale * ((float) desc[i].st[1] + 0.5f);
+	}
+
+	// upload immediately (GLSL-only; guarded inside)
 	GLMesh_LoadVertexBuffer (aliasmodel, pheader);
 }
 

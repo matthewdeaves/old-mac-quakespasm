@@ -402,6 +402,14 @@ static void R_BatchSurface (msurface_t *s)
 /*
 ================
 R_DrawTextureChains_Multitexture -- johnfitz
+
+PPC port note: the array-based version of this function was tested and
+regressed -3 to -4% on G4 1024 demo2 (brush-heavy). The Apple/ATI
+1.4.18 driver's glDrawArrays path for small client-memory polygons is
+slower per-call than its glBegin/glEnd fast path. Reverted to immediate
+mode here. Future Phase 2 work could batch surfaces into a single
+glDrawElements per texture-chain via per-frame vertex stitching, which
+is the natural way to amortise that per-call cost on this stack.
 ================
 */
 void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_t chain)
@@ -425,10 +433,10 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 			if (!bound) //only bind once we are sure we need this texture
 			{
 				GL_Bind ((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
-					
+
 				if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 					glEnable (GL_ALPHA_TEST); // Flip alpha test back on
-					
+
 				GL_EnableMultitexture(); // selects TEXTURE1
 				bound = true;
 			}
@@ -781,13 +789,18 @@ void R_DrawTextureChains_White (qmodel_t *model, texchain_t chain)
 /*
 ================
 R_DrawLightmapChains -- johnfitz -- R_BlendLightmaps stripped down to almost nothing
+PPC port -- client vertex arrays (lightmap texcoords at +5 in glpoly_t::verts).
+Cheat path (r_lightmap_cheatsafe) only; trivial fold-in for code-completeness.
 ================
 */
 void R_DrawLightmapChains (void)
 {
-	int			i, j;
+	int			i;
 	glpoly_t	*p;
 	float		*v;
+
+	glEnableClientState (GL_VERTEX_ARRAY);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
 
 	for (i=0 ; i<lightmap_count ; i++)
 	{
@@ -797,17 +810,16 @@ void R_DrawLightmapChains (void)
 		GL_Bind (lightmaps[i].texture);
 		for (p = lightmaps[i].polys; p; p=p->chain)
 		{
-			glBegin (GL_POLYGON);
 			v = p->verts[0];
-			for (j=0 ; j<p->numverts ; j++, v+= VERTEXSIZE)
-			{
-				glTexCoord2f (v[5], v[6]);
-				glVertex3fv (v);
-			}
-			glEnd ();
+			glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), v);
+			glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), v + 5);
+			glDrawArrays (GL_POLYGON, 0, p->numverts);
 			rs_brushpasses++;
 		}
 	}
+
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
 }
 
 /*

@@ -292,112 +292,229 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 /*
 =============
 GL_DrawAliasFrame -- johnfitz -- rewritten to support colored light, lerping, entalpha, multitexture, and r_drawflat
+
+PPC port -- glDrawElements + scratch lerp, factored into Begin/Draw/End
+helpers so a single CVA lock + lerp can span multiple draws of the same
+vertex range (R_DrawAliasModel overbright case 3 pass 1+2).
+
+Replaces the strip/fan walk over paliashdr->commands with a single
+glDrawElements per pass, consuming the prebuilt index buffer that
+GL_MakeAliasModelDisplayLists already builds for the GLSL path
+(paliashdr->indexes, ->meshdesc, ->numindexes, ->numverts_vbo).
+
+Texcoords are pose-invariant so we point straight at the aliasmesh_t
+array's st[] field, no copy. Positions and shaded colors lerp into
+static scratch sized to MAXALIASVERTS (loader-enforced cap).
+
+The public GL_DrawAliasFrame() composes Begin+Draw+End for callers that
+need a single self-contained pass (shadow, showtris, single-pass cases).
+For the multi-draw case, callers invoke Begin once, Draw N times, End
+once — see R_DrawAliasModel case 3.
+
+Cheat caveat: r_drawflat_cheatsafe loses the per-substrip rainbow
+(commands list is no longer walked). Substituted with one random color
+per pass — debug visual drift acceptable.
 =============
 */
-void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
-{
-	float	vertcolor[4];
-	trivertx_t *verts1, *verts2;
-	int		*commands;
-	int		count;
-	float	u,v;
-	float	blend, iblend;
-	qboolean lerping;
+static float alias_pos_scratch[MAXALIASVERTS * 3];
+static float alias_color_scratch[MAXALIASVERTS * 4];
 
+// Scope state captured at Begin so End cleans up symmetrically even if
+// the caller has flipped a global between Begin and End. Not a cache —
+// just the matching close-paren for an open-paren.
+static qboolean alias_scope_had_color = false;
+static qboolean alias_scope_had_mtex  = false;
+static qboolean alias_scope_locked    = false;
+static int      alias_scope_numverts  = 0;
+
+// PPC port -- CVA lock only pays off when the same locked vertex range
+// is consumed by MULTIPLE glDrawElements calls (driver caches transformed
+// verts across draws). Per-call locking is pure overhead for single-pass
+// uses, so we gate on this flag: single-pass call sites (the public
+// composer) pass false; the explicit multipass scope in case 3 passes
+// true.
+static qboolean alias_scope_want_lock = false;
+
+static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
+{
+	trivertx_t		*verts1, *verts2;
+	aliasmesh_t		*desc;
+	meshst_t		*st;
+	float			blend, iblend;
+	qboolean		lerping;
+	qboolean		want_color = (shading && !r_drawflat_cheatsafe);
+	qboolean		want_mtex  = mtexenabled;
+	int				i, n;
+
+	n = paliashdr->numverts_vbo;
+
+	// PPC port -- desc[].vertindex indexes into paliashdr->vertexes (the
+	// raw original-order trivertx_t array, stride paliashdr->numverts per
+	// pose) — NOT into paliashdr->posedata (which is BuildTris-reordered
+	// for the GL command list with stride paliashdr->poseverts). Same
+	// invariant the GLSL path relies on at gl_mesh.c:501.
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{
 		lerping = true;
-		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
+		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->vertexes);
 		verts2  = verts1;
-		verts1 += lerpdata.pose1 * paliashdr->poseverts;
-		verts2 += lerpdata.pose2 * paliashdr->poseverts;
-		blend = lerpdata.blend;
+		verts1 += lerpdata.pose1 * paliashdr->numverts;
+		verts2 += lerpdata.pose2 * paliashdr->numverts;
+		blend  = lerpdata.blend;
 		iblend = 1.0f - blend;
 	}
-	else // poses the same means either 1. the entity has paused its animation, or 2. r_lerpmodels is disabled
+	else
 	{
 		lerping = false;
-		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
-		verts2  = verts1; // avoid bogus compiler warning
-		verts1 += lerpdata.pose1 * paliashdr->poseverts;
-		blend = iblend = 0; // avoid bogus compiler warning
+		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->vertexes);
+		verts2  = verts1;
+		verts1 += lerpdata.pose1 * paliashdr->numverts;
+		blend = iblend = 0;
 	}
 
-	commands = (int *)((byte *)paliashdr + paliashdr->commands);
+	desc = (aliasmesh_t *)((byte *)paliashdr + paliashdr->meshdesc);
+	st   = (meshst_t    *)((byte *)paliashdr + paliashdr->meshst);
 
-	vertcolor[3] = entalpha; //never changes, so there's no need to put this inside the loop
-
-	while (1)
+	// --- lerp positions (and compute shaded colors when wanted) into scratch ---
+	if (want_color)
 	{
-		// get the vertex count and primitive type
-		count = *commands++;
-		if (!count)
-			break;		// done
-
-		if (count < 0)
+		if (lerping)
 		{
-			count = -count;
-			glBegin (GL_TRIANGLE_FAN);
+			for (i = 0; i < n; i++)
+			{
+				int idx = desc[i].vertindex;
+				float s = shadedots[verts1[idx].lightnormalindex] * iblend
+				        + shadedots[verts2[idx].lightnormalindex] * blend;
+				alias_pos_scratch[i*3+0] = verts1[idx].v[0]*iblend + verts2[idx].v[0]*blend;
+				alias_pos_scratch[i*3+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
+				alias_pos_scratch[i*3+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
+				alias_color_scratch[i*4+0] = s * lightcolor[0];
+				alias_color_scratch[i*4+1] = s * lightcolor[1];
+				alias_color_scratch[i*4+2] = s * lightcolor[2];
+				alias_color_scratch[i*4+3] = entalpha;
+			}
 		}
 		else
-			glBegin (GL_TRIANGLE_STRIP);
-
-		do
 		{
-			u = ((float *)commands)[0];
-			v = ((float *)commands)[1];
-			if (mtexenabled)
+			for (i = 0; i < n; i++)
 			{
-				GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, u, v);
-				GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, u, v);
+				int idx = desc[i].vertindex;
+				float s = shadedots[verts1[idx].lightnormalindex];
+				alias_pos_scratch[i*3+0] = verts1[idx].v[0];
+				alias_pos_scratch[i*3+1] = verts1[idx].v[1];
+				alias_pos_scratch[i*3+2] = verts1[idx].v[2];
+				alias_color_scratch[i*4+0] = s * lightcolor[0];
+				alias_color_scratch[i*4+1] = s * lightcolor[1];
+				alias_color_scratch[i*4+2] = s * lightcolor[2];
+				alias_color_scratch[i*4+3] = entalpha;
 			}
-			else
-				glTexCoord2f (u, v);
-
-			commands += 2;
-
-			if (shading)
+		}
+	}
+	else
+	{
+		if (lerping)
+		{
+			for (i = 0; i < n; i++)
 			{
-				if (r_drawflat_cheatsafe)
-				{
-					srand(count * (unsigned int)(src_offset_t)commands);
-					glColor3f (rand()%256/255.0, rand()%256/255.0, rand()%256/255.0);
-				}
-				else if (lerping)
-				{
-					vertcolor[0] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[0];
-					vertcolor[1] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[1];
-					vertcolor[2] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[2];
-					glColor4fv (vertcolor);
-				}
-				else
-				{
-					vertcolor[0] = shadedots[verts1->lightnormalindex] * lightcolor[0];
-					vertcolor[1] = shadedots[verts1->lightnormalindex] * lightcolor[1];
-					vertcolor[2] = shadedots[verts1->lightnormalindex] * lightcolor[2];
-					glColor4fv (vertcolor);
-				}
+				int idx = desc[i].vertindex;
+				alias_pos_scratch[i*3+0] = verts1[idx].v[0]*iblend + verts2[idx].v[0]*blend;
+				alias_pos_scratch[i*3+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
+				alias_pos_scratch[i*3+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
 			}
-
-			if (lerping)
+		}
+		else
+		{
+			for (i = 0; i < n; i++)
 			{
-				glVertex3f (verts1->v[0]*iblend + verts2->v[0]*blend,
-							verts1->v[1]*iblend + verts2->v[1]*blend,
-							verts1->v[2]*iblend + verts2->v[2]*blend);
-				verts1++;
-				verts2++;
+				int idx = desc[i].vertindex;
+				alias_pos_scratch[i*3+0] = verts1[idx].v[0];
+				alias_pos_scratch[i*3+1] = verts1[idx].v[1];
+				alias_pos_scratch[i*3+2] = verts1[idx].v[2];
 			}
-			else
-			{
-				glVertex3f (verts1->v[0], verts1->v[1], verts1->v[2]);
-				verts1++;
-			}
-		} while (--count);
-
-		glEnd ();
+		}
 	}
 
+	// --- bind streams + enable client states ---
+	glVertexPointer (3, GL_FLOAT, 0, alias_pos_scratch);
+	glEnableClientState (GL_VERTEX_ARRAY);
+
+	if (want_mtex)
+	{
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+		glTexCoordPointer (2, GL_FLOAT, 0, &st[0].st[0]);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+		GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+		glTexCoordPointer (2, GL_FLOAT, 0, &st[0].st[0]);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	}
+	else
+	{
+		glTexCoordPointer (2, GL_FLOAT, 0, &st[0].st[0]);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	}
+
+	if (want_color)
+	{
+		glColorPointer (4, GL_FLOAT, 0, alias_color_scratch);
+		glEnableClientState (GL_COLOR_ARRAY);
+	}
+
+	// --- optional CVA lock so transformed verts cache across multipass.
+	//     Only locks when the caller explicitly opts in via
+	//     alias_scope_want_lock — single-call composer paths skip this. ---
+	if (gl_cva_able && alias_scope_want_lock)
+	{
+		GL_LockArraysEXTFunc (0, n);
+		alias_scope_locked = true;
+	}
+	else
+		alias_scope_locked = false;
+
+	alias_scope_had_color = want_color;
+	alias_scope_had_mtex  = want_mtex;
+	alias_scope_numverts  = n;
+}
+
+static void GL_AliasFrame_Draw (aliashdr_t *paliashdr)
+{
+	// drawflat cheat: re-roll color per draw (per-substrip walk is gone).
+	if (shading && r_drawflat_cheatsafe)
+	{
+		srand((unsigned int)(uintptr_t)paliashdr ^ (unsigned int)(cl.time * 1000.0));
+		glColor3f (rand()%256/255.0f, rand()%256/255.0f, rand()%256/255.0f);
+	}
+
+	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT,
+	                (unsigned short *)((byte *)paliashdr + paliashdr->indexes));
 	rs_aliaspasses += paliashdr->numtris;
+}
+
+static void GL_AliasFrame_End (void)
+{
+	if (alias_scope_locked)
+	{
+		GL_UnlockArraysEXTFunc ();
+		alias_scope_locked = false;
+	}
+
+	if (alias_scope_had_color)
+		glDisableClientState (GL_COLOR_ARRAY);
+
+	if (alias_scope_had_mtex)
+	{
+		glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	}
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
+}
+
+void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
+{
+	alias_scope_want_lock = false;  // single-pass: lock would be pure overhead
+	GL_AliasFrame_Begin (paliashdr, lerpdata);
+	GL_AliasFrame_Draw  (paliashdr);
+	GL_AliasFrame_End   ();
 }
 
 /*
@@ -817,17 +934,25 @@ void R_DrawAliasModel (entity_t *e)
 		}
 		else //case 3: overbright in two passes, then fullbright pass
 		{
+		// PPC port -- pass 1+2 share lerp + arrays + shading=true. Wrap them
+		// in one Begin/End scope so the lerp runs once and (when CVA is
+		// available) the lock spans both glDrawElements calls — driver
+		// transform-cache hit on pass 2. This is the single multi-draw CVA
+		// opportunity in the engine.
 		// first pass
 			GL_Bind(tx);
 			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-			GL_DrawAliasFrame (paliashdr, lerpdata);
+			alias_scope_want_lock = true;  // case 3 pass 1+2 share the lock
+			GL_AliasFrame_Begin (paliashdr, lerpdata);
+			GL_AliasFrame_Draw  (paliashdr);
 		// second pass -- additive with black fog, to double the object colors but not the fog color
 			glEnable(GL_BLEND);
 			glBlendFunc (GL_ONE, GL_ONE);
 			glDepthMask(GL_FALSE);
 			Fog_StartAdditive ();
-			GL_DrawAliasFrame (paliashdr, lerpdata);
+			GL_AliasFrame_Draw  (paliashdr);
 			Fog_StopAdditive ();
+			GL_AliasFrame_End   ();
 			glDepthMask(GL_TRUE);
 			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

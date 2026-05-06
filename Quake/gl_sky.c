@@ -911,11 +911,20 @@ void Sky_GetTexCoord (vec3_t v, float speed, float *s, float *t)
 Sky_DrawFaceQuad
 ===============
 */
+// PPC port -- client vertex arrays. Sky_DrawFaceQuad runs per visible
+// sky face per frame (typically a few faces), each kicking 1-3 glBegin
+// blocks for solid + alpha + optional fog. Texcoords scroll per frame
+// so we precompute them into tiny 4-vert scratch buffers (always 4 — no
+// VLA needed). Position is pose-invariant; point GL straight at p->verts.
 void Sky_DrawFaceQuad (glpoly_t *p)
 {
+	float	st0[4*2], st1[4*2];
 	float	s, t;
 	float	*v;
 	int		i;
+
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][0]);
+	glEnableClientState (GL_VERTEX_ARRAY);
 
 	if (gl_mtexable && r_skyalpha.value >= 1.0)
 	{
@@ -924,16 +933,26 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		GL_Bind (alphaskytexture);
 		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
 
-		glBegin (GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
-			Sky_GetTexCoord (v, 8, &s, &t);
-			GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, s, t);
+			Sky_GetTexCoord (v,  8, &s, &t);
+			st0[i*2+0] = s; st0[i*2+1] = t;
 			Sky_GetTexCoord (v, 16, &s, &t);
-			GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, s, t);
-			glVertex3fv (v);
+			st1[i*2+0] = s; st1[i*2+1] = t;
 		}
-		glEnd ();
+
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+		glTexCoordPointer (2, GL_FLOAT, 0, st0);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+		GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+		glTexCoordPointer (2, GL_FLOAT, 0, st1);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+
+		glDrawArrays (GL_QUADS, 0, 4);
+
+		glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+		glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 
 		GL_DisableMultitexture();
 
@@ -947,14 +966,14 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		if (r_skyalpha.value < 1.0)
 			glColor3f (1, 1, 1);
 
-		glBegin (GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 8, &s, &t);
-			glTexCoord2f (s, t);
-			glVertex3fv (v);
+			st0[i*2+0] = s; st0[i*2+1] = t;
 		}
-		glEnd ();
+		glTexCoordPointer (2, GL_FLOAT, 0, st0);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+		glDrawArrays (GL_QUADS, 0, 4);
 
 		GL_Bind (alphaskytexture);
 		glEnable (GL_BLEND);
@@ -962,15 +981,15 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		if (r_skyalpha.value < 1.0)
 			glColor4f (1, 1, 1, r_skyalpha.value);
 
-		glBegin (GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 16, &s, &t);
-			glTexCoord2f (s, t);
-			glVertex3fv (v);
+			st1[i*2+0] = s; st1[i*2+1] = t;
 		}
-		glEnd ();
+		glTexCoordPointer (2, GL_FLOAT, 0, st1);
+		glDrawArrays (GL_QUADS, 0, 4);
 
+		glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 		glDisable (GL_BLEND);
 
 		rs_skypolys++;
@@ -986,10 +1005,8 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		glDisable (GL_TEXTURE_2D);
 		glColor4f (c[0],c[1],c[2], CLAMP(0.0f,skyfog,1.0f));
 
-		glBegin (GL_QUADS);
-		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
-			glVertex3fv (v);
-		glEnd ();
+		// vertex array still bound; no texcoords needed.
+		glDrawArrays (GL_QUADS, 0, 4);
 
 		glColor3f (1, 1, 1);
 		glEnable (GL_TEXTURE_2D);
@@ -997,6 +1014,8 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 
 		rs_skypasses++;
 	}
+
+	glDisableClientState (GL_VERTEX_ARRAY);
 }
 
 /*

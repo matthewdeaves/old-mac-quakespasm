@@ -365,6 +365,14 @@ typedef struct {
 	intptr_t		vertexes;       // offset into extradata: numposes*vertsperframe trivertx_t
 	//ericw --
 
+	// PPC port -- numverts_vbo meshst_t with NORMALISED [0,1] texcoords
+	// (hscale * (st_pixel + 0.5)). Built at level load alongside the VBO
+	// upload data; consumed by the legacy CPU path GL_DrawAliasFrame on
+	// targets without GLSL support (G3 Rage 128). desc[].st itself stays
+	// in raw pixel-space ints because the GLSL VBO upload normalises on
+	// the way in and we don't want to perturb that path.
+	intptr_t		meshst;
+
 	int					numposes;
 	int					poseverts;
 	int					posedata;	// numposes*poseverts trivert_t

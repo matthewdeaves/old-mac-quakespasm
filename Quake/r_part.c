@@ -821,16 +821,53 @@ void CL_RunParticles (void)
 /*
 ===============
 R_DrawParticles -- johnfitz -- moved all non-drawing code to CL_RunParticles
+PPC port -- batched client vertex arrays.
+
+Original code issued ~10 GL calls per particle (glColor4ubv +
+4×glTexCoord+glVertex per quad). On demo3 explosions that's thousands
+of GL calls per frame, all driver-dispatched on the G3 CPU. Batching
+collapses them to one glDrawArrays per (PARTICLE_BATCH_MAX-particle)
+chunk.
+
+Texcoords are pose-invariant (every quad uses the same 4 (s,t) values,
+every triangle the same 3) so we fill them once at first draw. Position
+and color are walked into scratch each frame.
 ===============
 */
+#define PARTICLE_BATCH_MAX 4096
+
+static float   part_pos_scratch[PARTICLE_BATCH_MAX * 4 * 3];
+static GLubyte part_col_scratch[PARTICLE_BATCH_MAX * 4 * 4];
+static float   part_st_quad[PARTICLE_BATCH_MAX * 4 * 2];
+static float   part_st_tri[PARTICLE_BATCH_MAX  * 3 * 2];
+static qboolean part_st_initialized = false;
+
+static void R_InitParticleSTScratch (void)
+{
+	int i;
+	for (i = 0; i < PARTICLE_BATCH_MAX; i++)
+	{
+		// quad corners: (0,0) (0.5,0) (0.5,0.5) (0,0.5)
+		part_st_quad[i*8+0] = 0.0f; part_st_quad[i*8+1] = 0.0f;
+		part_st_quad[i*8+2] = 0.5f; part_st_quad[i*8+3] = 0.0f;
+		part_st_quad[i*8+4] = 0.5f; part_st_quad[i*8+5] = 0.5f;
+		part_st_quad[i*8+6] = 0.0f; part_st_quad[i*8+7] = 0.5f;
+		// triangle corners: (0,0) (1,0) (0,1)
+		part_st_tri[i*6+0] = 0.0f;  part_st_tri[i*6+1] = 0.0f;
+		part_st_tri[i*6+2] = 1.0f;  part_st_tri[i*6+3] = 0.0f;
+		part_st_tri[i*6+4] = 0.0f;  part_st_tri[i*6+5] = 1.0f;
+	}
+	part_st_initialized = true;
+}
+
 void R_DrawParticles (void)
 {
 	particle_t		*p;
 	float			scale;
-	vec3_t			up, right, p_up, p_right, p_upright; //johnfitz -- p_ vectors
-	GLubyte			color[4], *c; //johnfitz -- particle transparency
-	extern	cvar_t	r_particles; //johnfitz
-	//float			alpha; //johnfitz -- particle transparency
+	vec3_t			up, right, p_up, p_right, p_upright;
+	GLubyte			*c;
+	int				n, j;
+	extern	cvar_t	r_particles;
 
 	if (!r_particles.value)
 		return;
@@ -838,6 +875,9 @@ void R_DrawParticles (void)
 	//ericw -- avoid empty glBegin(),glEnd() pair below; causes issues on AMD
 	if (!active_particles)
 		return;
+
+	if (!part_st_initialized)
+		R_InitParticleSTScratch ();
 
 	VectorScale (vup, 1.5, up);
 	VectorScale (vright, 1.5, right);
@@ -847,90 +887,120 @@ void R_DrawParticles (void)
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	glDepthMask (GL_FALSE); //johnfitz -- fix for particle z-buffer bug
 
+	glEnableClientState (GL_VERTEX_ARRAY);
+	glEnableClientState (GL_COLOR_ARRAY);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	glVertexPointer  (3, GL_FLOAT,         0, part_pos_scratch);
+	glColorPointer   (4, GL_UNSIGNED_BYTE, 0, part_col_scratch);
+
 	if (r_quadparticles.value) //johnitz -- quads save fillrate
 	{
-		glBegin (GL_QUADS);
-		for (p=active_particles ; p ; p=p->next)
+		glTexCoordPointer (2, GL_FLOAT, 0, part_st_quad);
+
+		n = 0;
+		for (p = active_particles; p; p = p->next)
 		{
-			// hack a scale up to keep particles from disapearing
+			if (n >= PARTICLE_BATCH_MAX)
+			{
+				glDrawArrays (GL_QUADS, 0, n * 4);
+				n = 0;
+			}
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
-				  + (p->org[1] - r_origin[1]) * vpn[1]
-				  + (p->org[2] - r_origin[2]) * vpn[2];
+			      + (p->org[1] - r_origin[1]) * vpn[1]
+			      + (p->org[2] - r_origin[2]) * vpn[2];
 			if (scale < 20)
-				scale = 1 + 0.08; //johnfitz -- added .08 to be consistent
+				scale = 1 + 0.08;
 			else
 				scale = 1 + scale * 0.004;
-
 			scale /= 2.0; //quad is half the size of triangle
+			scale *= texturescalefactor;
 
-			scale *= texturescalefactor; //johnfitz -- compensate for apparent size of different particle textures
-
-			//johnfitz -- particle transparency and fade out
 			c = (GLubyte *) &d_8to24table[(int)p->color];
-			color[0] = c[0];
-			color[1] = c[1];
-			color[2] = c[2];
-			//alpha = CLAMP(0, p->die + 0.5 - cl.time, 1);
-			color[3] = 255; //(int)(alpha * 255);
-			glColor4ubv(color);
-			//johnfitz
 
-			glTexCoord2f (0,0);
-			glVertex3fv (p->org);
-
-			glTexCoord2f (0.5,0);
-			VectorMA (p->org, scale, up, p_up);
-			glVertex3fv (p_up);
-
-			glTexCoord2f (0.5,0.5);
-			VectorMA (p_up, scale, right, p_upright);
-			glVertex3fv (p_upright);
-
-			glTexCoord2f (0,0.5);
+			VectorMA (p->org, scale, up,    p_up);
+			VectorMA (p_up,   scale, right, p_upright);
 			VectorMA (p->org, scale, right, p_right);
-			glVertex3fv (p_right);
+
+			// 4 corners of the quad
+			part_pos_scratch[(n*4+0)*3+0] = p->org[0];
+			part_pos_scratch[(n*4+0)*3+1] = p->org[1];
+			part_pos_scratch[(n*4+0)*3+2] = p->org[2];
+			part_pos_scratch[(n*4+1)*3+0] = p_up[0];
+			part_pos_scratch[(n*4+1)*3+1] = p_up[1];
+			part_pos_scratch[(n*4+1)*3+2] = p_up[2];
+			part_pos_scratch[(n*4+2)*3+0] = p_upright[0];
+			part_pos_scratch[(n*4+2)*3+1] = p_upright[1];
+			part_pos_scratch[(n*4+2)*3+2] = p_upright[2];
+			part_pos_scratch[(n*4+3)*3+0] = p_right[0];
+			part_pos_scratch[(n*4+3)*3+1] = p_right[1];
+			part_pos_scratch[(n*4+3)*3+2] = p_right[2];
+
+			for (j = 0; j < 4; j++)
+			{
+				part_col_scratch[(n*4+j)*4+0] = c[0];
+				part_col_scratch[(n*4+j)*4+1] = c[1];
+				part_col_scratch[(n*4+j)*4+2] = c[2];
+				part_col_scratch[(n*4+j)*4+3] = 255;
+			}
+
+			n++;
 		}
-		glEnd ();
+		if (n > 0)
+			glDrawArrays (GL_QUADS, 0, n * 4);
 	}
 	else //johnitz --  triangles save verts
 	{
-		glBegin (GL_TRIANGLES);
-		for (p=active_particles ; p ; p=p->next)
+		glTexCoordPointer (2, GL_FLOAT, 0, part_st_tri);
+
+		n = 0;
+		for (p = active_particles; p; p = p->next)
 		{
-			// hack a scale up to keep particles from disapearing
+			if (n >= PARTICLE_BATCH_MAX)
+			{
+				glDrawArrays (GL_TRIANGLES, 0, n * 3);
+				n = 0;
+			}
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
-				  + (p->org[1] - r_origin[1]) * vpn[1]
-				  + (p->org[2] - r_origin[2]) * vpn[2];
+			      + (p->org[1] - r_origin[1]) * vpn[1]
+			      + (p->org[2] - r_origin[2]) * vpn[2];
 			if (scale < 20)
-				scale = 1 + 0.08; //johnfitz -- added .08 to be consistent
+				scale = 1 + 0.08;
 			else
 				scale = 1 + scale * 0.004;
+			scale *= texturescalefactor;
 
-			scale *= texturescalefactor; //johnfitz -- compensate for apparent size of different particle textures
-
-			//johnfitz -- particle transparency and fade out
 			c = (GLubyte *) &d_8to24table[(int)p->color];
-			color[0] = c[0];
-			color[1] = c[1];
-			color[2] = c[2];
-			//alpha = CLAMP(0, p->die + 0.5 - cl.time, 1);
-			color[3] = 255; //(int)(alpha * 255);
-			glColor4ubv(color);
-			//johnfitz
 
-			glTexCoord2f (0,0);
-			glVertex3fv (p->org);
-
-			glTexCoord2f (1,0);
-			VectorMA (p->org, scale, up, p_up);
-			glVertex3fv (p_up);
-
-			glTexCoord2f (0,1);
+			VectorMA (p->org, scale, up,    p_up);
 			VectorMA (p->org, scale, right, p_right);
-			glVertex3fv (p_right);
+
+			part_pos_scratch[(n*3+0)*3+0] = p->org[0];
+			part_pos_scratch[(n*3+0)*3+1] = p->org[1];
+			part_pos_scratch[(n*3+0)*3+2] = p->org[2];
+			part_pos_scratch[(n*3+1)*3+0] = p_up[0];
+			part_pos_scratch[(n*3+1)*3+1] = p_up[1];
+			part_pos_scratch[(n*3+1)*3+2] = p_up[2];
+			part_pos_scratch[(n*3+2)*3+0] = p_right[0];
+			part_pos_scratch[(n*3+2)*3+1] = p_right[1];
+			part_pos_scratch[(n*3+2)*3+2] = p_right[2];
+
+			for (j = 0; j < 3; j++)
+			{
+				part_col_scratch[(n*3+j)*4+0] = c[0];
+				part_col_scratch[(n*3+j)*4+1] = c[1];
+				part_col_scratch[(n*3+j)*4+2] = c[2];
+				part_col_scratch[(n*3+j)*4+3] = 255;
+			}
+
+			n++;
 		}
-		glEnd ();
+		if (n > 0)
+			glDrawArrays (GL_TRIANGLES, 0, n * 3);
 	}
+
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_COLOR_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
 
 	glDepthMask (GL_TRUE); //johnfitz -- fix for particle z-buffer bug
 	glDisable (GL_BLEND);
