@@ -371,6 +371,7 @@ void R_ClearParticles (void);
 void R_TranslatePlayerSkin (int playernum);
 void R_TranslateNewPlayerSkin (int playernum); //johnfitz -- this handles cases when the actual texture changes
 void R_UpdateWarpTextures (void);
+qboolean R_OldWaterEffective (void); // r_oldwater 0/1 + auto mode (>640x480 → classic)
 
 void R_DrawWorld (void);
 void R_DrawAliasModel (entity_t *e);

@@ -216,7 +216,7 @@ void R_DrawTextureChains_ShowTris (qmodel_t *model, texchain_t chain)
 		if (!t)
 			continue;
 
-		if (r_oldwater.value && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
+		if (R_OldWaterEffective() && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
 		{
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
 				for (p = s->polys->next; p; p = p->next)
@@ -252,7 +252,7 @@ void R_DrawTextureChains_Drawflat (qmodel_t *model, texchain_t chain)
 		if (!t)
 			continue;
 
-		if (r_oldwater.value && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
+		if (R_OldWaterEffective() && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
 		{
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
 				for (p = s->polys->next; p; p = p->next)
@@ -588,7 +588,7 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 	has_lit_water = false;
 	has_unlit_water = false;
 
-	if (r_oldwater.value)
+	if (R_OldWaterEffective())
 	{
 		for (i=0 ; i<model->numtextures ; i++)
 		{

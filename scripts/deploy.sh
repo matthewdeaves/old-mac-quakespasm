@@ -60,9 +60,18 @@ cp "$BIN" "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 chmod +x "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 
+# Per-target autoexec.cfg with our PPC defaults (Phase 0 cvar tuning).
+# Goes in id1/ which is searched by quake.rc's `exec autoexec.cfg`.
+# Ships separately from the .app bundle (rsync trailing-slash semantics).
+AUTOEXEC="$REPO_ROOT/scripts/bundle/autoexec-$TARGET.cfg"
+if [ -f "$AUTOEXEC" ]; then
+  mkdir -p "$STAGE/id1"
+  cp "$AUTOEXEC" "$STAGE/id1/autoexec.cfg"
+fi
+
 echo "[deploy] ship to $HOST:~/Desktop/quake/"
 rsync -av --partial $RSYNC_EXTRA -e 'ssh -o ServerAliveInterval=15' \
-  "$STAGE/" "$HOST:Desktop/quake/" | tail -5
+  "$STAGE/" "$HOST:Desktop/quake/" | tail -8
 
 ssh "$HOST" 'chmod +x ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null
 echo "[deploy] OK on $(hostname -s)"'

@@ -24,9 +24,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_drawflat;
 
+// r_oldwater values:
+//   0 = always new water (screen-copy refraction)
+//   1 = always classic warped water
+//   2 = auto: classic above 640x480, new at/below. Workaround for GPUs
+//       where the screen-copy pass misbehaves at higher resolutions
+//       (e.g. ATI Rage 128 + 1024x768 → bright-blue water tint bug).
 cvar_t r_oldwater = {"r_oldwater", "0", CVAR_ARCHIVE};
 cvar_t r_waterquality = {"r_waterquality", "8", CVAR_NONE};
 cvar_t r_waterwarp = {"r_waterwarp", "1", CVAR_NONE};
+
+qboolean R_OldWaterEffective (void)
+{
+	int v = (int)r_oldwater.value;
+	if (v <= 0) return false;
+	if (v == 1) return true;
+	return (vid.width > 640 || vid.height > 480);
+}
 
 int gl_warpimagesize;
 float load_subdivide_size; //johnfitz -- remember what subdivide_size value was when this map was loaded
@@ -226,7 +240,7 @@ void R_UpdateWarpTextures (void)
 	int i;
 	float x, y, x2, warptess;
 
-	if (r_oldwater.value || cl.paused || r_drawflat_cheatsafe || r_lightmap_cheatsafe)
+	if (R_OldWaterEffective() || cl.paused || r_drawflat_cheatsafe || r_lightmap_cheatsafe)
 		return;
 
 	warptess = 128.0f/CLAMP (3.0f, floorf(r_waterquality.value), 64.0f);
