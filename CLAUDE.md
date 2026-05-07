@@ -238,31 +238,43 @@ whether to reorder upcoming phases. **Never wipe it mid-round.** The
 default of `parallel-bench.sh` is now append (was wipe; flipped 2026-05-07
 after this exact mistake almost cost us the v2 baseline).
 
-Every "main phase" landing on master gets a full bench grid (G3 + G4 ×
-demo1/demo2/demo3 × 1024×768 + 640×480 × 3 runs) and the resulting CSV
-rows + raw logs **must be committed** before the next phase starts.
+Every phase landing on master gets a smoke bench (`--quick`: demo1 ×
+1024×768 + 640×480 × 3 runs, both targets, ~3-4 min) and the resulting
+CSV rows + raw logs **must be committed** before the next phase starts.
+Full grid (3 demos × 2 res × 3 runs) is reserved for end-of-round, after
+all phases land — that's where we measure the cumulative trajectory.
 
-Per-phase shape (~15-20 min wall time for the full grid):
+Rationale (2026-05-07): full-grid per-phase was costing ~20 min of wall
+time per landing, which throttles plan progress. Smoke catches
+regressions and proves the change builds + runs; the demo3 dynamic-light
+wins (Phase 2.x) and brush-heavy wins (Phase 3.x) only show clearly in
+full grid anyway, and we measure those once at the end.
+
+Per-phase shape:
 
 1. **Edit + build + deploy** the phase.
-2. **Smoke**: `scripts/parallel-bench.sh --quick` (demo1 only, ~3-4 min).
-   Throwaway — catches broken builds + gross regressions before paying
-   the 15-20 min full-grid tax. Smoke rows ARE appended to `results.csv`
-   (the rolling history captures everything), but they're not the
-   canonical phase numbers — the post-commit full grid is.
+2. **Smoke** (dirty tree, throwaway): `scripts/parallel-bench.sh --quick`.
+   Used only to catch broken builds + gross regressions; rows tag with
+   parent commit hash because tree is dirty. Strip these rows from CSV
+   before continuing (`git checkout benchmarks/results.csv && rm -f
+   benchmarks/raw/<parent>_*.log`).
 3. If smoke is sane (no crash, no unexplained >5% regression on either
    target), **commit the code change** with the smoke numbers in the
    message body.
-4. **Bench-commit in one shot**:
+4. **Bench-commit in one shot** (post-commit, clean tree, official rows):
    ```
-   scripts/bench-and-commit.sh "Phase 2.1 BGRA lightmaps"
+   scripts/bench-and-commit.sh "Phase 2.1 BGRA lightmaps" --quick
    ```
-   This: refuses dirty trees, pins HEAD, runs the full grid (CSV rows
+   This: refuses dirty trees, pins HEAD, runs the smoke grid (CSV rows
    tag with the phase commit hash), stages `results.csv` + the new
    `raw/<commit>_*.log` files, and lands a `bench: <phase>` commit with
    median fps summary in the message.
 
 Two commits per phase (code + bench) is the price of clean attribution.
+
+**End of round (after all phases land):** run the full grid once
+(`scripts/bench-and-commit.sh "v2 round wrap" `, no `--quick`) to
+capture the cumulative trajectory across all 3 demos.
 
 **Hash stability:** `parallel-bench.sh` resolves HEAD once at start and
 exports `$COMMIT`; `bench.sh` honors it. Side commits during a long
