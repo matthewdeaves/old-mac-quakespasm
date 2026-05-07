@@ -608,6 +608,14 @@ void GL_BuildLightmaps (void)
 		lm->texture = TexMgr_LoadImage (cl.worldmodel, name, LMBLOCK_WIDTH, LMBLOCK_HEIGHT,
 						SRC_LIGHTMAP, lm->data, "", (src_offset_t)lm->data, TEXPREF_LINEAR | TEXPREF_NOPICMIP);
 		//johnfitz
+
+		// PPC port (Phase 2.3) -- ask the driver to keep this lightmap
+		// in cached VRAM despite client_storage. TexMgr_LoadImage just
+		// finished glTexImage2D so the texture is still bound here.
+		// Setting the hint after upload is documented to work (may
+		// trigger a re-allocation, which is fine at level load).
+		if (gl_apple_storage_hint_able)
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
 	}
 
 	if (gl_apple_client_storage_able)

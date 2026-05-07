@@ -201,6 +201,19 @@ extern	qboolean	gl_cva_able;
 #endif
 extern	qboolean	gl_apple_client_storage_able;
 
+// PPC port -- APPLE_texture_range (Phase 2.3). Per-texture VRAM-cache
+// hint via glTexParameteri(..., GL_TEXTURE_STORAGE_HINT_APPLE,
+// GL_STORAGE_CACHED_APPLE). On G4 this asks the driver to keep the
+// texture in VRAM despite the client_storage hint. Not exposed on R128
+// (per captured G3 extension list) — gate is no-op there.
+#ifndef GL_TEXTURE_STORAGE_HINT_APPLE
+#define GL_TEXTURE_STORAGE_HINT_APPLE 0x85BC
+#endif
+#ifndef GL_STORAGE_CACHED_APPLE
+#define GL_STORAGE_CACHED_APPLE 0x85BE
+#endif
+extern	qboolean	gl_apple_storage_hint_able;
+
 //ericw -- GLSL
 
 // SDL 1.2 has a bug where it doesn't provide these typedefs on OS X!

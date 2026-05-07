@@ -107,6 +107,7 @@ qboolean gl_texture_NPOT = false; //ericw
 qboolean gl_vbo_able = false; //ericw
 qboolean gl_cva_able = false; // PPC port -- EXT_compiled_vertex_array
 qboolean gl_apple_client_storage_able = false; // PPC port -- APPLE_client_storage
+qboolean gl_apple_storage_hint_able = false;   // PPC port -- APPLE_texture_range (per-texture cached-VRAM hint)
 qboolean gl_glsl_able = false; //ericw
 GLint gl_max_texture_units = 0; //ericw
 qboolean gl_glsl_gamma_able = false; //ericw
@@ -1087,6 +1088,25 @@ static void GL_CheckExtensions (void)
 	{
 		Con_Printf("FOUND: APPLE_client_storage\n");
 		gl_apple_client_storage_able = true;
+	}
+
+	// APPLE_texture_range (Phase 2.3) -- PPC port
+	// Per-texture storage-hint family. We use only the
+	// GL_TEXTURE_STORAGE_HINT_APPLE = GL_STORAGE_CACHED_APPLE parameter,
+	// which asks the driver to keep the texture in cached VRAM. On G4
+	// this is intended to offset client_storage's "stay in app memory"
+	// pull on the lightmap pool. R128 / 10.3 does not expose the
+	// extension (per benchmarks/gl-info/g3-rage128-panther.txt), so the
+	// gate is naturally a no-op there.
+	//
+	// We do not (yet) use the contiguous-pool variant
+	// (glTextureRangeAPPLE); only the per-texture parameter.
+	if (COM_CheckParm("-nostorage-hint"))
+		Con_Warning ("APPLE_texture_range storage hint disabled at command line\n");
+	else if (GL_ParseExtensionList(gl_extensions, "GL_APPLE_texture_range"))
+	{
+		Con_Printf("FOUND: APPLE_texture_range\n");
+		gl_apple_storage_hint_able = true;
 	}
 
 	// multitexture
