@@ -1116,19 +1116,28 @@ static void GL_CheckExtensions (void)
 		gl_apple_storage_hint_able = true;
 	}
 
-	// APPLE_vertex_array_range (Phase 3.1) -- PPC port
-	// Pre-VBO equivalent. Lets us park static brush geometry in
-	// driver-cached VRAM (Phase 3.2 will actually use it). Pure
-	// scaffolding here — detection + entry-point resolution. Behavior
-	// gated on gl_apple_var_able which Phase 3.2 will check.
+	// APPLE_vertex_array_range (Phase 3) -- PPC port
 	//
-	// G4 / Radeon 9000 / Tiger 10.4: extension present per
-	// benchmarks/gl-info/g4-radeon9000-tiger.txt.
-	// G3 / R128 / Panther 10.3: NOT present per
-	// benchmarks/gl-info/g3-rage128-panther.txt → flag stays false on
-	// G3 by detection alone, no special-case needed.
-	if (COM_CheckParm("-novar"))
-		Con_Warning ("APPLE_vertex_array_range disabled at command line\n");
+	// End-of-round v2 measurement (2026-05-07) showed Phase 3 is a net
+	// loss across the workload mix on G4 / Radeon 9000:
+	//   demo1 640 +5% (the win the phase was designed for)
+	//   demo1 1024 -2% (small drift, GPU fillrate-bound)
+	//   demo3 1024 -8% (verified via -novar A/B)
+	//   demo3 640 -16% (verified via -novar A/B)
+	// At high vertex/fragment counts the array-conversion path costs
+	// more in driver pipelining than VAR's VRAM caching saves. The
+	// Phase 3 code is preserved -- detection still runs, the pool can
+	// still be built -- but the default flips to opt-in via -var so
+	// the shipping configuration matches the better-fps baseline.
+	//
+	// G3 / R128 / Panther never advertised the extension to begin
+	// with, so this default flip is a no-op there.
+	if (COM_CheckParm("-novar") || !COM_CheckParm("-var"))
+	{
+		if (COM_CheckParm("-novar"))
+			Con_Warning ("APPLE_vertex_array_range disabled at command line\n");
+		// else: silently default off (the common case post-round).
+	}
 	else if (GL_ParseExtensionList(gl_extensions, "GL_APPLE_vertex_array_range"))
 	{
 		GL_VertexArrayRangeAPPLEFunc      = (QS_PFNGLVERTEXARRAYRANGEAPPLEPROC)      SDL_GL_GetProcAddress("glVertexArrayRangeAPPLE");
@@ -1136,7 +1145,7 @@ static void GL_CheckExtensions (void)
 		GL_VertexArrayParameteriAPPLEFunc = (QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC) SDL_GL_GetProcAddress("glVertexArrayParameteriAPPLE");
 		if (GL_VertexArrayRangeAPPLEFunc && GL_FlushVertexArrayRangeAPPLEFunc && GL_VertexArrayParameteriAPPLEFunc)
 		{
-			Con_Printf("FOUND: APPLE_vertex_array_range\n");
+			Con_Printf("FOUND: APPLE_vertex_array_range (enabled by -var)\n");
 			gl_apple_var_able = true;
 		}
 		else
