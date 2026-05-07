@@ -392,6 +392,7 @@ void R_NewMap (void)
 
 	GL_BuildLightmaps ();
 	GL_BuildBModelVertexBuffer ();
+	GL_BuildBModelVAR ();         // PPC port -- Phase 3.2: register VAR pool for this level (G4 only at runtime; self-resets)
 	//ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel
 
 	r_framecount = 0; //johnfitz -- paranoid?

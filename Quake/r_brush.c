@@ -97,6 +97,38 @@ void DrawGLPoly (glpoly_t *p)
 
 /*
 ================
+DrawGLPolyFromSurface -- PPC port -- Phase 3.2
+
+Like DrawGLPoly, but reads vertex data from the APPLE_vertex_array_range
+pool when available (gl_apple_var_able + pool built). The Apple driver
+auto-detects whether the pointer falls inside the registered VAR range;
+if not, it transparently falls back to ordinary client-array semantics.
+We only invoke this from sites that have an msurface_t in scope and that
+draw the surface's *master* poly (s->polys) -- water-warp subdivision
+chains and sky-clipped polys aren't in the pool, so they stay on the
+plain DrawGLPoly path.
+================
+*/
+void DrawGLPolyFromSurface (msurface_t *s)
+{
+	float *base;
+
+	if (gl_apple_var_able && gl_bmodel_var_pool)
+		base = &gl_bmodel_var_pool[VERTEXSIZE * s->var_firstvert];
+	else
+		base = &s->polys->verts[0][0];
+
+	glVertexPointer   (3, GL_FLOAT, VERTEXSIZE*sizeof(float), base);
+	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), base + 3);
+	glEnableClientState (GL_VERTEX_ARRAY);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDrawArrays (GL_POLYGON, 0, s->polys->numverts);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
+}
+
+/*
+================
 DrawGLTriangleFan -- johnfitz -- like DrawGLPoly but for r_showtris.
 PPC port -- client vertex arrays.
 ================
@@ -711,9 +743,122 @@ void GL_BuildBModelVertexBuffer (void)
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbo);
 	GL_BufferDataFunc (GL_ARRAY_BUFFER, varray_bytes, varray, GL_STATIC_DRAW);
 	free (varray);
-	
+
 // invalidate the cached bindings
 	GL_ClearBufferBindings ();
+}
+
+/*
+=============================================================
+
+	APPLE_vertex_array_range support (PPC port -- Phase 3.2)
+
+	Mirror of the gl_bmodel_vbo path above, but using application
+	memory registered with glVertexArrayRangeAPPLE so the Apple/ATI
+	driver can park the pool in cached VRAM. We use this instead of
+	ARB_VBO because the runtime GL on G4 (Tiger ATI Radeon 9000) is
+	1.3 — gl_vbo_able stays false, gl_bmodel_vbo never gets built.
+	APPLE_vertex_array_range is the only "VRAM-resident static
+	geometry" path on this stack. R128 / Panther doesn't expose VAR,
+	so this is G4-only at runtime; the pool is never built on G3.
+
+=============================================================
+*/
+
+float		*gl_bmodel_var_pool = NULL;	// application memory; lifetime = level
+unsigned int	 gl_bmodel_var_bytes = 0;
+
+void GL_DeleteBModelVAR (void)
+{
+	if (!gl_apple_var_able)
+		return;
+	if (!gl_bmodel_var_pool)
+		return;
+
+	// Disable the VAR client state and unregister the range before
+	// freeing the backing memory -- otherwise the driver may keep
+	// referring to the pool from its cached copy.
+	glDisableClientState (GL_VERTEX_ARRAY_RANGE_APPLE);
+	GL_VertexArrayRangeAPPLEFunc (0, NULL);
+
+	free (gl_bmodel_var_pool);
+	gl_bmodel_var_pool = NULL;
+	gl_bmodel_var_bytes = 0;
+}
+
+/*
+==================
+GL_BuildBModelVAR
+
+Counts brush verts across world + all bmodels, allocates the pool
+once, copies each surface's master poly verts in, and registers the
+pool with the Apple driver. Layout is identical to
+GL_BuildBModelVertexBuffer's: one record per surface, VERTEXSIZE
+floats per vert, surface starts at var_firstvert.
+==================
+*/
+void GL_BuildBModelVAR (void)
+{
+	unsigned int	numverts, varray_index;
+	int		i, j;
+	qmodel_t	*m;
+
+	if (!gl_apple_var_able)
+		return;
+
+	// Mirror GL_BuildBModelVertexBuffer's self-reset behavior so the
+	// R_NewMap caller doesn't have to bracket us with a Delete call.
+	GL_DeleteBModelVAR ();
+
+	// count all verts in all brush models (world + bsp submodels)
+	numverts = 0;
+	for (j=1 ; j<MAX_MODELS ; j++)
+	{
+		m = cl.model_precache[j];
+		if (!m || m->name[0] == '*' || m->type != mod_brush)
+			continue;
+
+		for (i=0 ; i<m->numsurfaces ; i++)
+			numverts += m->surfaces[i].numedges;
+	}
+
+	if (numverts == 0)
+		return;
+
+	gl_bmodel_var_bytes = VERTEXSIZE * sizeof(float) * numverts;
+	gl_bmodel_var_pool  = (float *) malloc (gl_bmodel_var_bytes);
+	if (!gl_bmodel_var_pool)
+	{
+		Con_Warning ("GL_BuildBModelVAR: malloc(%u) failed; falling back to client arrays\n", gl_bmodel_var_bytes);
+		gl_bmodel_var_bytes = 0;
+		return;
+	}
+
+	varray_index = 0;
+	for (j=1 ; j<MAX_MODELS ; j++)
+	{
+		m = cl.model_precache[j];
+		if (!m || m->name[0] == '*' || m->type != mod_brush)
+			continue;
+
+		for (i=0 ; i<m->numsurfaces ; i++)
+		{
+			msurface_t *s = &m->surfaces[i];
+			s->var_firstvert = varray_index;
+			memcpy (&gl_bmodel_var_pool[VERTEXSIZE * varray_index],
+			        s->polys->verts,
+			        VERTEXSIZE * sizeof(float) * s->numedges);
+			varray_index += s->numedges;
+		}
+	}
+
+	// Apple's documented pattern: set the storage hint *before* the
+	// range registration so the driver knows to put it in cached VRAM
+	// rather than AGP. Then enable the client state. With static data
+	// no per-frame flush is needed.
+	GL_VertexArrayParameteriAPPLEFunc (GL_VERTEX_ARRAY_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+	GL_VertexArrayRangeAPPLEFunc (gl_bmodel_var_bytes, gl_bmodel_var_pool);
+	glEnableClientState (GL_VERTEX_ARRAY_RANGE_APPLE);
 }
 
 /*

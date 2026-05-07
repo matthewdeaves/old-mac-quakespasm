@@ -307,7 +307,7 @@ void R_DrawTextureChains_Glow (qmodel_t *model, entity_t *ent, texchain_t chain)
 				GL_Bind (glt);
 				bound = true;
 			}
-			DrawGLPoly (s->polys);
+			DrawGLPolyFromSurface (s);   // PPC port -- Phase 3.2: VAR pool if available
 			rs_brushpasses++;
 		}
 	}
@@ -489,7 +489,7 @@ void R_DrawTextureChains_NoTexture (qmodel_t *model, texchain_t chain)
 				GL_Bind (t->gltexture);
 				bound = true;
 			}
-			DrawGLPoly (s->polys);
+			DrawGLPolyFromSurface (s);   // PPC port -- Phase 3.2: VAR pool if available
 			rs_brushpasses++;
 		}
 	}
@@ -524,10 +524,10 @@ void R_DrawTextureChains_TextureOnly (qmodel_t *model, entity_t *ent, texchain_t
 					
 				if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 					glEnable (GL_ALPHA_TEST); // Flip alpha test back on
-					
+
 				bound = true;
 			}
-			DrawGLPoly (s->polys);
+			DrawGLPolyFromSurface (s);   // PPC port -- Phase 3.2: VAR pool if available
 			rs_brushpasses++;
 		}
 

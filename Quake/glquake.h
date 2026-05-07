@@ -432,6 +432,10 @@ void R_RenderDlights (void);
 void GL_BuildLightmaps (void);
 void GL_DeleteBModelVertexBuffer (void);
 void GL_BuildBModelVertexBuffer (void);
+void GL_DeleteBModelVAR (void);   // PPC port -- Phase 3.2
+void GL_BuildBModelVAR (void);    // PPC port -- Phase 3.2
+extern float        *gl_bmodel_var_pool;   // PPC port -- Phase 3.2: VAR-registered brush vert pool, NULL if !gl_apple_var_able
+extern unsigned int  gl_bmodel_var_bytes;  // PPC port -- Phase 3.2
 void GLMesh_LoadVertexBuffers (void);
 void GLMesh_DeleteVertexBuffers (void);
 void R_RebuildAllLightmaps (void);
@@ -457,6 +461,7 @@ void GLAlias_CreateShaders (void);
 void GL_DrawAliasShadow (entity_t *e);
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
+void DrawGLPolyFromSurface (msurface_t *s);   // PPC port -- Phase 3.2: reads from VAR pool when available
 void DrawWaterPoly (glpoly_t *p);
 void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr);
 

@@ -163,6 +163,7 @@ typedef struct msurface_s
 	mtexinfo_t	*texinfo;
 
 	int		vbo_firstvert;		// index of this surface's first vert in the VBO
+	int		var_firstvert;		// PPC port -- Phase 3.2: index in the APPLE_vertex_array_range pool (gl_apple_var_able)
 
 // lighting info
 	int			dlightframe;

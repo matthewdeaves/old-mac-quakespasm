@@ -822,6 +822,7 @@ static void VID_Restart (void)
 	R_ScaleView_DeleteTexture ();
 	R_DeleteShaders ();
 	GL_DeleteBModelVertexBuffer ();
+	GL_DeleteBModelVAR ();        // PPC port -- Phase 3.2
 	GLMesh_DeleteVertexBuffers ();
 
 //
@@ -832,6 +833,7 @@ static void VID_Restart (void)
 	GL_Init ();
 	TexMgr_ReloadImages ();
 	GL_BuildBModelVertexBuffer ();
+	GL_BuildBModelVAR ();         // PPC port -- Phase 3.2
 	GLMesh_LoadVertexBuffers ();
 	GL_SetupState ();
 	Fog_SetupState ();
