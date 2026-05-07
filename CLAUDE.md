@@ -232,38 +232,52 @@ for both targets on unmodified upstream.**
 
 ## Bench-and-commit cadence (don't skip)
 
+`benchmarks/results.csv` is a **rolling history** that grows across
+every phase — that's how we see the optimization trajectory and decide
+whether to reorder upcoming phases. **Never wipe it mid-round.** The
+default of `parallel-bench.sh` is now append (was wipe; flipped 2026-05-07
+after this exact mistake almost cost us the v2 baseline).
+
 Every "main phase" landing on master gets a full bench grid (G3 + G4 ×
 demo1/demo2/demo3 × 1024×768 + 640×480 × 3 runs) and the resulting CSV
-rows + raw logs **must be committed** before the next phase starts. The
-plan only works if we can see the trajectory across phases — skipping a
-bench cycle blinds the next decision. Wall time is real (~15-20 min
-parallel grid), so the cadence is:
+rows + raw logs **must be committed** before the next phase starts.
+
+Per-phase shape (~15-20 min wall time for the full grid):
 
 1. **Edit + build + deploy** the phase.
 2. **Smoke**: `scripts/parallel-bench.sh --quick` (demo1 only, ~3-4 min).
-   Throwaway — used only to catch broken builds and gross regressions
-   before paying the 15-20 min full-grid tax. **Smoke rows are NOT committed.**
-3. If smoke is sane (no crash, no >5% regression on either target), **commit
-   the code change** with the smoke numbers in the message body.
-4. **Full grid**: `scripts/parallel-bench.sh --keep-csv` against the
-   freshly-committed HEAD. Rows tag with the phase commit hash.
-5. **Commit `benchmarks/results.csv` + `benchmarks/raw/<commit>_*`**
-   as a tiny follow-up commit (`bench: <phase-name>`). Two commits per
-   phase is the price of clean attribution.
+   Throwaway — catches broken builds + gross regressions before paying
+   the 15-20 min full-grid tax. Smoke rows ARE appended to `results.csv`
+   (the rolling history captures everything), but they're not the
+   canonical phase numbers — the post-commit full grid is.
+3. If smoke is sane (no crash, no unexplained >5% regression on either
+   target), **commit the code change** with the smoke numbers in the
+   message body.
+4. **Bench-commit in one shot**:
+   ```
+   scripts/bench-and-commit.sh "Phase 2.1 BGRA lightmaps"
+   ```
+   This: refuses dirty trees, pins HEAD, runs the full grid (CSV rows
+   tag with the phase commit hash), stages `results.csv` + the new
+   `raw/<commit>_*.log` files, and lands a `bench: <phase>` commit with
+   median fps summary in the message.
 
-The smoke-then-full split exists because (a) full-grid is too long to
-discover a build break in, and (b) the post-commit full grid gets the
-right hash baked into the CSV via `git rev-parse HEAD` in `bench.sh`.
+Two commits per phase (code + bench) is the price of clean attribution.
 
-**If a phase smoke shows a regression you didn't expect:** still commit
-the bench data (under a temp branch or as a `bench: <phase> [REGRESSED]`
-commit) before reverting or redirecting. Negative results are signal —
-they're how we decide whether Phase 3.x or Phase 4.x reorders. Don't
-discard them.
+**Hash stability:** `parallel-bench.sh` resolves HEAD once at start and
+exports `$COMMIT`; `bench.sh` honors it. Side commits during a long
+bench can't drift the row tags. (Before 2026-05-07, `bench.sh`
+re-resolved per cell, and the v2-baseline last cell got mis-tagged
+because a docs commit landed mid-bench.)
 
-**Never run a phase's full grid without `--keep-csv`** — the default
-clears `results.csv`, wiping prior baselines. The only legitimate use
-of the wipe is starting a fresh epoch (e.g., a new optimization round).
+**Negative results still get committed** — they're signal for redirecting
+upcoming phases. If smoke surfaces an unexpected regression, name it in
+the bench commit (`bench: Phase 2.1 [REGRESSED] (HEAD ...)`) and decide
+whether to revert before continuing. Don't discard the data.
+
+**`--reset` is a fresh-epoch action only.** `parallel-bench.sh --reset`
+wipes `results.csv` (after backing it up to `results.csv.bak.<ts>`).
+Reserved for starting a brand-new optimization round.
 
 ## Runtime packaging on Tiger (G4) — required structure
 

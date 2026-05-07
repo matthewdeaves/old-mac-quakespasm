@@ -27,7 +27,11 @@ case "$TARGET" in
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 
-COMMIT=$(git -C "$REPO_ROOT" rev-parse --short HEAD)
+# Stable hash through a long matrix run: callers (parallel-bench.sh,
+# bench-and-commit.sh) resolve HEAD once and export $COMMIT so every cell
+# tags consistently, even if a side commit lands during the bench.
+# Standalone invocations fall back to resolving HEAD here.
+COMMIT="${COMMIT:-$(git -C "$REPO_ROOT" rev-parse --short HEAD)}"
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 RAW_DIR="$REPO_ROOT/benchmarks/raw"
 CSV="$REPO_ROOT/benchmarks/results.csv"
@@ -97,3 +101,15 @@ fi
 
 echo "$TS,$COMMIT,$TARGET,$DEMO,$RES,${FPS[0]:-NA},${FPS[1]:-NA},${FPS[2]:-NA},$MEDIAN" >> "$CSV"
 echo "[bench] $MEDIAN_LABEL = $MEDIAN fps  →  $CSV"
+
+# Surface NA runs so the orchestrator (parallel-bench.sh) exits non-zero
+# instead of silently shipping a half-failed grid. A timeout, crash, or
+# missing fps line in qconsole.log all collapse to NA — without this
+# check, a run that didn't actually happen looks like a successful row.
+NA_COUNT=0
+for v in "${FPS[@]}"; do [ "$v" = "NA" ] && NA_COUNT=$((NA_COUNT+1)); done
+if [ "$NA_COUNT" -gt 0 ]; then
+  echo "[bench] FAIL: $NA_COUNT/${RUNS} run(s) returned NA on $TARGET $DEMO $RES" >&2
+  echo "[bench]       check $RAW_DIR/${COMMIT}_${TARGET}_${DEMO}_${RES}_run*.log" >&2
+  exit 1
+fi

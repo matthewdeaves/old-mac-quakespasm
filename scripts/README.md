@@ -21,16 +21,26 @@ scripts/bench.sh g4 demo1 1024x768
 scripts/full-bench.sh both
 
 # Same matrix, but G3 and G4 in parallel (≈ half the wall time)
+# Appends to the rolling benchmarks/results.csv (history across phases).
 scripts/parallel-bench.sh
 
 # Quick iteration loop: demo1 only at both res, both machines in parallel (~3-4 min)
 scripts/parallel-bench.sh --quick
 
+# Bench HEAD and commit the resulting CSV rows + raw logs in one shot.
+# Canonical post-phase action — enforces the bench-and-commit cadence.
+scripts/bench-and-commit.sh "Phase 2.1 BGRA lightmaps"
+
 # Custom subsets via env vars
 DEMOS=demo1 RESES=640x480 RUNS=2 scripts/full-bench.sh g4
 ```
 
-Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw/`.
+`benchmarks/results.csv` is a **rolling history** — every grid run appends.
+This is how we see the optimization trajectory across phases. Use
+`parallel-bench.sh --reset` only when starting a fresh optimization round
+(it wipes after backing up to `results.csv.bak.<ts>`).
+
+Raw `qconsole.log`s live in `benchmarks/raw/<commit>_<target>_<demo>_<res>_runN.log`.
 
 ## Scripts
 
@@ -38,9 +48,10 @@ Results land in `benchmarks/results.csv`; raw `qconsole.log`s in `benchmarks/raw
 |---|---|
 | `build.sh <g3\|g4>` | rsync sources to Lion, compile, install_name fixup, fetch binary to `build/quakespasm-<target>` |
 | `deploy.sh <g3\|g4>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<HOST>:~/Desktop/quake/` |
-| `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv` |
+| `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. |
 | `full-bench.sh [g3\|g4\|both] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when `both`); `--quick` = demo1 only |
-| `parallel-bench.sh [--keep-csv] [--quick]` | same sweep on G3 + G4 concurrently; clears `results.csv` + `raw/` first unless `--keep-csv` |
+| `parallel-bench.sh [--reset] [--quick]` | same sweep on G3 + G4 concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. |
+| `bench-and-commit.sh "<phase>"` | bench HEAD + commit the data in one shot. Refuses dirty trees, pins HEAD, then `parallel-bench.sh "$@"`, stages CSV + new raw logs, lands `bench: <phase> (HEAD <hash>)` commit with median fps summary. The canonical second-of-two commits per phase. |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
 
 ## Parallel-safety notes

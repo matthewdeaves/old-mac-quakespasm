@@ -431,26 +431,30 @@ existing `PPC_PLAN.md` § "Build Strategy" for that decision tree.
 
 ## 10. Methodology (carries forward from Phase 1.1)
 
-Per phase, **two commits**: the code change, then a small `bench:`
-follow-up that captures the data tagged with the code commit's hash.
-See CLAUDE.md "Bench-and-commit cadence" — that's the authoritative
-guidance; this section is the per-phase shape.
+Per phase, **two commits**: the code change, then a `bench:` follow-up
+that captures the data tagged with the code commit's hash. See CLAUDE.md
+"Bench-and-commit cadence" — that's the authoritative guidance; this
+section is the per-phase shape.
 
 1. Build with **only that phase's diff** on top of the prior commit.
-2. `scripts/parallel-bench.sh --quick` (G3 + G4, demo1 only, 3 runs) — 3-4 min smoke.
-3. If smoke is sane (no crash, no >5% regression unexplained): commit the code change with smoke numbers in the message.
-4. `scripts/parallel-bench.sh --keep-csv` full grid (3 demos × 2 res × 2 targets × 3 runs) against the freshly-committed HEAD. Rows pick up the right commit hash via `git rev-parse HEAD`.
+2. Smoke: `scripts/parallel-bench.sh --quick` (G3 + G4, demo1 only, 3 runs) — 3-4 min.
+3. If smoke is sane (no crash, no unexplained >5% regression): commit the code change with smoke numbers in the message.
+4. Full grid + auto-commit: `scripts/bench-and-commit.sh "<phase name>"`.
+   This refuses dirty trees, pins HEAD, runs the full matrix
+   (3 demos × 2 res × 2 targets × 3 runs) against the freshly-committed
+   HEAD, and lands a `bench:` commit with median fps in the message.
 5. Median of runs 2 and 3. Threshold for "real win": ≥1 fps on G4, any positive on G3.
 6. Visual diff: screenshot frame 1500 of demo1 on G4 (Radeon driver is more deterministic than R128). Pixel-diff to baseline. Zero diff required for 2.1, 2.2, 2.3, 3.x. Documented diff allowed only for Phase 5 (visual upgrade).
-7. Commit `benchmarks/results.csv` + the new `benchmarks/raw/<commit>_*.log` as `bench: <phase name> (HEAD <hash>)`. **Negative results still get committed** — they're how we decide whether to reorder upcoming phases.
+7. **Negative results still get committed** — they're how we decide whether to reorder upcoming phases. Append `[REGRESSED]` to the bench commit subject so the trajectory is searchable.
 
 A/B knobs ship in every PR: `-novar`, `-noclient-storage`, `-noaltivec`
 etc. mirroring the existing `-nocva`, `-novbo`, `-nomtex` precedent.
 Production never has to enable them; they exist for bench triangulation.
 
-**Never run `parallel-bench.sh` without `--keep-csv`** unless you mean to
-wipe `results.csv` (the default). Used at the start of a new optimization
-round, never mid-round.
+`benchmarks/results.csv` is a rolling history — it grows across every
+phase. `parallel-bench.sh` defaults to append. The `--reset` flag wipes
+(with auto-backup) and is reserved for starting a brand-new optimization
+round.
 
 ---
 
