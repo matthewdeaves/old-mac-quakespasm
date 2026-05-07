@@ -1,5 +1,14 @@
 # PPC Plan 1.1 — Immediate-Mode → Client Vertex Arrays + CVA
 
+> **STATUS: IMPLEMENTED — historical record.** Shipped via commit
+> `c00a07a7`. Net result: G4 +4.7% avg / +6.2% peak; G3 ±0 (driver has
+> no fast path for client arrays on R128). Phase 1.1c (multitexture
+> array conversion) reverted because it cost G4 −3 to −4% on
+> brush-heavy demos; CVA Lock gated off on R128 for in-game color
+> corruption. See `../../PPC_PLAN.md` for the next round.
+>
+> Archived 2026-05-07.
+
 ## Context
 
 `PPC_PLAN.md` item 1.1 ("EXT_compiled_vertex_array — projected +20-40% on G3

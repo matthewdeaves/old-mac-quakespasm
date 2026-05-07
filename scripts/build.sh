@@ -11,6 +11,22 @@ TARGET="${1:?usage: $0 <g3|g4>}"
 LION="${LION:-lion}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Serialize concurrent invocations. Both targets rsync to the same
+# lion:quakespasm/ path and `make -j2` in lion:quakespasm/Quake/ — running
+# them in parallel races on the .o files and produces a binary stamped with
+# the *other* target's CPU subtype. Symptom: `lipo -info` reports ppc7400
+# for a g3 build, the binary loads on Panther but crashes during AppKit NIB
+# init when the runtime hits G4-compiled library code on a 750 CPU.
+# flock blocks until the prior build releases. (The lock dir is a sibling
+# of build/ so it survives `git clean -dfx`.)
+LOCK_DIR="$REPO_ROOT/build"
+mkdir -p "$LOCK_DIR"
+exec 9>"$LOCK_DIR/.build.lock"
+if ! flock -w 600 9; then
+  echo "build.sh: another build is in progress on $LION; waited 10 min, giving up" >&2
+  exit 1
+fi
+
 case "$TARGET" in
   g3)
     SDK=/Developer/SDKs/MacOSX10.3.9.sdk

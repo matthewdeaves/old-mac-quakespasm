@@ -51,6 +51,23 @@ include `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
 and use `id_rsa_tiger` (RSA, not ed25519 — pre-2014 OpenSSH can't validate
 ed25519). Ad-hoc `ssh user@ip` without these flags will fail.
 
+## Don't run `scripts/build.sh g3` and `g4` in parallel
+
+Both invocations rsync to the same `lion:quakespasm/` path and `make -j2`
+in `lion:quakespasm/Quake/`. Concurrent builds race on the `.o` files and
+the resulting binary gets stamped with the *other* target's CPU subtype.
+Specific failure mode: G3 binary ends up `ppc7400`, Panther loads it
+anyway, then crashes during AppKit NIB init (`-[NSCustomObject
+nibInstantiate]` → `class_initialize` → `0xfffeff00`) when the runtime
+hits G4-compiled library code on a 750. `scripts/build.sh` now takes a
+flock to serialize, but if you bypass the script you must serialize
+yourself. **`scripts/parallel-bench.sh` is fine** — it parallelizes the
+*bench* legs (separate target machines), not the build.
+
+After any build, sanity-check: `file build/quakespasm-g3` must report
+`ppc_750` (or generic `ppc`); `file build/quakespasm-g4` must report
+`ppc_7400`. Anything else is the race.
+
 ## Build path: `Quake/Makefile.darwin`, NOT the Xcode project
 
 `MacOSX/QuakeSpasmPPC.xcodeproj` exists but `objectVersion=42` requires Xcode

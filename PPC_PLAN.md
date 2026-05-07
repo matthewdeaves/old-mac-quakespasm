@@ -1,446 +1,488 @@
-# QuakeSpasm PowerPC Optimization Plan
+# PPC Plan v2 — Apple-fast-path performance round
 
-Working document. Pick up from "Path to Baseline" when you return.
+> 2026-05-07. Supersedes the optimization plan in the previous
+> `PPC_PLAN.md`; sub-plans `PPC_PLAN_1_1.md` and `PPC_PLAN_1_3.md` are
+> historical (1.1 implemented, 1.3 archived). Hardware inventory,
+> toolchain, build workflow, and tooling references continue to live in
+> the previous `PPC_PLAN.md` (preserved at `docs/archive/`) and `CLAUDE.md`.
+>
+> Extension data is **measured**, not estimated:
+> `benchmarks/gl-info/g4-radeon9000-tiger.txt` and
+> `benchmarks/gl-info/g3-rage128-panther.txt` capture the full
+> `glGetString(GL_EXTENSIONS)` from each target. Plan items below cite
+> these directly.
+>
+> **Theme of this round:** push G3 and G4 framerate further by aligning
+> with the *Apple OpenGL fast paths* (BGRA pixels, `APPLE_client_storage`,
+> `APPLE_texture_range`, `APPLE_vertex_array_range`, AltiVec where the
+> driver leaves work on the CPU). Driving constraint: **no visual
+> regressions** — every phase below either preserves visuals exactly, or
+> improves them.
 
-## Goal
+---
 
-Maximize performance and visual quality of QuakeSpasm on PowerPC Macs.
-Two target classes, each with its own optimization profile.
+## 0. What's done (don't replan)
 
-## Hardware
-
-| Role | Machine | CPU | OS | Notes |
-|---|---|---|---|---|
-| Editor | Ubuntu box | x86_64 | Ubuntu | Source-of-truth git tree; Claude Code runs here |
-| Build host | Intel Mac | x86 | Mac OS X 10.7 Lion | Cross-builds PPC via Xcode 3.2.6 |
-| Runtime A | PowerMac G4 | 867 MHz G4 (AltiVec) | Mac OS X 10.4 Tiger | 1 GB RAM, SSD |
-| Runtime B | PowerMac G3 (Blue & White) | 450 MHz G3 (no AltiVec) | **Mac OS X 10.3 Panther** | RAM TBD, SSD, Rage 128 16 MB |
-
-All on same LAN. Quake assets already in place on G3 + G4. Both PPC machines run a Fruitz of Dojo GLQuake build as sanity reference.
-
-## Codebase Findings (sezero/quakespasm @ master)
-
-**Build files relevant to our path:**
-
-- `Quake/Makefile.darwin` — macOS native makefile. Auto-detects arch via `detect.sh`. Accepts `MACH_TYPE=ppc` override. Empty `CPUFLAGS=` exposed for `-mcpu` injection. Doesn't impose `-mmacosx-version-min` for 32-bit ppc. Bundled `MacOSX/SDL.framework` (1.2) used by default.
-- `MacOSX/QuakeSpasmPPC.xcodeproj/project.pbxproj` — `objectVersion = 42`, `compatibilityVersion = "Xcode 3.2"`, `MACOSX_DEPLOYMENT_TARGET = 10.4`, `SDKROOT[arch=ppc] = MacOSX10.4u.sdk`, `GCC_VERSION = 4.0`, `ARCHS = ppc` (single slice), `VALID_ARCHS = "i386 x86_64 ppc"`. **No G3/G4 distinction.** **Will not open in Xcode 2.5** — file format requires Xcode 3.2+.
-- `MacOSX/Build_Instructions.md` — Kristian Duske's dual-Xcode hack for Lion + Xcode 4. We're skipping it; plain Xcode 3.2.6 is enough.
-
-**No existing PPC-specific code anywhere.** No `__VEC__`, no `<altivec.h>`, no `frsqrte`, no asm. Greenfield.
-
-**Two "SSE" mentions in source are not SSE code** — they're defensive `(double)` casts in `gl_model.c:1414` and `gl_rlight.c:326` to avoid x87/SSE2 precision drift in lightmap-extent calcs. Universally safe; nothing to patch.
-
-**No software renderer.** QuakeSpasm is GL-only. Drops items from the original optimization list (see below).
-
-**Heap defaults already generous**: 256 MB heap, 4 MB zone. Probably want to dial *down* for the G3 once we know its RAM, not up.
-
-## Build Strategy
-
-**Phase 1 (now):** two separate binaries via `Makefile.darwin` on Lion.
-
-- `quakespasm-g3`: `CPUFLAGS='-mcpu=750 -O3'`
-- `quakespasm-g4`: `CPUFLAGS='-mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450'`
-- Why: every AltiVec routine needs scalar A/B comparison. Two binaries make that trivial. No dispatch infrastructure to debug while debugging the AltiVec code itself.
-
-**Phase 2 (after AltiVec wins land):** consolidate. Two options to investigate:
-
-- (a) Runtime dispatch — single binary, `sysctlbyname("hw.optional.altivec")` probe, function pointers in `Host_Init`. Same shape as the existing `BigShort/LittleShort` pattern in `common.c`.
-- (b) Mach-O fat binary with `ppc` (generic) + `ppc7400` (G4) subtype slices. dyld picks the right one at exec — no C-side dispatch. **Needs hello-world verification before committing**; loader behavior on Tiger for subtype-matching needs to be checked, not assumed.
-
-**Phase 3 (only if shipping publicly):** full universal. `lipo` together i386 + x86_64 + ppc slices. Packaging concern, layered last.
-
-## Workflow
-
-Ubuntu is the orchestrator — every transfer goes through it. SSH key auth from Ubuntu to each of the three Macs; **no key auth needed Lion ↔ PPC**.
-
-```
-Ubuntu                 Lion                  G4 / G3
-──────                 ─────                 ───────
-edit + git
-   │
-   │── rsync sources ──▶ build PPC slice
-   │                          │
-   │◀── scp binary ────────────
-   │
-   │──── scp binary ───────────────────────▶  run timedemo
-   │                                              │
-   │◀──── scp qconsole.log ───────────────────────
-```
-
-Lion never touches git — receives sources, produces binary, hands binary back. PPC machines never see source — receive binary, run timedemo, hand log back. All four legs are direct Ubuntu↔X transfers; nothing fans out from Lion.
-
-## Benchmarking Discipline
-
-- Canonical: `timedemo demo1`, `demo2`, `demo3`.
-- Pin variables: fixed resolution, `vid_wait 0`, `-nosound`, no other apps.
-- 3× back-to-back. Median of runs 2 and 3 (run 1 has texture upload; less of a confounder now that targets have SSDs, but keep the discipline).
-- Bench BOTH G3 and G4 for every change. AltiVec wins can be no-ops or regressions on G3.
-- `host_speeds 1` and `r_speeds 1` for per-frame breakdowns when investigating.
-- Capture `qconsole.log` via `-condebug`. Tag every result with `(commit-hash, machine, demo)`.
-- **NO source changes until clean baseline numbers exist on both G3 and G4 from unmodified upstream.**
-
-## GL Capability Audit (from v2 baseline raw logs)
-
-`benchmarks/raw/*_run1.log` captures the full startup banner. Side-by-side:
-
-| Capability | G4 (Radeon 9000) | G3 (Rage 128) | Notes |
+| Phase | Status | Commit | Net result |
 |---|---|---|---|
-| GL_VERSION | 1.3 ATI-1.4.18 | 1.1 ATI-1.3.0 | G3 driver is 7+ years older |
-| GL_MAX_TEXTURE_UNITS | 6 | 2 | both enough for single-pass lightmap MT |
-| ARB_multitexture | ✓ | ✓ | already wired up (`gl_vidsdl.c:1030`) |
-| ARB_texture_env_combine/add | ✓ | ✓ | full MT pipeline available |
-| EXT_texture_filter_anisotropic | ✓ | ✗ | G3 stuck on bilinear |
-| ARB_vertex_buffer_object | ✗ (need GL 1.5) | ✗ | both stuck immediate-mode |
-| GLSL (need GL 2.0) | ✗ | ✗ | "Fitz renderer" used; alias-model GLSL path off |
-| glGenerateMipmap (GL 3.0) | ✗ | ✗ | liquids no mipmap → distance shimmer |
-| EXT_packed_pixels | disabled (BE) | disabled (BE) | QuakeSpasm policy on PPC |
-| texture_non_power_of_two | ✗ | ✗ | engine internally rescales |
+| Phase 0 — per-target cvar tuning, dynamic `r_oldwater` | ✅ | `3e502882` | G3 1024 unblocked (was hitting refraction bug); G4 unaffected |
+| Phase 1 — `frsqrte` `VectorLength` / `VectorNormalize` | ✅ | `72fd7fa5` | Within noise on timedemos (math wasn't the bottleneck) |
+| Phase 1.1 — immediate-mode → client vertex arrays + CVA | ✅ | `c00a07a7` | **G4 +4.7% avg, +6.2% peak; G3 ±0** |
+| Phase 1.3 — SGIS mipmap throttle for liquids | 🪦 archived | n/a | `PPC_PLAN_1_3.md` — best case ~fps-neutral, worst -3-5fps; not worth |
 
-Five warnings on both, six on G3 (anisotropy missing). Three are actionable:
+**Architectural state we're building on:**
+- Two binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`. No runtime dispatch yet.
+- `gl_cva_able` exists, with R128 explicitly excluded from the CVA Lock hint due to in-game color corruption (`gl_vidsdl.c:1049-1050`). Arrays still flow on R128; only the lock is skipped.
+- All hot vertex submission paths now use `glDrawArrays`/`glDrawElements` against client memory (alias models, particles, sky cloud layers, lightmaps, water, brush surfaces) **except** `R_DrawTextureChains_Multitexture` — that one was reverted in 1.1 because the array form cost G4 −3 to −4% on brush-heavy demos. The Apple/ATI driver's small-poly `glBegin` path is faster than `glDrawArrays` on Radeon 9000. Phase 3 below revisits this — but only via a path that gives the driver something it can VRAM-cache, not just a different submission API.
 
-- **glGenerateMipmap missing** — visual. Fix via `SGIS_generate_mipmap` extension fallback (available on both GPUs). Auto-generates mip chain on `TexImage2D`.
-- **VBOs unavailable** — perf. Fix via `EXT_compiled_vertex_array` (`glLockArraysEXT` / `glUnlockArraysEXT`). Pre-VBO vertex caching, supported by basically every GL 1.1+ driver.
-- **EXT_packed_pixels disabled on BE** — perf. Defensive disable; investigate enabling for lightmap re-upload (every frame for moving lights). Risk: if Apple's PPC drivers misread BE order we get colour-channel swap.
+## 1. What this round draws on
 
-Multitexture single-pass lightmaps are **already implemented** in QuakeSpasm (`gl_vidsdl.c:1030`, `r_world.c:440`); previous plan item #6 is moot.
+**Today's research (2026-05-06)** explicitly surfaced the gap between QS's
+current GL upload patterns and Apple's documented fast paths on PPC
+drivers:
 
-## Optimization Plan (post-baseline, v2)
+- Apple's docs flag `GL_RGBA` + `GL_UNSIGNED_BYTE` as **the slow swizzle path**, recommend `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` for everything.
+- `GL_APPLE_client_storage` + `GL_STORAGE_CACHED_APPLE` is the canonical pattern for frequently-updated small textures (i.e. **lightmaps**) — promises driver keeps storage in VRAM and skips the application→driver copy.
+- `GL_APPLE_vertex_array_range` is Apple's pre-VBO equivalent. With `GL_STORAGE_CACHED_APPLE` it parks static geometry in VRAM. R128 is GL 1.1; ARB_VBO is unavailable, so this is the only "VRAM resident static geom" path on G3.
+- **G4 (Radeon 9000 / Tiger 10.4)** exposes the full Apple-fast-path kit: `APPLE_client_storage`, `APPLE_packed_pixels`, `APPLE_texture_range`, `APPLE_vertex_array_range`, `SGIS_generate_mipmap`, `EXT_compiled_vertex_array`, `EXT_bgra`, `EXT_texture_compression_s3tc`, `EXT_texture_filter_anisotropic`, `ARB_vertex_buffer_object`, full ARB texture-env family.
+- **G3 (Rage 128 / Panther 10.3)** — measured. Has: `APPLE_client_storage`, `APPLE_packed_pixels`, `EXT_bgra`, `EXT_compiled_vertex_array`, `SGIS_generate_mipmap`, `ARB_multitexture`, `ARB_texture_env_combine/add`. **Does NOT have:** `APPLE_vertex_array_range`, `APPLE_texture_range`, `ARB_vertex_buffer_object`, `EXT_texture_compression_s3tc`, `EXT_texture_filter_anisotropic`. Implication: there is **no path to put static geom in VRAM on G3** — Phase 3 below becomes G4-only.
 
-Stratified by cost. Per-machine impact informed by baseline regime:
+**Phase 1.1 evidence carried forward:**
+- G3 / R128 is **not** per-call-overhead bound. Switching glBegin→glDrawArrays didn't move it. Future G3 wins must come from reducing **data motion** (texture upload bandwidth) or **CPU work that the driver does** (per-frame texture conversions, per-frame transform), not from changing how draws are dispatched.
+- G4 / Radeon 9000 is partly per-call-overhead bound at 1024 (where Phase 1.1 found 4-5% wins) and partly fillrate-bound. AltiVec on the CPU side gives separate headroom (engine-side math, sound mix) that the GPU can't reach.
 
-- **G3 1024×768**: GPU fillrate-bound (3× speedup at 640 confirms it)
-- **G3 640×480**:  CPU-bound
-- **G4 1024×768**: ~50/50 GPU/CPU
-- **G4 640×480**:  CPU-bound (the ceiling)
+---
 
-### Phase 0 — cvar tuning (free, no rebuild)
+## 2. Plan summary table
 
-Goes in an `autoexec.cfg` next to `pak0.pak`. Per-target since defaults differ.
+Phases ordered by **ROI ÷ risk × visual safety**. Each lands as one commit
+on top of HEAD with full bench grid before/after. Visual = zero
+regressions for every item; one item (Phase 5 mipmap revisit) is a visual
+*upgrade* gated behind already-archived 1.3 work.
 
-| cvar | G3 | G4 | rationale |
-|---|---|---|---|
-| `r_oldwater` | **1** | 0 | G3 1024 has blue-water bug from the screen-copy refraction pass; classic warp dodges the copy entirely. G4's Radeon 9000 handles the refraction cleanly — keep new water. |
-| `gl_texture_anisotropy` | n/a | **8** | G3 has no aniso extension. G4 max is usually 16; 8× is the diminishing-returns sweet spot. |
-| `r_particles` | **2** | 1 | G3 force-classic (square) particles to cut overdraw on demo3. G4 has the headroom for round (default). |
-| `r_dynamic` | 1 | 1 | dynamic lights are part of the look; keep on |
+| #   | Phase                                                | Targets    | Files                              | Risk    | G3 expected      | G4 expected       | Visual |
+|-----|------------------------------------------------------|------------|------------------------------------|---------|------------------|-------------------|--------|
+| 2.1 | Lightmap upload format → BGRA + 8_8_8_8_REV          | G3 + G4    | r_brush.c, gl_texmgr.c             | low     | **+3-10%** dyn-light heavy | **+1-3%**  | none   |
+| 2.2 | `GL_APPLE_client_storage` for lightmap pool          | G3 + G4    | r_brush.c, gl_vidsdl.c, glquake.h  | low     | **+2-6%**        | +1-2%             | none   |
+| 2.3 | `GL_STORAGE_CACHED_APPLE` per-texture hint on lightmaps | G3 + G4 | r_brush.c                          | low     | +1-2%            | +0-1%             | none   |
+| 3.1 | `GL_APPLE_vertex_array_range` detection + buffer pool | **G4 only** | gl_vidsdl.c, glquake.h, gl_model.h | medium  | n/a              | 0 (scaffolding)   | none   |
+| 3.2 | Static brush verts → VAR pool, `STORAGE_CACHED_APPLE` | **G4 only** | r_brush.c, gl_model.c              | medium  | n/a              | **+3-7%**         | none   |
+| 3.3 | Re-enable `R_DrawTextureChains_Multitexture` array path against VAR-pool memory | **G4 only** | r_world.c | medium-high | n/a | +1-3% (recovers from 1.1c revert) | none |
+| 4.1 | AltiVec `VectorTransform` 4× batched                 | G4 only    | mathlib.c, r_alias.c               | medium  | n/a              | **+2-5%** alias-heavy | none |
+| 4.2 | AltiVec sound mixer (`SND_PaintChannelFrom8/16`)     | G4 only    | snd_mix.c                          | medium  | n/a              | 0 timedemo / **+3-5% gameplay CPU** | none |
+| 4.3 | AltiVec 8→32 palette expand at level load             | G4 only    | gl_texmgr.c (`TexMgr_LoadImage8`)  | low     | n/a              | level-load only (faster map loads) | none |
+| 5   | Revisit Phase 1.3 mipmap throttle (G4 liquids)       | G4 only    | (per archived plan)                | medium  | n/a              | -2 to +2 fps for distance-mipmapped water | **+** liquids |
+| 6   | Runtime AltiVec dispatch / fat binary                 | both       | common.c, mathlib.c, snd_mix.c     | low     | 0                | 0                 | none   |
 
-### Phase 1 — shared source patches (G3 + G4)
+**Cumulative target across 2.1 → 3.3 (the visual-neutral Apple fast-path work):**
+- G3 1024 timedemo: ~24.7 → ~26-29 fps (5-18%) — Phase 2 only; G3 has no VRAM-resident geom path
+- G3 640 timedemo: ~21 → ~22-25 fps
+- G4 1024 timedemo: ~110 → ~118-128 fps (7-16%)
+- G4 640 timedemo: ~150 → ~160-175 fps
 
-Ordered by expected impact, biggest first. Each applies to both binaries.
+Numbers are estimates from research benchmarks and similar-vintage engine
+work; will be invalidated/refined by actual benches. **No phase is
+committed without measuring its effect.**
 
-**1. `EXT_compiled_vertex_array` support** — `Quake/gl_vidsdl.c`, `Quake/r_world.c`, `Quake/r_alias.c`
-   - QuakeSpasm builds vertex arrays per-frame and submits via `glDrawArrays`
-   - Wrapping the array setup in `glLockArraysEXT`/`glUnlockArraysEXT` lets the driver cache transformed/lit vertices across draw calls
-   - **Biggest win on G3 640** (CPU-bound, immediate mode is the bottleneck) — projected +20-40%
-   - Smaller win on G4 (CPU-bound at 640 too, but less dominant) — projected +5-15%
-   - No effect on G3 1024 (fillrate-bound, vertex submission isn't the wall)
+---
 
-**2. `frsqrte` VectorLength + VectorNormalize** — `Quake/mathlib.c:276,281`
-   - PowerPC 601+ instruction; ~6 cycles vs ~30 for `sqrt`
-   - One `frsqrte` + one Newton-Raphson refinement = 2-3 fp ops vs library `sqrt`
-   - Benefits both uniformly. Most-called from rendering and physics
-   - **Projected +2-5% in CPU-bound regimes (G3 640, G4 both)**
+## 3. Phase 2 — Lightmap upload fast path (both targets)
 
-**3. `SGIS_generate_mipmap` for liquids** — `Quake/gl_texmgr.c`
-   - Set `GL_GENERATE_MIPMAP_SGIS = GL_TRUE` before liquid `TexImage2D` calls
-   - Both ATI drivers expose this (it's older than GL 1.4)
-   - **Visual quality only** — eliminates water/lava/slime shimmer at distance
-   - One-shot cost at texture load; per-frame cost zero
+**Why it's first:** lightmap re-upload is the only per-frame texture
+upload in the engine (`R_UploadLightmaps` at `r_brush.c:969`, called from
+`R_DrawTextureChains` every frame). Default `r_dynamic 1` means any
+moving entity that emits light marks lightmap blocks dirty and triggers
+`glTexSubImage2D` for the dirty region. On a 450 MHz G3 this is the
+fattest per-frame data transfer the engine does — and the format we
+upload in is the format Apple specifically warns against.
 
-**4. `EXT_packed_pixels` re-enable on PPC (with verification)** — `Quake/gl_texmgr.c`, lightmap upload
-   - Currently QuakeSpasm forces `EXT_packed_pixels` off on big-endian
-   - Lightmaps re-upload every frame for moving lights; packed format would halve bandwidth
-   - **Verify carefully**: build a test pattern, compare on-screen colours vs G4 Mesa reference
-   - Roll back if anything is colour-shifted
+### 2.1 — `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` for lightmaps
 
-### Phase 2 — G4-only AltiVec
+**Files:** `Quake/r_brush.c` (lines 545-560, 845-960, 1021), `Quake/gl_texmgr.c:1258-1263`
 
-Phase 1 of build strategy keeps G3/G4 binaries separate; runtime dispatch comes later (Phase 3 of build strategy).
+**Plumbing already exists.** `r_brush.c:545` says
+`gl_lightmap_format = GL_RGBA;//FIXME: hardcoded for now!` and the switch
+statements at 549-557, 845-893 already have a `GL_BGRA` case wired in.
+`R_BuildLightMap` (r_brush.c:786) writes the lightmap data; the byte
+order it produces needs to match the format we declare.
 
-**5. AltiVec mathlib batch ops** — `Quake/mathlib.c`
-   - `vec_re` (reciprocal estimate), `vec_rsqrte` (inverse sqrt) — already 4-wide hardware
-   - Vectorized dot product, cross product, 4-vert transform batches
-   - **Projected +5-10% in CPU-bound regimes (G4 640)**
+**Change:**
+1. `gl_lightmap_format = GL_BGRA;` (was `GL_RGBA`)
+2. In `R_UploadLightmaps` and `GL_BuildLightmaps` switch over to use `GL_UNSIGNED_INT_8_8_8_8_REV` as the pixel type when `gl_lightmap_format == GL_BGRA`. Currently `r_brush.c:951` and `:992` hardcode `GL_UNSIGNED_BYTE` (or `GL_UNSIGNED_INT_10_10_10_2` when wide).
+3. In `R_BuildLightMap` (r_brush.c:786 onward), the BGRA branch already exists at line 890-onwards; verify byte ordering matches the spec — `GL_UNSIGNED_INT_8_8_8_8_REV` packs as `(A << 24) | (R << 16) | (G << 8) | B` in the **machine word**, which on big-endian PPC means bytes-in-memory are `[A][R][G][B]`. (On little-endian it'd be `[B][G][R][A]`.) PPC is BE; this is one of the few cases where the BE/LE story is in our favor — the bytes the engine writes match what the driver wants.
 
-**6. AltiVec sound mixer** — `Quake/snd_mix.c:472,498`
-   - `SND_PaintChannelFrom8` / `SND_PaintChannelFrom16` inner loops
-   - Bench is `-nosound` so won't move the timedemo numbers, but matters at runtime
-   - **Frees ~3-5% CPU during gameplay with sound on**
+**Critical pitfall:** the `GL_UNSIGNED_INT_8_8_8_8_REV` token name is misleading. The "REV" means "reverse of `8_8_8_8`" in *component order*, not in byte order. The packed-pixel spec is defined in terms of the data type (`GLuint`), so the channel layout depends on host endianness in a way you have to think about explicitly. **Validation step**: after the patch, fire up demo1 on G4, screenshot a lightmap-heavy area (e.g. start of demo1, the room with rotating fan), compare to a screenshot of the same frame from `c00a07a7` baseline. Pixels must match exactly (lightmap is multiplicative; off-by-channel would tint the whole world).
 
-### Phase 3 — experimental / nice-to-have
+**Expected impact:** Apple docs say "many cards" require swizzling in the
+`GL_RGBA` + `GL_UNSIGNED_BYTE` path. Reported speedups range 6× (NVIDIA)
+to 40× (Intel) to "minimal" (ATI). On the 10.3 R128 driver in
+particular, the swizzle is a CPU-side reorder per-pixel per-upload — a
+hot loop on a 450 MHz part. Most likely 3-10% G3 / 1-3% G4 in dynamic-
+light-heavy demos (demo3, monster fights). **Demos with no moving lights
+should show ±0%** — that's a feature, not a bug; it confirms we're
+isolating the dirty-rect upload cost.
 
-**7. Texture compression on Radeon 9000** (G4-only) — `Quake/gl_texmgr.c`
-   - `ARB_texture_compression` + `EXT_texture_compression_s3tc` for DXT1/DXT5
-   - Halves VRAM, may help fillrate at 1024
-   - Confirm Rage 128 doesn't expose these (otherwise turn on for both)
+**Visual safety:** zero regressions if the validation screenshot matches.
+Lightmap data is the same; only the format on the wire to the driver
+changes.
 
-**8. `TexMgr_LoadImage8` 8→32 expansion** — `Quake/gl_texmgr.c`
-   - One-shot at level load. AltiVec on G4, unrolled scalar on G3
-   - Affects load time, not framerate. Lower priority.
+---
 
-**9. Heap-size tuning** — `-heapsize` arg
-   - G4 has 1 GB RAM, G3 has 896 MB. Default 256 MB is fine for both.
-   - Bumping G4 to 512 MB might keep more textures cached across map changes; doesn't move timedemo numbers.
+### 2.2 — `GL_APPLE_client_storage` on the lightmap pool
 
-### Won't-do (already verified or unreachable)
+**Files:** `Quake/glquake.h`, `Quake/gl_vidsdl.c` (extension detection),
+`Quake/r_brush.c` (`GL_BuildLightmaps`)
 
-- **GLSL anything** — both machines < GL 2.0, hardware can't reach
-- **VBOs** — both < GL 1.5; Phase 1.1 CVAs are the substitute
-- **Anisotropic filtering on G3** — Rage 128 driver doesn't expose extension
-- **glGenerateMipmap** — GL 3.0; Phase 1.3 SGIS replacement covers it
-- **Multitexture lightmaps** — already done in upstream
-- **Heap shrink for G3** — 896 MB RAM is plenty; 256 MB heap doesn't push swap
+`GL_APPLE_client_storage` tells the driver *not* to copy your texture
+data — it keeps your pointer. The texture lives in your application's
+memory, and `glTexSubImage2D` updates it via DMA from there. Eliminates
+one full `LMBLOCK_WIDTH × LMBLOCK_HEIGHT × 4` byte copy per dirty-rect
+upload.
 
-## Methodology — proving each item helps
+**Apple's constraint:** texture width must be a multiple of 32 bytes for
+the no-copy path to engage. `LMBLOCK_WIDTH = 256` (per
+`r_brush.c:355,545`); 256 × 4 bytes = 1024 bytes — multiple of 32, ✓.
 
-For every Phase 1+ patch:
-1. Build with **only that patch** on top of `f14a7427` baseline (no overlap)
-2. `scripts/parallel-bench.sh --quick` → 12 rows in 3-4 min
-3. Compare median vs the equivalent row in `benchmarks/results.csv` (commit `4c165e6f`)
-4. Threshold: ≥1 fps improvement on G4 (run-to-run noise was 0.1-2 fps); any improvement on G3 (variance was zero)
-5. If positive: run full `parallel-bench.sh` (no flag) for the per-demo breakdown
-6. Commit with the bench numbers in the message
-7. Update `benchmarks/results.csv` with a new commit-tagged row set
+**Change:**
+1. Add `gl_apple_client_storage_able` flag and detection branch in `gl_vidsdl.c` (mirror `gl_cva_able` pattern). Probe `GL_APPLE_client_storage`.
+2. In `GL_BuildLightmaps`, before calling `TexMgr_LoadImage` for each lightmap, set `glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE)`. Reset to `GL_FALSE` after.
+3. Verify: `lightmaps[i].data` must remain alive for the lifetime of the texture (which it does — it's `realloc`'d in the lightmap pool and freed via `Mod_ClearAll`).
 
-## Compile Flags Per CPU
+**Risk:** if the lightmap pool gets `realloc`'d *while a texture is bound*, the driver's pointer would dangle. Look at `r_brush.c:353` — pool is realloc'd during `AllocBlock` *before* uploads happen. Safe sequence is preserved as long as `realloc` of the lightmap array doesn't move the per-lightmap `data` (which is `calloc`'d separately at line 355).
 
-- G3: `-mcpu=750 -O3`
-- G4: `-mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450`
+**Expected impact:** measurable on G3 because every byte saved off the
+upload path matters. 2-6% G3, 1-2% G4. Compounds with 2.1 — they're the
+same-domain optimizations (data motion to driver).
 
-(Plus `Makefile.darwin` defaults: `-Wall -MMD`, auto-detected `-fweb`, `-frename-registers`.)
+**Visual safety:** none — pure transport change.
 
-## Decision: G3 Target = 10.3 Panther (locked)
+---
 
-User decision: G3 stays on Panther because it's the lighter OS for that hardware. G4 stays on 10.4 Tiger. We build two binaries with two SDK targets.
+### 2.3 — `GL_STORAGE_CACHED_APPLE` per-texture hint on lightmaps
 
-### Audit results
+**Files:** `Quake/r_brush.c`
 
-- **`MacOSX/AppController.m`, `SDLMain.m`, `SDLApplication.m`, `QuakeArgument*.m`, `ScreenInfo.m`** — clean. No `NSInteger`/`CGFloat`/`@property`/blocks/GCD. Conservative Cocoa, runs on 10.3 as-is.
-- **`Quake/pl_osx.m`** — already has explicit `MAC_OS_X_VERSION_MIN_REQUIRED < 1040` and `< 1030` guards (lines 60, 84, 89) routing to legacy APIs when targeting Panther. The QuakeSpasm authors anticipated this build.
-- **One known patch needed** — `pl_osx.m:92-95` uses Obj-C 2.0 dot-notation (`alert.alertStyle = ...`) on the `>= 1030` branch. gcc 4.0 doesn't support that syntax (it's gcc 4.2+). 3-line patch:
+`GL_APPLE_texture_range` (range-based hint) is **not exposed on R128 / 10.3** per the captured G3 extension list, so the contiguous-pool variant is dropped. The per-texture parameter `GL_TEXTURE_STORAGE_HINT_APPLE = GL_STORAGE_CACHED_APPLE` is part of the same extension family and on G4. On G3 we set it conditionally — falls through harmlessly if the symbol isn't recognized.
 
-  ```objc
-  // before:
-  alert.alertStyle = NSAlertStyleCritical;
-  alert.messageText = @"Quake Error";
-  alert.informativeText = msg;
-  // after:
-  [alert setAlertStyle: NSAlertStyleCritical];
-  [alert setMessageText: @"Quake Error"];
-  [alert setInformativeText: msg];
-  ```
+**Change:** in `GL_BuildLightmaps`, after each `TexMgr_LoadImage` of a lightmap:
+```c
+if (gl_apple_storage_hint_able)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+```
 
-  Apply this as part of bring-up; not an upstream-able fix unless we sniff `__OBJC2__`.
+Detection: probe `GL_APPLE_texture_range` (G4: yes, G3: no) and use it as the gate.
 
-- **SDL.framework bundled is 1.2.16, built against 10.6 SDK.** Whether it runs on 10.3 depends on its link-time `MACOSX_DEPLOYMENT_TARGET`, which we can't tell without running `otool -l` on Lion (or just trying it on the G3). **Contingency:** if it doesn't load on 10.3, rebuild SDL 1.2.15 from libsdl.org sources against the 10.3.9 SDK and replace the bundled framework. Well-trodden, ~15 min of work.
+**Expected impact:** modest — driver hint, not a behavior change. ~1-2% G4, ~0-1% G3 (extension absent → no-op there). The cost is one parameter call per lightmap at level load. Worth doing because it's free.
 
-## Toolchain Layout on Lion
+**Visual safety:** none.
 
-User can install multiple Xcode versions. Plan: Xcode 3.2.6 as primary, plus the **10.3.9 SDK extracted from the Xcode 2.5 DMG** (no need to fully install Xcode 2.5 — we only want the SDK).
+---
 
-## Lion Toolchain Setup
+## 4. Phase 3 — Static brush geometry to VRAM via APPLE_vertex_array_range (G4 only)
 
-### 1. Install Xcode 3.2.6 (primary)
+R128 / 10.3 does **not** expose `APPLE_vertex_array_range` per the
+captured G3 extension list (and there is no `ARB_vertex_buffer_object`
+on G3 either). This phase is therefore G4-only — there is no analogous
+path to put static world geometry in driver-cached VRAM on G3, and the
+client-array path Phase 1.1 left in place is the best we can do there.
 
-- Source: <https://developer.apple.com/download/all/> (free Apple ID required). Search "Xcode 3.2.6 and iOS SDK 4.3". DMG ~4.1 GB.
-- Lion install workaround (installer won't launch normally on 10.7):
+### 3.1 — Detection scaffolding
 
-  ```sh
-  export COMMAND_LINE_INSTALL=1
-  open "/Volumes/Xcode and iOS SDK/Xcode and iOS SDK.mpkg"
-  ```
+**Files:** `Quake/glquake.h`, `Quake/gl_vidsdl.c`
 
-- Components: enable **Mac OS X 10.4 SDK** (essential for G4 build), Mac OS X 10.5 SDK (free bonus), System Tools, Unix Development. Skip iOS SDK, iOS Simulator.
-- Default `/Developer` install target is fine.
-- Sanity check after install:
+Add `gl_apple_var_able`, function-pointer typedefs for
+`glVertexArrayRangeAPPLE` and `glFlushVertexArrayRangeAPPLE`, detection
+block in `GL_CheckExtensions` mirroring the CVA pattern. `-novar`
+command-line escape hatch (mirrors `-nocva`/`-novbo`).
 
-  ```sh
-  /usr/bin/gcc-4.0 -arch ppc -v          # version + ppc target info
-  ls /Developer/SDKs                     # MacOSX10.4u.sdk + MacOSX10.5.sdk
-  xcodebuild -version                    # Xcode 3.2.6
-  ```
+**Smoke test:** boot, exit, confirm `FOUND: APPLE_vertex_array_range` in
+qconsole.log on both targets.
 
-### 2. Graft the 10.3.9 SDK from Xcode 2.5
+**No behavior change.** Pure scaffolding.
 
-Xcode 3.2.6 doesn't ship the 10.3.9 SDK; it was last in Xcode 2.5. We don't need to install Xcode 2.5 in full (its installer is Tiger-era and won't run cleanly on Lion anyway) — we just extract the SDK package.
+---
 
-- Source: same Apple Developer downloads page, search "Xcode 2.5 Developer Tools" (also free Apple ID).
-- After downloading, mount the DMG. Don't run the installer. Find the SDK package at:
+### 3.2 — Static brush vertex pool in VAR memory
 
-  ```
-  /Volumes/Xcode Tools/Packages/MacOSX10.3.9.pkg
-  ```
+**Files:** `Quake/gl_model.c` (`Mod_LoadBrushModel` / `BuildSurfaceDisplayList`), `Quake/r_brush.c`
 
-- Expand the package and copy the SDK into place:
+Idea: at level-load, after `BuildSurfaceDisplayList` has built every
+`glpoly_t::verts` array, copy the verts of every static brush surface
+into a single contiguous VAR-registered block. Store the block's offset
+on the `glpoly_t`. The legacy client-array code path then issues
+`glVertexPointer` against the VAR pool's base + offset instead of the
+`Hunk_Alloc`'d per-poly buffer.
 
-  ```sh
-  cd /tmp
-  pkgutil --expand "/Volumes/Xcode Tools/Packages/MacOSX10.3.9.pkg" macosx10.3.9
-  # The expanded pkg contains a Payload archive (cpio.gz). Find the SDK root:
-  cd macosx10.3.9
-  cat Payload | gunzip | cpio -id
-  # The SDK appears at ./Developer/SDKs/MacOSX10.3.9.sdk/ (or similar).
-  sudo cp -R Developer/SDKs/MacOSX10.3.9.sdk /Developer/SDKs/MacOSX10.3.9.sdk
-  ```
+**Apple's pattern:**
+```c
+// Once at map load:
+glVertexArrayRangeAPPLE(pool_size, pool_base);
+glEnableClientState(GL_VERTEX_ARRAY_RANGE_APPLE);
+glTexParameteri(... GL_VERTEX_ARRAY_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE); // hint VRAM
+// (No flush needed for static data.)
+```
 
-  (Exact internal path may vary — `find . -name MacOSX10.3.9.sdk -type d` after expand will pin it.)
+The pool itself is application memory, but the driver promises to cache
+it in VRAM after first reference. **Static data → driver caches once,
+reuses forever.** That's the magic vs. ARB_VBO on G3 (which doesn't
+exist there).
 
-- Sanity check:
+**Memory budget:** typical Quake map has ~5,000 brush vertices × 7
+floats × 4 bytes = ~140 KB. Fits L2 trivially, let alone the 16 MB R128
+VRAM.
 
-  ```sh
-  ls /Developer/SDKs/MacOSX10.3.9.sdk/usr/include/stdio.h    # exists
-  /usr/bin/gcc-4.0 -arch ppc -isysroot /Developer/SDKs/MacOSX10.3.9.sdk \
-      -mmacosx-version-min=10.3.9 -E - </dev/null > /dev/null  # no errors
-  ```
+**Implementation gate:** `gl_apple_var_able` must be set. R128 doesn't
+expose VAR per the captured extension list, so this code path simply
+never engages on G3 — fallback is the existing client-array path that
+Phase 1.1 already shipped.
 
-### 3. (Optional, contingency only) Rebuild SDL 1.2 for 10.3
+**Risk:** medium. The Radeon 9000 driver is more exercised than R128's,
+but VAR + multitexture is a less-trodden corner of the API. Ship 3.2
+with a `-novar` opt-out so we can A/B-bench cleanly.
 
-Only needed if the bundled `MacOSX/SDL.framework` (1.2.16, built against 10.6 SDK) refuses to load on the G3. Decide after first 10.3 binary is shipped to the G3 and tried.
+**Expected impact:** G4 +3-7% (Apple's GL on Radeon 9000 is well-
+exercised; static brush geom is the largest single per-frame submission
+on the G4 path). G3: none (extension not present).
 
-If needed:
+**Visual safety:** none if it works; if it corrupts, gate behind opt-out.
+**No corruption ever ships unguarded** — see verification.
+
+---
+
+### 3.3 — Restore `R_DrawTextureChains_Multitexture` array conversion (G4 + VAR only)
+
+**Files:** `Quake/r_world.c`
+
+Phase 1.1c (multitexture array conversion) was reverted because it cost
+G4 −3 to −4% on brush-heavy demos. The diagnosis: Apple's Radeon 9000
+driver has a fast `glBegin` path that beats `glDrawArrays` *against
+client memory*. With Phase 3.2 in place, the data isn't in client memory
+— it's in driver-cached VAR memory. Hypothesis: the array path becomes
+faster than `glBegin` once the driver has the verts already.
+
+**Implementation:** restore the 1.1c array-conversion code, gated on
+`gl_apple_var_able`. Without VAR (i.e. G3 or `-novar`), keep the glBegin
+path.
+
+**Risk:** medium-high. This is the most fragile interaction (multitexture
++ VAR + client-array). A/B with `-novar` and `-noarrays-mtex` flags to
+triangulate.
+
+**Expected impact:** G4 +1-3% (recovery from the 1.1c regression — only
+when VAR is on, otherwise neutral). G3: untouched.
+
+**Visual safety:** none.
+
+---
+
+## 5. Phase 4 — AltiVec (G4 only)
+
+Three independent items. All G4-only until Phase 6 wires runtime
+dispatch. Each shippable as its own commit.
+
+### 4.1 — AltiVec `VectorTransform` for alias model lerp
+
+**Files:** `Quake/mathlib.c`, `Quake/r_alias.c` (lerp loop in
+`GL_DrawAliasFrame` — already converted to scratch buffer in Phase 1.1e)
+
+The alias model lerp at `r_alias.c` walks `numverts_vbo` vertices,
+computes `lerp = v1 * blend + v2 * (1-blend)` for xyz, and writes to
+`alias_pos_scratch`. AltiVec's `vec_madd` on float4 does the same op
+4-wide. With xyz (3 floats per vert) we either pad to 4 and waste a lane,
+or use overlapped 4-vec operations.
+
+**Approach:** simplest is pad-to-4 — make `alias_pos_scratch` `float[4]`
+per vertex (one extra float per vert wasted). Lerp loop becomes one
+`vec_madd` per vertex. Bandwidth from L1 dominates; the extra float is
+free. Memory cost: 8 KB extra per `MAXALIASVERTS` (= 2000) — fine.
+
+**Expected impact:** G4 +2-5% on alias-heavy demos (demo3 zombies/ogres).
+Demos with mostly brush rendering won't move.
+
+**Visual safety:** none.
+
+---
+
+### 4.2 — AltiVec sound mixer
+
+**Files:** `Quake/snd_mix.c:472-527` (`SND_PaintChannelFrom8`,
+`SND_PaintChannelFrom16`)
+
+8-bit and 16-bit PCM mixer inner loops. Multiplies sample × volume,
+accumulates into 16-bit paintbuffer. AltiVec `vec_unpackh`/`vec_unpackl`
++ `vec_madd` on int16 vectors.
+
+**Important:** our timedemo runs `-nosound` so this won't show in
+benchmarks. It's a CPU-cycles-saved-during-actual-gameplay change. About
+3-5% CPU recovered on G4 with sound enabled. Translates to
+~0.5-1.5 fps headroom in real play vs. timedemo.
+
+**Risk:** subtle. AltiVec int math has saturating-vs-wrapping arithmetic;
+the C scalar code uses `((vol * sfx) >> 8)` which is plain shift, so we
+need `vec_mladd` (modulo) not `vec_madd`. Audio bugs are easy to
+introduce and hard to spot in a fast loop.
+
+**Validation:** play a known sound file in each format, A/B-compare the
+output buffer byte-for-byte against the scalar mixer (offline, before
+shipping).
+
+**Visual safety:** none (audio).
+
+---
+
+### 4.3 — AltiVec 8→32 palette expand at `TexMgr_LoadImage8`
+
+**Files:** `Quake/gl_texmgr.c` (`TexMgr_LoadImage8`)
+
+Level load expands every 8-bit-paletted source texture into RGBA8
+in-engine. Walks pixels, indexes the palette LUT, writes 4 bytes.
+Classic SIMD target via `vec_perm` palette lookup tables (16-entry chunks).
+
+**Won't affect framerate.** Affects **map-load wall-clock** and the
+mid-game map-change hitch. Several seconds of load time recovered on a
+big map (Arcane Dimensions etc).
+
+**Expected impact:** load-time only. Worth doing for the user experience.
+
+**Visual safety:** none — same expanded image, just computed faster.
+
+---
+
+## 6. Phase 5 — Revisit liquid mipmap (G4 only, optional)
+
+`PPC_PLAN_1_3.md` is currently archived. The reason was: the SGIS-based
+mipgen on every `glCopyTexSubImage2D` was a software-fallback path on
+Radeon 9000 — 109 → 37 fps regression. The throttle approach (regen
+every Nth frame) gives the perf back at the cost of jerky water
+animation.
+
+**Conditions for revival:**
+- Phases 2-3 land enough headroom on G4 1024 that 3-5 fps for distance
+  mipmapping is an acceptable tax.
+- User explicitly flags shimmering water as a quality blocker.
+
+**No code work for this round.** Listed only so the open question stays
+visible. Concrete plan still lives in `PPC_PLAN_1_3.md`.
+
+---
+
+## 7. Verification — extension data captured
+
+`benchmarks/gl-info/g3-rage128-panther.txt` and
+`benchmarks/gl-info/g4-radeon9000-tiger.txt` hold the verbatim
+`glGetString(GL_EXTENSIONS)` from each target. Reproduce by:
 
 ```sh
-# Get SDL 1.2.15 sources from libsdl.org, then on Lion:
-./configure CC=/usr/bin/gcc-4.0 CFLAGS="-arch ppc -isysroot /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3.9" \
-            LDFLAGS="-arch ppc -isysroot /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3.9" \
-            --host=powerpc-apple-darwin --disable-shared --enable-static=no
-make
-# Then build the framework bundle (Xcode/SDL.xcodeproj works) and replace MacOSX/SDL.framework.
+ssh PowerMacG3 "cd Desktop/quake; rm -f qconsole.log
+  ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . \
+    -nosound -condebug -fullscreen -width 640 -height 480 \
+    +vid_wait 0 +gl_info +timedemo demo1 >/dev/null 2>&1 &"
+# wait for qconsole.log to contain GL_EXTENSIONS:, then SIGTERM, scp back
 ```
 
-## Status (as of 2026-05-06)
+The `+timedemo` (rather than `+quit`) keeps the engine alive past init
+so the log gets written. `+gl_info` is the in-engine command added by
+johnfitz that prints the extension list; no patch needed.
 
-**Build infrastructure: complete.**
+**Open visual sign-offs (still todo):**
 
-- ✅ Lion build host fully provisioned (Xcode 3.2.6 + 10.3.9/10.4u/10.5 SDKs)
-- ✅ All four PPC patches applied + committed (`pl_osx.m`, `gl_vidsdl.c`, `QuakeArguments.m`, `AppController.m`)
-- ✅ SDL.framework rebuilt for Panther (`MacOSX/SDL-panther.dylib`, ppc-only, 10.3 target)
-- ✅ SSH aliases for `lion`, `g4`, `PowerMacG3` (legacy crypto)
-- ✅ Both binaries build cleanly: `quakespasm-g4` (10.4u + AltiVec), `quakespasm-g3` (10.3.9, no AltiVec)
-- ✅ Both binaries verified running on real hardware
-- ✅ Tooling: `scripts/{build,deploy,bench,full-bench,setup-lion,parse_qconsole.py}` + `.claude/{commands,skills}/`
-- ✅ Vendored prereqs: `prereqs/` with the Xcode 3.2.6 DMG, Xcode 2.5 DMG, SDL 1.2.15 source
+| # | Question | How to verify | Blocks |
+|---|---|---|---|
+| V5 | Does the `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` lightmap path produce visually identical output to baseline on both targets? | After 2.1, screenshot demo1 frame ~1500 on G4 baseline vs. G4 + 2.1; pixel-diff must be zero. Spot-check on G3 (R128 has both `APPLE_packed_pixels` and `EXT_bgra` but its 1.1 driver is older, may have corner-case bugs in BGRA paths). | 2.1 sign-off |
+| V6 | Does Radeon 9000 tolerate VAR + multitexture without corruption? | After 3.2 + 3.3: visual inspection on G4, demo3 (most state churn). | 3.3 sign-off |
 
-**v1 baseline: captured (640x480 windowed, demo1 only).**
+---
 
-- G4 733 MHz / Radeon 9000 / 10.4.11: **127.1 fps median**
-- G3 449 MHz / Rage 128   / 10.3:     **19.35 fps median**
-- ratio ≈ 6.6×
+## 8. Won't-do (explicit cuts)
 
-**v2 baseline: in progress.**
+These are excluded by the "no visual sacrifice" constraint or have
+already been investigated.
 
-- 1024x768 fullscreen + 640x480 fullscreen, demo1+demo2+demo3, 3 runs each
-- See `benchmarks/results.csv` for results, `benchmarks/raw/` for raw logs
+- **`gl_picmip 1`** — halves all texture resolutions. Visual loss. Skip.
+- **S3TC compression** (`EXT_texture_compression_s3tc`, available on G4) — block-compression artifacts on character textures. Visual loss. Skip even though it would free VRAM and probably help fillrate.
+- **More aggressive `r_dynamic` policies** (auto-disable in fights etc) — visual loss (no rocket lights = wrong-looking Quake). Skip.
+- **Disable particles on G3 ever** — already mitigated to `r_particles 2` (square) per Phase 0; further disabling would be visual loss.
+- **Skybox AltiVec / batching** — Phase 1.1h cuts noted skybox is rasterizer-bound, only 6 quads/frame. No win available.
+- **`r_oldwater 1` everywhere** — already auto-mode (Phase 0). Tuned per-target.
+- **HUD rebatching** — Phase 1.1 cuts noted HUD is ~50 calls/frame, ~10µs total, under measurement noise. Skip.
+- **Re-attempting CVA Lock on R128** — confirmed to cause in-game color banding (`gl_vidsdl.c:1042-1045`). Stays gated off there.
 
-Bench script — drop in `~/bin/bench.sh` on Ubuntu, `chmod +x`:
+---
 
-```bash
-#!/bin/bash
-# usage: ./bench.sh <target> [demo]
-# target = g3 or g4; selects SDK + cpuflags automatically.
-# demo defaults to demo1.
+## 9. Phasing decisions
 
-set -euo pipefail
-TARGET=$1
-DEMO=${2:-demo1}
+**Why Phase 2 before Phase 3:** lightmap upload is per-frame and
+unconditional; static brush geom is per-map. Phase 2 wins compound
+across every demo. Phase 3 is bigger in absolute terms but more
+fragile (R128 driver bug risk).
 
-LION_HOST=lion.local
-SRC=$HOME/quakespasm
-COMMIT=$(git -C "$SRC" rev-parse --short HEAD)
+**Why Phase 4 (AltiVec) after 2-3:** AltiVec is G4-only and self-
+contained. We don't want it competing with VAR/lightmap A/B traffic on
+the bench; isolating it later gives cleaner attribution.
 
-case "$TARGET" in
-  g3)
-    HOST=g3.local
-    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
-    VMIN=10.3.9
-    CPUFLAGS='-mcpu=750 -O3'
-    ;;
-  g3-baseline)
-    HOST=g3.local
-    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
-    VMIN=10.3.9
-    CPUFLAGS=''        # default -O2 from Makefile.darwin
-    ;;
-  g4)
-    HOST=g4.local
-    SDK=/Developer/SDKs/MacOSX10.4u.sdk
-    VMIN=10.4
-    CPUFLAGS='-mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450'
-    ;;
-  g4-baseline)
-    HOST=g4.local
-    SDK=/Developer/SDKs/MacOSX10.4u.sdk
-    VMIN=10.4
-    CPUFLAGS=''
-    ;;
-  *) echo "unknown target: $TARGET (g3|g4|g3-baseline|g4-baseline)"; exit 1;;
-esac
+**Why Phase 6 (runtime dispatch) last:** until AltiVec wins are validated,
+runtime dispatch is overhead with no payoff. Once 4.x stabilizes, fold
+into a single binary via `sysctlbyname("hw.optional.altivec")` probe in
+`Host_Init`. Optional follow-up: investigate Mach-O fat binary with
+`ppc` + `ppc7400` slices (dyld picks at exec; no C dispatch). See
+existing `PPC_PLAN.md` § "Build Strategy" for that decision tree.
 
-TAG="${COMMIT}_${TARGET}_${DEMO}"
-SYSROOT_FLAGS="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
+---
 
-echo "==> rsync Ubuntu → Lion"
-rsync -avz --delete \
-  --exclude='*.o' --exclude='*.d' --exclude='quakespasm' \
-  --exclude='.git' \
-  "$SRC/" "$LION_HOST:quakespasm/"
+## 10. Methodology (carries forward from Phase 1.1)
 
-echo "==> build PPC slice on Lion (SDK=$SDK, vmin=$VMIN)"
-mkdir -p "$SRC/benchmarks"
-ssh "$LION_HOST" "cd quakespasm/Quake && \
-  make -f Makefile.darwin clean && \
-  make -f Makefile.darwin MACH_TYPE=ppc -j2 \
-    CPUFLAGS='$SYSROOT_FLAGS $CPUFLAGS' \
-    LDFLAGS='$SYSROOT_FLAGS' \
-    USE_CODEC_FLAC=0 USE_CODEC_OPUS=0 USE_CODEC_VORBIS=0 \
-    USE_CODEC_MP3=0 USE_CODEC_XMP=0 USE_CODEC_UMX=0 \
-    CC=/usr/bin/gcc-4.0 2>&1" | tee "$SRC/benchmarks/build_${TAG}.log"
+Per phase:
+1. Build with **only that phase's diff** on top of the prior commit.
+2. `scripts/parallel-bench.sh --quick` (G3 + G4, 640×480 demo1, 3 runs) — 3-4 min smoke.
+3. If smoke positive: `scripts/parallel-bench.sh` full grid (3 demos × 2 res × 2 targets × 3 runs).
+4. Median of runs 2 and 3.
+5. Threshold for "real win": ≥1 fps on G4, any positive on G3.
+6. Visual diff: screenshot frame 1500 of demo1 on G4 (Radeon driver is more deterministic than R128). Pixel-diff to baseline. Zero diff required for 2.1, 2.2, 2.3, 3.x. Documented diff allowed only for Phase 5 (visual upgrade).
+7. Commit with bench numbers + screenshot diff result in the message.
+8. Append row to `benchmarks/results.csv` tagged with new commit hash.
 
-echo "==> fetch binary back to Ubuntu"
-mkdir -p "$SRC/build"
-scp "$LION_HOST:quakespasm/Quake/quakespasm" "$SRC/build/quakespasm-${TARGET}"
+A/B knobs ship in every PR: `-novar`, `-noclient-storage`, `-noaltivec`
+etc. mirroring the existing `-nocva`, `-novbo`, `-nomtex` precedent.
+Production never has to enable them; they exist for bench triangulation.
 
-echo "==> ship binary from Ubuntu to $HOST"
-scp "$SRC/build/quakespasm-${TARGET}" "$HOST:quakespasm-bin"
+---
 
-echo "==> timedemo on $HOST"
-# Adjust -basedir to where assets actually live on each PPC box.
-ssh "$HOST" "rm -f qconsole.log && \
-  ./quakespasm-bin -basedir \$HOME/quake -nosound -condebug \
-    +vid_wait 0 +timedemo $DEMO +timedemo $DEMO +timedemo $DEMO +quit"
+## 11. Open file-management questions
 
-scp "$HOST:qconsole.log" "$SRC/benchmarks/${TAG}.log"
-echo "==> result in benchmarks/${TAG}.log"
-grep -E "fps|seconds" "$SRC/benchmarks/${TAG}.log" | tail -10
+When this plan is approved:
+- `PPC_PLAN.md` keeps its hardware/toolchain/tooling sections; the
+  "Optimization Plan (post-baseline, v2)" section is replaced by a
+  pointer to this file.
+- `PPC_PLAN_1_1.md` stays in place as historical record of Phase 1.1's
+  detailed sub-plan. Append a status banner: "Implemented via commit
+  c00a07a7. Net G4 +4.7%, G3 ±0. See PPC_PLAN_v2.md for the next
+  round."
+- `PPC_PLAN_1_3.md` already has its archive banner; leave alone.
+- This file (`PPC_PLAN_v2.md`) becomes the active plan.
+
+---
+
+## 12. Build-host parallelism trap (2026-05-07)
+
+`scripts/build.sh g3 &; scripts/build.sh g4 &` looks innocuous but
+**both invocations rsync to the same `lion:quakespasm/` working tree
+and `make -j2` in `lion:quakespasm/Quake/`**. The two builds race on
+`.o` files; the linker stamps the resulting binary with whichever
+`-mcpu` flag won the race. Specific failure mode encountered today:
+`build/quakespasm-g3` came out as `Mach-O ppc7400` (G4 / AltiVec
+subtype). Panther loads it anyway, then crashes during AppKit NIB
+init when the runtime hits G4-compiled library code on a 750 CPU.
+Crash signature: `-[NSCustomObject nibInstantiate]` →
+`class_initialize` jump to `0xfffeff00`.
+
+`scripts/build.sh` now takes a `flock` so concurrent invocations
+serialize. `CLAUDE.md` carries the invariant. **Always sanity-check
+after a build:**
+
+```
+file build/quakespasm-g3   # must report ppc_750 (or generic ppc)
+file build/quakespasm-g4   # must report ppc_7400
 ```
 
-**Day 1 run order:**
-
-1. Apply the `pl_osx.m:92-95` setter-syntax patch (see "Audit results" above) — required for the build to succeed at all.
-2. `./bench.sh g4-baseline demo1` → G4 baseline
-3. `./bench.sh g3-baseline demo1` → G3 baseline (will reveal SDL framework compatibility on Panther)
-4. Record both in `benchmarks/baseline.csv` keyed by `(commit, machine, demo, fps_run1, fps_run2, fps_run3, median)`.
-5. `git add benchmarks/ && git commit -m "baseline numbers, unmodified upstream + minimal Panther build patches"`.
-
-**Only after baseline numbers exist on both machines do we touch source code beyond the minimum patches needed to build.**
-
-## Open Items
-
-- Asset paths on G3 and G4 (wire into `-basedir`).
-- Actual RAM in the B&W G3 (heap-size tuning input).
-- SSH key auth Ubuntu → Lion, Ubuntu → G4, Ubuntu → G3 (three direct keys; Lion does not need to ssh anywhere).
-- Real hostnames (the script assumes `lion.local`/`g4.local`/`g3.local`).
-- Whether bundled SDL.framework 1.2.16 actually loads on 10.3 Panther — only knowable by trying. Plan B (rebuild SDL 1.2.15 from source) documented above.
-
-## File Reference
-
-- `MacOSX/QuakeSpasmPPC.xcodeproj/` — existing PPC Xcode project (we're not using it; Makefile path is cleaner).
-- `MacOSX/Build_Instructions.md` — Kristian's dual-Xcode-on-Lion docs (informational only).
-- `MacOSX/SDL.framework/` — bundled SDL 1.2, what `Makefile.darwin` links against.
-- `Quake/Makefile.darwin` — the build file we're driving.
-- `Quake/Makefile` — Linux/generic Unix (not used here).
-- `Quake/build_cross_osx.sh` — Linux→Mach-O via osxcross (not used here).
-- `Quake/mathlib.c` — `frsqrte` target (item 4): `VectorLength` :276, `VectorNormalize` :281.
-- `Quake/snd_mix.c` — AltiVec target (item 2): `SND_PaintChannelFrom8` :472, `SND_PaintChannelFrom16` :498.
-- `Quake/gl_texmgr.c` — `TexMgr_LoadImage8` (load-time texture expansion candidate).
-- `benchmarks/` — to be created, git-tracked. CSV index + per-run `qconsole.log`s.
+`scripts/parallel-bench.sh` is unaffected — it parallelizes the bench
+*runs* across G3 and G4, not the build.
