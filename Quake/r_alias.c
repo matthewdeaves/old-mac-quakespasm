@@ -24,6 +24,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+// PPC port -- Phase 4.1: AltiVec lerp on G4 builds. The G3 build sets
+// no -maltivec flag (see scripts/build.sh CPUFLAGS), so __ALTIVEC__ is
+// undefined there and altivec.h doesn't get included.
+#ifdef __ALTIVEC__
+#include <altivec.h>
+#endif
+
 extern cvar_t r_drawflat, gl_overbright_models, gl_fullbrights, r_lerpmodels, r_lerpmove; //johnfitz
 extern cvar_t scr_fov, cl_gun_fovscale;
 
@@ -316,8 +323,22 @@ Cheat caveat: r_drawflat_cheatsafe loses the per-substrip rainbow
 per pass — debug visual drift acceptable.
 =============
 */
-static float alias_pos_scratch[MAXALIASVERTS * 3];
-static float alias_color_scratch[MAXALIASVERTS * 4];
+// PPC port -- Phase 4.1: alias_pos_scratch is laid out 4 floats per
+// vertex (xyz + 1 padding lane) so AltiVec's float4 vec_madd can do the
+// lerp in one instruction per vert. The 4th lane is junk (consumer
+// asks for size=3 with stride=16 in glVertexPointer). The 16-byte
+// alignment lets vec_st store directly without the unaligned-store
+// dance.
+//
+// Cost of pad-to-4: 8 KB extra static scratch (32 KB instead of 24 KB
+// for MAXALIASVERTS=2000). Trivial vs the L2/L3 budget.
+//
+// On G3 builds (__ALTIVEC__ undefined per scripts/build.sh's CPUFLAGS)
+// the lerp loop falls through to scalar code that writes the same
+// padded layout. Stride update applies to both targets so the layout
+// stays uniform; G3 just doesn't get the SIMD speedup.
+static float alias_pos_scratch[MAXALIASVERTS * 4] __attribute__((aligned(16)));
+static float alias_color_scratch[MAXALIASVERTS * 4] __attribute__((aligned(16)));
 
 // Scope state captured at Begin so End cleans up symmetrically even if
 // the caller has flipped a global between Begin and End. Not a cache —
@@ -376,6 +397,30 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	st   = (meshst_t    *)((byte *)paliashdr + paliashdr->meshst);
 
 	// --- lerp positions (and compute shaded colors when wanted) into scratch ---
+	//
+	// PPC port -- Phase 4.1: scratch is laid out 4 floats per vert
+	// (xyz + 1 padding lane). The AltiVec branches use vec_madd to do
+	// the lerp in one instruction per vertex; the byte→float work for
+	// the trivertx_t inputs goes through gcc's (vector float){...}
+	// constructor, which spills via memory but stays off the FP unit
+	// so it can run in parallel with the math. On G3 builds
+	// __ALTIVEC__ is undefined and the loop falls through to scalar
+	// code that writes the same padded layout.
+	//
+	// Demo1 is brush-heavy so this won't move the needle on smoke
+	// timedemo (only the viewmodel is alias). Demo3 (zombies, ogres)
+	// is where we should see the +2-5% the plan predicts; full grid
+	// at end-of-round captures it.
+#ifdef __ALTIVEC__
+	// vec_splats() landed in altivec.h around GCC 4.4; we ship on
+	// Apple's gcc-4.0 (Lion's /usr/bin/gcc-4.0). Use the constructor
+	// form, which gcc 4.0 supports as a vector extension. It compiles
+	// to a stack temp + lvx -- not as tight as a true vec_splat but
+	// hoisted out of the loop, so cost is amortised.
+	const vector float vblend  = (vector float){blend,  blend,  blend,  blend};
+	const vector float viblend = (vector float){iblend, iblend, iblend, iblend};
+	const vector float vzero   = (vector float){0.0f, 0.0f, 0.0f, 0.0f};
+#endif
 	if (want_color)
 	{
 		if (lerping)
@@ -385,9 +430,25 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 				int idx = desc[i].vertindex;
 				float s = shadedots[verts1[idx].lightnormalindex] * iblend
 				        + shadedots[verts2[idx].lightnormalindex] * blend;
-				alias_pos_scratch[i*3+0] = verts1[idx].v[0]*iblend + verts2[idx].v[0]*blend;
-				alias_pos_scratch[i*3+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
-				alias_pos_scratch[i*3+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
+#ifdef __ALTIVEC__
+				vector float v1 = (vector float){
+					(float)verts1[idx].v[0],
+					(float)verts1[idx].v[1],
+					(float)verts1[idx].v[2],
+					0.0f
+				};
+				vector float v2 = (vector float){
+					(float)verts2[idx].v[0],
+					(float)verts2[idx].v[1],
+					(float)verts2[idx].v[2],
+					0.0f
+				};
+				vec_st(vec_madd(v1, viblend, vec_madd(v2, vblend, vzero)), 0, &alias_pos_scratch[i*4]);
+#else
+				alias_pos_scratch[i*4+0] = verts1[idx].v[0]*iblend + verts2[idx].v[0]*blend;
+				alias_pos_scratch[i*4+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
+				alias_pos_scratch[i*4+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
+#endif
 				alias_color_scratch[i*4+0] = s * lightcolor[0];
 				alias_color_scratch[i*4+1] = s * lightcolor[1];
 				alias_color_scratch[i*4+2] = s * lightcolor[2];
@@ -396,13 +457,15 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 		}
 		else
 		{
+			// Non-lerping: just copy verts1, no AltiVec gain (single
+			// byte→float per element, no math to fuse).
 			for (i = 0; i < n; i++)
 			{
 				int idx = desc[i].vertindex;
 				float s = shadedots[verts1[idx].lightnormalindex];
-				alias_pos_scratch[i*3+0] = verts1[idx].v[0];
-				alias_pos_scratch[i*3+1] = verts1[idx].v[1];
-				alias_pos_scratch[i*3+2] = verts1[idx].v[2];
+				alias_pos_scratch[i*4+0] = verts1[idx].v[0];
+				alias_pos_scratch[i*4+1] = verts1[idx].v[1];
+				alias_pos_scratch[i*4+2] = verts1[idx].v[2];
 				alias_color_scratch[i*4+0] = s * lightcolor[0];
 				alias_color_scratch[i*4+1] = s * lightcolor[1];
 				alias_color_scratch[i*4+2] = s * lightcolor[2];
@@ -417,9 +480,25 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 			for (i = 0; i < n; i++)
 			{
 				int idx = desc[i].vertindex;
-				alias_pos_scratch[i*3+0] = verts1[idx].v[0]*iblend + verts2[idx].v[0]*blend;
-				alias_pos_scratch[i*3+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
-				alias_pos_scratch[i*3+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
+#ifdef __ALTIVEC__
+				vector float v1 = (vector float){
+					(float)verts1[idx].v[0],
+					(float)verts1[idx].v[1],
+					(float)verts1[idx].v[2],
+					0.0f
+				};
+				vector float v2 = (vector float){
+					(float)verts2[idx].v[0],
+					(float)verts2[idx].v[1],
+					(float)verts2[idx].v[2],
+					0.0f
+				};
+				vec_st(vec_madd(v1, viblend, vec_madd(v2, vblend, vzero)), 0, &alias_pos_scratch[i*4]);
+#else
+				alias_pos_scratch[i*4+0] = verts1[idx].v[0]*iblend + verts2[idx].v[0]*blend;
+				alias_pos_scratch[i*4+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
+				alias_pos_scratch[i*4+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
+#endif
 			}
 		}
 		else
@@ -427,15 +506,18 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 			for (i = 0; i < n; i++)
 			{
 				int idx = desc[i].vertindex;
-				alias_pos_scratch[i*3+0] = verts1[idx].v[0];
-				alias_pos_scratch[i*3+1] = verts1[idx].v[1];
-				alias_pos_scratch[i*3+2] = verts1[idx].v[2];
+				alias_pos_scratch[i*4+0] = verts1[idx].v[0];
+				alias_pos_scratch[i*4+1] = verts1[idx].v[1];
+				alias_pos_scratch[i*4+2] = verts1[idx].v[2];
 			}
 		}
 	}
 
 	// --- bind streams + enable client states ---
-	glVertexPointer (3, GL_FLOAT, 0, alias_pos_scratch);
+	// PPC port -- Phase 4.1: stride is 4 floats (16 bytes), not 0
+	// (tightly-packed 3-float). The 4th lane is padding; OpenGL only
+	// reads xyz per the size=3 here.
+	glVertexPointer (3, GL_FLOAT, 4*sizeof(float), alias_pos_scratch);
 	glEnableClientState (GL_VERTEX_ARRAY);
 
 	if (want_mtex)
