@@ -291,6 +291,7 @@ void R_DrawTextureChains_Glow (qmodel_t *model, entity_t *ent, texchain_t chain)
 	gltexture_t	*glt;
 	qboolean	bound;
 
+	R_BindBrushChain_Single ();   // PPC port -- Phase 3.3: hoist client state setup
 	for (i=0 ; i<model->numtextures ; i++)
 	{
 		t = model->textures[i];
@@ -307,10 +308,11 @@ void R_DrawTextureChains_Glow (qmodel_t *model, entity_t *ent, texchain_t chain)
 				GL_Bind (glt);
 				bound = true;
 			}
-			DrawGLPolyFromSurface (s);   // PPC port -- Phase 3.2: VAR pool if available
+			R_DrawBrushChainSurface (s);
 			rs_brushpasses++;
 		}
 	}
+	R_UnbindBrushChain_Single ();
 }
 
 //==============================================================================
@@ -403,13 +405,22 @@ static void R_BatchSurface (msurface_t *s)
 ================
 R_DrawTextureChains_Multitexture -- johnfitz
 
-PPC port note: the array-based version of this function was tested and
-regressed -3 to -4% on G4 1024 demo2 (brush-heavy). The Apple/ATI
-1.4.18 driver's glDrawArrays path for small client-memory polygons is
-slower per-call than its glBegin/glEnd fast path. Reverted to immediate
-mode here. Future Phase 2 work could batch surfaces into a single
-glDrawElements per texture-chain via per-frame vertex stitching, which
-is the natural way to amortise that per-call cost on this stack.
+PPC port -- Phase 3.3: two paths depending on whether the static brush
+verts are VRAM-resident (gl_apple_var_able + pool built + opt-in).
+
+  Array path (gl_apple_var_arrays_mtex && gl_apple_var_able): pointers
+  bound once at the VAR pool base, per-surface draw is one glDrawArrays.
+  This is the canonical "data parked in VRAM, driver re-fetches by
+  index" pattern. Apple's ATI 1.4.18 driver should beat its own glBegin
+  fast path here because the verts no longer move through client memory
+  on every poly.
+
+  Legacy glBegin path (G3 / -novar / -noarrays-mtex): unchanged from
+  pre-3.3. The history note: Phase 1.1c's array conversion against
+  client memory regressed -3 to -4% on this stack because the driver's
+  small-poly glBegin path beat glDrawArrays when the data wasn't
+  cached. Without VAR there's no win to be had on this path, so we
+  preserve the legacy code as the fallback.
 ================
 */
 void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_t chain)
@@ -419,6 +430,15 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 	texture_t	*t;
 	float		*v;
 	qboolean	bound;
+	const qboolean array_path = (gl_apple_var_arrays_mtex && gl_apple_var_able && gl_bmodel_var_pool);
+
+	if (array_path)
+	{
+		// Lightmap texcoords live at +5 in VERTEXSIZE -- TEXTURE1.
+		// Diffuse texcoords at +3 -- TEXTURE0.
+		R_BindBrushChain_Multi ();
+		GL_EnableMultitexture ();    // selects TEXTURE1 for state binding
+	}
 
 	for (i=0 ; i<model->numtextures ; i++)
 	{
@@ -432,30 +452,49 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 		{
 			if (!bound) //only bind once we are sure we need this texture
 			{
+				GL_SelectTexture (GL_TEXTURE0_ARB);
 				GL_Bind ((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
 
 				if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 					glEnable (GL_ALPHA_TEST); // Flip alpha test back on
 
-				GL_EnableMultitexture(); // selects TEXTURE1
+				if (!array_path)
+					GL_EnableMultitexture();   // selects TEXTURE1 for the binds below
+				else
+					GL_SelectTexture (GL_TEXTURE1_ARB);
+
 				bound = true;
 			}
 			GL_Bind (lightmaps[s->lightmaptexturenum].texture);
-			glBegin(GL_POLYGON);
-			v = s->polys->verts[0];
-			for (j=0 ; j<s->polys->numverts ; j++, v+= VERTEXSIZE)
+			if (array_path)
 			{
-				GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, v[3], v[4]);
-				GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, v[5], v[6]);
-				glVertex3fv (v);
+				R_DrawBrushChainSurface_Multi (s);
 			}
-			glEnd ();
+			else
+			{
+				glBegin(GL_POLYGON);
+				v = s->polys->verts[0];
+				for (j=0 ; j<s->polys->numverts ; j++, v+= VERTEXSIZE)
+				{
+					GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, v[3], v[4]);
+					GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, v[5], v[6]);
+					glVertex3fv (v);
+				}
+				glEnd ();
+			}
 			rs_brushpasses++;
 		}
-		GL_DisableMultitexture(); // selects TEXTURE0
+		if (!array_path)
+			GL_DisableMultitexture(); // selects TEXTURE0
 
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
+	}
+
+	if (array_path)
+	{
+		GL_DisableMultitexture ();   // selects TEXTURE0 for the rest of the pipeline
+		R_UnbindBrushChain_Multi ();
 	}
 }
 
@@ -473,6 +512,7 @@ void R_DrawTextureChains_NoTexture (qmodel_t *model, texchain_t chain)
 	texture_t	*t;
 	qboolean	bound;
 
+	R_BindBrushChain_Single ();   // PPC port -- Phase 3.3
 	for (i=0 ; i<model->numtextures ; i++)
 	{
 		t = model->textures[i];
@@ -489,10 +529,11 @@ void R_DrawTextureChains_NoTexture (qmodel_t *model, texchain_t chain)
 				GL_Bind (t->gltexture);
 				bound = true;
 			}
-			DrawGLPolyFromSurface (s);   // PPC port -- Phase 3.2: VAR pool if available
+			R_DrawBrushChainSurface (s);
 			rs_brushpasses++;
 		}
 	}
+	R_UnbindBrushChain_Single ();
 }
 
 /*
@@ -507,6 +548,7 @@ void R_DrawTextureChains_TextureOnly (qmodel_t *model, entity_t *ent, texchain_t
 	texture_t	*t;
 	qboolean	bound;
 
+	R_BindBrushChain_Single ();   // PPC port -- Phase 3.3
 	for (i=0 ; i<model->numtextures ; i++)
 	{
 		t = model->textures[i];
@@ -521,19 +563,20 @@ void R_DrawTextureChains_TextureOnly (qmodel_t *model, entity_t *ent, texchain_t
 			if (!bound) //only bind once we are sure we need this texture
 			{
 				GL_Bind ((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
-					
+
 				if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 					glEnable (GL_ALPHA_TEST); // Flip alpha test back on
 
 				bound = true;
 			}
-			DrawGLPolyFromSurface (s);   // PPC port -- Phase 3.2: VAR pool if available
+			R_DrawBrushChainSurface (s);
 			rs_brushpasses++;
 		}
 
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
 	}
+	R_UnbindBrushChain_Single ();
 }
 
 /*

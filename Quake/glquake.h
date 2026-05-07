@@ -461,7 +461,17 @@ void GLAlias_CreateShaders (void);
 void GL_DrawAliasShadow (entity_t *e);
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
-void DrawGLPolyFromSurface (msurface_t *s);   // PPC port -- Phase 3.2: reads from VAR pool when available
+
+// PPC port -- Phase 3.3: chain-level brush vertex array helpers.
+// State is set up once per texturechain (Bind), then per-surface draw
+// is a single glDrawArrays. See r_brush.c for the call pattern.
+void R_BindBrushChain_Single (void);
+void R_UnbindBrushChain_Single (void);
+void R_DrawBrushChainSurface (msurface_t *s);
+void R_BindBrushChain_Multi (void);
+void R_UnbindBrushChain_Multi (void);
+void R_DrawBrushChainSurface_Multi (msurface_t *s);
+extern qboolean gl_apple_var_arrays_mtex;     // PPC port -- Phase 3.3: -noarrays-mtex opt-out
 void DrawWaterPoly (glpoly_t *p);
 void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr);
 

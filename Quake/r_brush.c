@@ -97,34 +97,112 @@ void DrawGLPoly (glpoly_t *p)
 
 /*
 ================
-DrawGLPolyFromSurface -- PPC port -- Phase 3.2
+Chain-level brush vertex array helpers -- PPC port -- Phase 3.3
 
-Like DrawGLPoly, but reads vertex data from the APPLE_vertex_array_range
-pool when available (gl_apple_var_able + pool built). The Apple driver
-auto-detects whether the pointer falls inside the registered VAR range;
-if not, it transparently falls back to ordinary client-array semantics.
-We only invoke this from sites that have an msurface_t in scope and that
-draw the surface's *master* poly (s->polys) -- water-warp subdivision
-chains and sky-clipped polys aren't in the pool, so they stay on the
-plain DrawGLPoly path.
+Phase 3.2 routed three brush-render call sites (TextureOnly, NoTexture,
+Glow) through a per-surface DrawGLPolyFromSurface that toggled
+glEnableClientState / glVertexPointer on every surface. That re-thrashed
+GL state hundreds of times per frame and likely caused the G4 -3.5%
+regression on demo1 640 -- the driver invalidates pre-fetch state on
+every pointer rebind, even when the new pointer is inside the same
+registered VAR range.
+
+These helpers hoist state setup outside the texturechain loop. Pattern:
+
+    R_BindBrushChain_Single();          // or _Multi() for two TMUs
+    for (s = chain; s; s = s->texturechain) {
+        GL_Bind (texture);
+        R_DrawBrushChainSurface(s);     // or _Multi(s)
+    }
+    R_UnbindBrushChain_Single();        // or _Multi()
+
+When gl_apple_var_able + gl_bmodel_var_pool are live, the Bind helper
+sets glVertexPointer/glTexCoordPointer once at the pool base. Per-
+surface draw uses glDrawArrays (GL_POLYGON, s->var_firstvert, count) --
+the FIRST argument indexes into the bound pointer, no rebind needed.
+This is the canonical VAR/VBO usage and what we should have done in
+3.2.
+
+When VAR is off (G3, or -novar), the Bind helper enables client state
+but leaves pointers unset; per-surface draw rebinds them from the
+hunk-allocated glpoly_t. G3 cost is the same as DrawGLPoly's preceding
+behavior (still per-surface-rebind), since there's no pool to share.
 ================
 */
-void DrawGLPolyFromSurface (msurface_t *s)
+void R_BindBrushChain_Single (void)
 {
-	float *base;
-
 	if (gl_apple_var_able && gl_bmodel_var_pool)
-		base = &gl_bmodel_var_pool[VERTEXSIZE * s->var_firstvert];
-	else
-		base = &s->polys->verts[0][0];
-
-	glVertexPointer   (3, GL_FLOAT, VERTEXSIZE*sizeof(float), base);
-	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), base + 3);
+	{
+		glVertexPointer   (3, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool + 3);
+	}
 	glEnableClientState (GL_VERTEX_ARRAY);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-	glDrawArrays (GL_POLYGON, 0, s->polys->numverts);
+}
+
+void R_UnbindBrushChain_Single (void)
+{
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 	glDisableClientState (GL_VERTEX_ARRAY);
+}
+
+void R_DrawBrushChainSurface (msurface_t *s)
+{
+	if (gl_apple_var_able && gl_bmodel_var_pool)
+	{
+		glDrawArrays (GL_POLYGON, s->var_firstvert, s->polys->numverts);
+	}
+	else
+	{
+		float *v = &s->polys->verts[0][0];
+		glVertexPointer   (3, GL_FLOAT, VERTEXSIZE*sizeof(float), v);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), v + 3);
+		glDrawArrays (GL_POLYGON, 0, s->polys->numverts);
+	}
+}
+
+void R_BindBrushChain_Multi (void)
+{
+	if (gl_apple_var_able && gl_bmodel_var_pool)
+	{
+		glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool);
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool + 3);
+		GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool + 5);
+	}
+	glEnableClientState (GL_VERTEX_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+}
+
+void R_UnbindBrushChain_Multi (void)
+{
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_VERTEX_ARRAY);
+}
+
+void R_DrawBrushChainSurface_Multi (msurface_t *s)
+{
+	if (gl_apple_var_able && gl_bmodel_var_pool)
+	{
+		glDrawArrays (GL_POLYGON, s->var_firstvert, s->polys->numverts);
+	}
+	else
+	{
+		float *v = &s->polys->verts[0][0];
+		glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), v);
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), v + 3);
+		GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), v + 5);
+		glDrawArrays (GL_POLYGON, 0, s->polys->numverts);
+	}
 }
 
 /*

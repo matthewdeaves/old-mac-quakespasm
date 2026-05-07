@@ -109,6 +109,7 @@ qboolean gl_cva_able = false; // PPC port -- EXT_compiled_vertex_array
 qboolean gl_apple_client_storage_able = false; // PPC port -- APPLE_client_storage
 qboolean gl_apple_storage_hint_able = false;   // PPC port -- APPLE_texture_range (per-texture cached-VRAM hint)
 qboolean gl_apple_var_able = false;            // PPC port -- APPLE_vertex_array_range (Phase 3.1+, G4 only)
+qboolean gl_apple_var_arrays_mtex = true;      // PPC port -- Phase 3.3: multitex arrays-vs-glBegin opt-out (-noarrays-mtex)
 QS_PFNGLVERTEXARRAYRANGEAPPLEPROC          GL_VertexArrayRangeAPPLEFunc      = NULL;
 QS_PFNGLFLUSHVERTEXARRAYRANGEAPPLEPROC     GL_FlushVertexArrayRangeAPPLEFunc = NULL;
 QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC     GL_VertexArrayParameteriAPPLEFunc = NULL;
@@ -1142,6 +1143,17 @@ static void GL_CheckExtensions (void)
 		{
 			Con_Warning ("Couldn't link to APPLE_vertex_array_range functions\n");
 		}
+	}
+
+	// Phase 3.3 multitex arrays-vs-glBegin opt-out. Default is to
+	// convert R_DrawTextureChains_Multitexture's glBegin path to
+	// vertex arrays against the VAR pool when both are available.
+	// -noarrays-mtex forces the legacy glBegin path even on G4 with
+	// VAR present, for A/B testing.
+	if (COM_CheckParm("-noarrays-mtex"))
+	{
+		gl_apple_var_arrays_mtex = false;
+		Con_Warning ("Phase 3.3 multitex array conversion disabled at command line\n");
 	}
 
 	// multitexture
