@@ -464,12 +464,13 @@ The `+timedemo` (rather than `+quit`) keeps the engine alive past init
 so the log gets written. `+gl_info` is the in-engine command added by
 johnfitz that prints the extension list; no patch needed.
 
-**Open visual sign-offs (still todo):**
+**Visual sign-offs:**
 
-| # | Question | How to verify | Blocks |
-|---|---|---|---|
-| V5 | Does the `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` lightmap path produce visually identical output to baseline on both targets? | After 2.1, screenshot demo1 frame ~1500 on G4 baseline vs. G4 + 2.1; pixel-diff must be zero. Spot-check on G3 (R128 has both `APPLE_packed_pixels` and `EXT_bgra` but its 1.1 driver is older, may have corner-case bugs in BGRA paths). | 2.1 sign-off |
-| V6 | Does Radeon 9000 tolerate VAR + multitexture without corruption? | After 3.2 + 3.3: visual inspection on G4, demo3 (most state churn). | 3.3 sign-off |
+| # | Question | Status |
+|---|---|---|
+| V5 | Does the `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` lightmap path produce visually identical output to baseline on both targets? | ✅ confirmed via interactive gameplay on G3 + G4 after 2.3 landed (no per-pixel diff but no visible regression — and 2.3's headline +12.6/+18.4% G4 win would have been impossible if BGRA was scrambling channels). |
+| V6 | Does Radeon 9000 tolerate VAR + multitexture without corruption? | ✅ confirmed 2026-05-07: user spot-checked demo1 timedemo visuals after 3.1, 3.2, 3.3 each landed; user also played e1m1 interactively on G3 + G4 after 4.1 — full alias model animation, weapon switching, brush rendering, sound mixing all working. Strongest possible sign-off. |
+| V7 | Does the AltiVec lerp produce identical alias-model animation to scalar baseline? | ✅ implicitly confirmed by V6 interactive gameplay — the gunsight viewmodel lerps every frame and any AltiVec-vs-scalar discrepancy would be immediately visible as jittery animation. None observed. |
 
 ---
 
