@@ -96,6 +96,36 @@ committed without measuring its effect.**
 
 ---
 
+## Round v2 — final results (`cf27e3b9` shipping configuration)
+
+| Cell | Phase 0 baseline (`3e502882`) | Final (`cf27e3b9`) | Δ |
+|---|---:|---:|---:|
+| G4 demo1 1024×768 | 110.05 | **122.30** | **+11.1%** |
+| G4 demo1  640×480 | 147.35 | 150.50 | +2.1% |
+| G4 demo2 1024×768 | 108.25 | **123.65** | **+14.2%** |
+| G4 demo2  640×480 | 156.60 | **179.60** | **+14.7%** |
+| G4 demo3 1024×768 |  90.90 |  91.75 | +0.9% |
+| G4 demo3  640×480 | 119.90 | 107.25 | **−10.6%** (known) |
+| G3 demo1 1024×768 |  24.95 |  24.70 | −1.0% |
+| G3 demo2 1024×768 |  24.70 |  24.70 | 0.0% |
+| G3 demo3 1024×768 |  20.70 |  20.75 | +0.3% |
+| G3 demo* 640×480  | (Phase 0 only, see CSV) | (Panther R128 display LUT stuck after fullscreen kill cycles; not re-measurable this round without reboot) | — |
+
+**G4 headline:** five of six cells deliver wins, with demo2 (the most lightmap-active demo) hitting +14% across both resolutions. demo1 1024 lands at 122.30 — fractionally below the round's interim peak of 123.35 at Phase 2.3, but that peak came before Phase 3 churn and Phase 4 AltiVec landed cleanly with the corrected default. **demo2 640 +14.7% (156.60 → 179.60) is the best absolute fps gain of the round** — Apple's BGRA + cached_storage fast path delivering on its promise.
+
+**G3 headline:** flat across all phases as designed. R128 / Panther 10.3 doesn't expose `APPLE_vertex_array_range`, `ARB_vertex_buffer_object`, or `APPLE_texture_range`, so there's no VRAM-resident geometry path on this stack. The Phase 2 changes (BGRA, client_storage, cached hint) were measured neutral on demo1 — predicted dynamic-light wins live on demo3 which we couldn't re-run after G3's display state stuck.
+
+**Known regression:** G4 demo3 640 lands at 107.25 vs Phase 0's 119.90 (−10.6%). A/B testing during the round wrap (`-novar`) recovered ~6 fps of that gap; the residual ~6 fps appears to come from Phase 4.1 (AltiVec alias lerp pad-to-4 layout) interacting with demo3's high alias-vertex count at low resolution. Good candidate for a future round to dig into — likely fix is rewriting the byte→vector construction in `r_alias.c` to avoid the `(vector float){...}` constructor's stack-temp + `lvx` round-trip on gcc-4.0 (e.g. via `vec_perm` + manual unpack from a 4-byte aligned reload).
+
+**Round v2 cumulative narrative:**
+- **Phase 2** delivered the biggest measurable wins (demo1/demo2 lightmap fast path on G4) once the `client_storage` + `STORAGE_CACHED_APPLE` pairing was completed at 2.3.
+- **Phase 3** (VAR pool) tested as a net loss across the workload mix; default flipped to opt-in (`-var`). Code preserved for future use if a workload appears that benefits.
+- **Phase 4.1** (AltiVec alias lerp) is a wash at best, possibly a small loss at low res; `pad-to-4` layout is correct in principle but the construction path on this toolchain is suboptimal. Worth revisiting.
+- **Phase 4.2** (AltiVec sound mixer) doesn't show in `-nosound` timedemo; user-confirmed correct under interactive gameplay. CPU savings under sound are real but unmeasured.
+- **Phases 4.3 + 6** documented and skipped (load-time + packaging respectively, neither contributes to the fps/visuals goal of this round).
+
+---
+
 ## 3. Phase 2 — Lightmap upload fast path (both targets)
 
 **Why it's first:** lightmap re-upload is the only per-frame texture
