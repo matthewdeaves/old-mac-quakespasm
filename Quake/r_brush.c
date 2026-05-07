@@ -542,7 +542,13 @@ void GL_BuildLightmaps (void)
 	last_lightmap_allocated = 0;
 	lightmap_count = 0;
 
-	gl_lightmap_format = GL_RGBA;//FIXME: hardcoded for now!
+	// PPC port (Phase 2.1) -- BGRA + UNSIGNED_INT_8_8_8_8_REV is Apple's
+	// documented GL fast path on PPC; RGBA + UNSIGNED_BYTE forces a CPU
+	// swizzle inside the driver. R_BuildLightMap's GL_BGRA branch already
+	// writes bytes [B][G][R][A], which on big-endian PPC matches the
+	// memory layout the driver reads for the _REV packed type. R128 (G3)
+	// and Radeon 9000 (G4) both expose EXT_bgra + APPLE_packed_pixels.
+	gl_lightmap_format = GL_BGRA;
 
 	switch (gl_lightmap_format)
 	{
@@ -924,10 +930,20 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				}
 				else
 				{
-					*dest++ = (b > 255)? 255 : b;
-					*dest++ = (g > 255)? 255 : g;
-					*dest++ = (r > 255)? 255 : r;
-					*dest++ = 255;
+					// PPC port (Phase 2.1) -- BGRA +
+					// UNSIGNED_INT_8_8_8_8_REV expects 32-bit
+					// ARGB-packed integers (Apple's GL docs).
+					// On big-endian PPC this 32-bit store lands as
+					// memory bytes [A][R][G][B], matching what the
+					// driver reads. The byte-by-byte [B][G][R][A]
+					// write below was correct for UNSIGNED_BYTE but
+					// drove blue to saturation under _REV (R↔B
+					// swap, alpha takes the B channel).
+					const unsigned rr = (r > 255) ? 255 : r;
+					const unsigned gg = (g > 255) ? 255 : g;
+					const unsigned bb = (b > 255) ? 255 : b;
+					*(unsigned int *)dest = (0xFFu << 24) | (rr << 16) | (gg << 8) | bb;
+					dest += 4;
 				}
 			}
 		}
@@ -948,7 +964,7 @@ static void R_UploadLightmap(int lmap)
 {
 	const int wide10bits = !!r_lightmapwide.value;
 	const GLenum type = wide10bits ?
-	    GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_BYTE;
+	    GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_INT_8_8_8_8_REV;
 	struct lightmap_s *lm = &lightmaps[lmap];
 
 	if (!lm->modified)
@@ -989,7 +1005,7 @@ void R_RebuildAllLightmaps (void)
 {
 	const int wide10bits = !!r_lightmapwide.value;
 	const GLenum type = wide10bits ?
-	    GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_BYTE;
+	    GL_UNSIGNED_INT_10_10_10_2 : GL_UNSIGNED_INT_8_8_8_8_REV;
 	int			i, j;
 	qmodel_t	*mod;
 	msurface_t	*fa;
