@@ -192,6 +192,15 @@ extern QS_PFNGLLOCKARRAYSEXTPROC    GL_LockArraysEXTFunc;
 extern QS_PFNGLUNLOCKARRAYSEXTPROC  GL_UnlockArraysEXTFunc;
 extern	qboolean	gl_cva_able;
 
+// PPC port -- APPLE_client_storage (Phase 2.2). Tells the driver to keep
+// the application pointer instead of copying texture data; updates DMA
+// directly from app memory. Both 10.3.9 and 10.4u SDK glext.h define
+// the token, but guard defensively.
+#ifndef GL_UNPACK_CLIENT_STORAGE_APPLE
+#define GL_UNPACK_CLIENT_STORAGE_APPLE 0x85B2
+#endif
+extern	qboolean	gl_apple_client_storage_able;
+
 //ericw -- GLSL
 
 // SDL 1.2 has a bug where it doesn't provide these typedefs on OS X!

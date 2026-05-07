@@ -106,6 +106,7 @@ float gl_max_anisotropy; //johnfitz
 qboolean gl_texture_NPOT = false; //ericw
 qboolean gl_vbo_able = false; //ericw
 qboolean gl_cva_able = false; // PPC port -- EXT_compiled_vertex_array
+qboolean gl_apple_client_storage_able = false; // PPC port -- APPLE_client_storage
 qboolean gl_glsl_able = false; //ericw
 GLint gl_max_texture_units = 0; //ericw
 qboolean gl_glsl_gamma_able = false; //ericw
@@ -1061,6 +1062,31 @@ static void GL_CheckExtensions (void)
 		{
 			Con_Warning ("Couldn't link to EXT_compiled_vertex_array functions\n");
 		}
+	}
+
+	// APPLE_client_storage (Phase 2.2) -- PPC port
+	// Driver keeps the app's pixel pointer instead of copying texture data.
+	// Used to skip the LMBLOCK_WIDTH × LMBLOCK_HEIGHT × 4 byte memcpy on
+	// every dirty-rect lightmap upload (per-frame on dynamic-light-heavy
+	// scenes). Pure transport hint, no behavior change.
+	//
+	// Constraint: row-stride must be a multiple of 32 bytes for the
+	// no-copy path to engage. lightmaps are 256 wide × 4 bytes/px = 1024
+	// bytes/row, ✓ on both targets.
+	//
+	// Lifetime: lightmaps[i].data is calloc'd once per lightmap in
+	// AllocBlock and freed only via Mod_ClearAll (level unload). The
+	// pointer is stable for the texture's lifetime — required by the
+	// extension contract.
+	//
+	// Both R128 (Panther 10.3) and Radeon 9000 (Tiger 10.4) advertise
+	// the extension in our captured glGetString dumps.
+	if (COM_CheckParm("-noclient-storage"))
+		Con_Warning ("APPLE_client_storage disabled at command line\n");
+	else if (GL_ParseExtensionList(gl_extensions, "GL_APPLE_client_storage"))
+	{
+		Con_Printf("FOUND: APPLE_client_storage\n");
+		gl_apple_client_storage_able = true;
 	}
 
 	// multitexture

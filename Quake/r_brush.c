@@ -585,6 +585,15 @@ void GL_BuildLightmaps (void)
 	//
 	// upload all lightmaps that were filled
 	//
+	// PPC port (Phase 2.2) -- APPLE_client_storage: tell the driver to
+	// keep our pointer instead of copying. Eliminates the per-upload
+	// LMBLOCK_WIDTH × LMBLOCK_HEIGHT × 4 byte copy. Each lm->data is a
+	// stable calloc'd block (see AllocBlock); the driver is allowed to
+	// reference it for the texture's lifetime. Reset to GL_FALSE after
+	// so non-lightmap textures still get the default copy semantics.
+	if (gl_apple_client_storage_able)
+		glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
+
 	for (i=0; i<lightmap_count; i++)
 	{
 		lm = &lightmaps[i];
@@ -600,6 +609,9 @@ void GL_BuildLightmaps (void)
 						SRC_LIGHTMAP, lm->data, "", (src_offset_t)lm->data, TEXPREF_LINEAR | TEXPREF_NOPICMIP);
 		//johnfitz
 	}
+
+	if (gl_apple_client_storage_able)
+		glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_FALSE);
 
 	//johnfitz -- warn about exceeding old limits
 	//GLQuake limit was 64 textures of 128x128. Estimate how many 128x128 textures we would need

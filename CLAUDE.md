@@ -40,7 +40,10 @@ G4 Tiger), via cross-builds from an Intel Mac mini on Lion.
 SSH aliases live in `~/.ssh/config`:
 
 - `lion` — Intel Mac mini, OS X 10.7.5. Cross-build host. PPC toolchain
-  installed (see below).
+  installed (see below). **Sleeps aggressively** (system sleep timer is
+  short); if `build.sh` fails with `ssh: connect to host ... No route to
+  host`, Lion is asleep — wake it (Wake-on-LAN, key press, or
+  `caffeinate` if you've configured one) and retry.
 - `PowerMacG3` — Blue & White, 450 MHz, 10.3 Panther, Rage 128 16 MB.
 - G4 — not yet wired in `~/.ssh/config`; Quicksilver-class 867 MHz, 10.4 Tiger,
   AltiVec.
