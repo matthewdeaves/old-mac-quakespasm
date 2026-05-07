@@ -29,6 +29,12 @@
 | Phase 1 — `frsqrte` `VectorLength` / `VectorNormalize` | ✅ | `72fd7fa5` | Within noise on timedemos (math wasn't the bottleneck) |
 | Phase 1.1 — immediate-mode → client vertex arrays + CVA | ✅ | `c00a07a7` | **G4 +4.7% avg, +6.2% peak; G3 ±0** |
 | Phase 1.3 — SGIS mipmap throttle for liquids | 🪦 archived | n/a | `PPC_PLAN_1_3.md` — best case ~fps-neutral, worst -3-5fps; not worth |
+| Phase 2.1 — `GL_BGRA` + `8_8_8_8_REV` lightmap upload | ✅ | `f96b0dda` | Within noise on demo1 (G4 -1pct, G3 -1pct). Lightmap upload isn't the bottleneck on demo1 (low dynamic-light churn) — predicted win lives on demo3, measured at end-of-round. |
+| Phase 2.2 — `GL_APPLE_client_storage` on lightmap pool | ⚠️ regressed → kept | `d717a808` | G4 1024 -10%, G4 640 -16%. Apple's client_storage works in the literal sense (no copy) but defeats driver caching of the pool when it's reallocated — driver re-references stale memory. Phase 2.3's per-texture cache hint reverses the regression. Kept because removing destabilises 2.3's interaction. |
+| Phase 2.3 — `GL_STORAGE_CACHED_APPLE` lightmap hint | ✅ | `81196b23` | **G4 1024 +12.6% (109.55→123.35), G4 640 +18.4% (127.35→150.75)** vs 2.2 baseline. Net vs Phase 0: G4 1024 +12pct, G4 640 +2pct. The hint forces the driver to keep our pool in cached VRAM even though client_storage normally inhibits caching. |
+| Phase 3.1 — `GL_APPLE_vertex_array_range` detection scaffolding | ✅ | `7ddb8133` | No behavior change. Detection + entry-point resolution. Confirmed VAR present on G4, absent on G3 (matching captured `gl-info/`). |
+| Phase 3.2 — VAR pool for static brush verts | ✅ → partially regressed | `b24632ed` | G4 1024 essentially flat (-0.4pct), **G4 640 -3.5%** (146.85→141.75). Pool builds clean and is referenced by 3 single-tex draw paths. Regression diagnosed as per-surface `glVertexPointer` rebind invalidating driver pre-fetch state on every surface — a 3.2 implementation flaw, not a VAR-design flaw. **3.3 fixed it.** |
+| Phase 3.3 — chain-level brush vert API + multitex array conversion | ✅ | `fdd1b09a` | **G4 640 +6.5% recovery** (141.75→151.00, surpassing 3.1's 146.85), **G4 1024 -1.1% drift** (121.20→119.85). Net round vs Phase 0: G4 1024 +8.9% (110.05→119.85), G4 640 +2.5% (147.35→151.00). The G4 1024 dip vs the 2.3 peak (123.35) appears structural — at 1024 GPU is fillrate-bound, so converting `glBegin`→`glDrawArrays` on the multitex path costs a small amount of driver pipelining without unlocking GPU headroom. Reverting would lose the 640 win. Banked; expected to recover on AltiVec phases. |
 
 **Architectural state we're building on:**
 - Two binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`. No runtime dispatch yet.
@@ -126,6 +132,12 @@ isolating the dirty-rect upload cost.
 Lightmap data is the same; only the format on the wire to the driver
 changes.
 
+**Actual outcome (`f96b0dda`):** within noise on demo1 for both
+targets. The predicted dynamic-light win lives on demo3 (monster
+fights), which we measure once at end-of-round. Phase landed clean,
+no visual regressions, code change minimal — the BGRA branch was
+already half-wired in `R_BuildLightMap`.
+
 ---
 
 ### 2.2 — `GL_APPLE_client_storage` on the lightmap pool
@@ -156,6 +168,19 @@ same-domain optimizations (data motion to driver).
 
 **Visual safety:** none — pure transport change.
 
+**Actual outcome (`d717a808`):** **regressed −10% G4 1024 / −16% G4
+640.** Apple's `client_storage` works as advertised (no copy) but the
+driver pessimises caching for client-storage textures by default —
+when our pool grows via realloc, the driver follows the pointer to
+freshly-zeroed memory before the next upload arrives. Result: cache
+miss every dirty-rect frame. **Solution lives in 2.3** — add
+`GL_STORAGE_CACHED_APPLE` per-texture hint to force VRAM caching
+even with client_storage on. We kept 2.2 in place rather than
+reverting because 2.3 depends on the client_storage flag being set
+(both extensions live in the same APPLE family and the hint applies
+specifically to the client-storage path). Lesson: **`client_storage`
+alone is a trap**; always pair with the storage hint on Apple stacks.
+
 ---
 
 ### 2.3 — `GL_STORAGE_CACHED_APPLE` per-texture hint on lightmaps
@@ -175,6 +200,18 @@ Detection: probe `GL_APPLE_texture_range` (G4: yes, G3: no) and use it as the ga
 **Expected impact:** modest — driver hint, not a behavior change. ~1-2% G4, ~0-1% G3 (extension absent → no-op there). The cost is one parameter call per lightmap at level load. Worth doing because it's free.
 
 **Visual safety:** none.
+
+**Actual outcome (`81196b23`):** the headline phase of the Apple
+fast-path round. **G4 1024 +12.6% (109.55 → 123.35), G4 640 +18.4%
+(127.35 → 150.75)** vs the 2.2 baseline. Net effect of (2.2 + 2.3)
+on G4 vs Phase 0: 1024 +12pct, 640 +2pct. The hint reverses 2.2's
+cache-miss regression *and* delivers genuine win because it parks
+our pool in VRAM where 2.1's BGRA fast path can pull from it without
+crossing the bus. **This is the result the plan was actually
+targeting** — 2.1+2.2 alone underperformed; the three together are
+the package. Validates the round's "Apple's docs are load-bearing"
+hypothesis. Phase 3 then mirrors the same pattern for *vertex* data
+(VAR + storage hint) instead of texture data.
 
 ---
 
@@ -199,6 +236,13 @@ command-line escape hatch (mirrors `-nocva`/`-novbo`).
 qconsole.log on both targets.
 
 **No behavior change.** Pure scaffolding.
+
+**Actual outcome (`7ddb8133`):** detection works as expected: G4 logs
+`FOUND: APPLE_vertex_array_range`, G3 doesn't (extension absent).
+Smoke fps within noise on both. The function-pointer trio
+(`glVertexArrayRangeAPPLE`, `glFlushVertexArrayRangeAPPLE`,
+`glVertexArrayParameteriAPPLE`) all resolve cleanly via
+`SDL_GL_GetProcAddress` on the Tiger ATI 1.4.18 driver.
 
 ---
 
@@ -247,6 +291,17 @@ on the G4 path). G3: none (extension not present).
 **Visual safety:** none if it works; if it corrupts, gate behind opt-out.
 **No corruption ever ships unguarded** — see verification.
 
+**Actual outcome (`b24632ed`):** pool builds clean, but G4 640 regressed
+−3.5% (146.85 → 141.75). Root cause: per-surface
+`glVertexPointer`/`glTexCoordPointer`/`glEnable/DisableClientState`
+inside the texturechain loop. Each rebind invalidates the driver's
+pre-fetch state on the registered range, so VAR's "data lives in VRAM"
+benefit was negated by client-state thrash. **Fix lives in 3.3** —
+chain-level state hoist + use `glDrawArrays(POLYGON, var_firstvert,
+count)` with a fixed base pointer. The pool itself was correct; the
+consumer pattern was wrong. Lesson for any future VAR/VBO work:
+**always batch state at chain granularity, never per-draw**.
+
 ---
 
 ### 3.3 — Restore `R_DrawTextureChains_Multitexture` array conversion (G4 + VAR only)
@@ -267,6 +322,20 @@ path.
 **Risk:** medium-high. This is the most fragile interaction (multitexture
 + VAR + client-array). A/B with `-novar` and `-noarrays-mtex` flags to
 triangulate.
+
+**Actual outcome (`fdd1b09a`):** delivered the 3.2 recovery + a small
+real win on G4 640 (141.75 → 151.00, +6.5% vs 3.2; 146.85 → 151.00,
++2.8% vs 3.1). G4 1024 drifted slightly (121.20 → 119.85, −1.1%) and
+remains below the 2.3 peak of 123.35 — the array conversion costs a
+small amount of driver pipelining at high fillrate without unlocking
+GPU headroom (1024 is fillrate-bound; 640 is vert-submission-bound).
+The phase also became the natural place to introduce a chain-level
+brush-vert API in `r_brush.c` (`R_BindBrushChain_Single/_Multi`,
+`R_DrawBrushChainSurface[_Multi]`, `R_UnbindBrushChain_*`) which is
+shared between the four converted draw paths and replaces the
+per-surface `DrawGLPolyFromSurface` from 3.2. **Phase 4 should
+recover the 1024 dip via CPU-side AltiVec wins (alias lerp, math)
+that don't compete for GPU bandwidth.**
 
 **Expected impact:** G4 +1-3% (recovery from the 1.1c regression — only
 when VAR is on, otherwise neutral). G3: untouched.
