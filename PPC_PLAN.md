@@ -35,7 +35,7 @@
 | Phase 3.1 — `GL_APPLE_vertex_array_range` detection scaffolding | ✅ | `7ddb8133` | No behavior change. Detection + entry-point resolution. Confirmed VAR present on G4, absent on G3 (matching captured `gl-info/`). |
 | Phase 3.2 — VAR pool for static brush verts | ✅ → partially regressed | `b24632ed` | G4 1024 essentially flat (-0.4pct), **G4 640 -3.5%** (146.85→141.75). Pool builds clean and is referenced by 3 single-tex draw paths. Regression diagnosed as per-surface `glVertexPointer` rebind invalidating driver pre-fetch state on every surface — a 3.2 implementation flaw, not a VAR-design flaw. **3.3 fixed it.** |
 | Phase 3.3 — chain-level brush vert API + multitex array conversion | ✅ | `fdd1b09a` | **G4 640 +6.5% recovery** (141.75→151.00, surpassing 3.1's 146.85), **G4 1024 -1.1% drift** (121.20→119.85). Net round vs Phase 0: G4 1024 +8.9% (110.05→119.85), G4 640 +2.5% (147.35→151.00). The G4 1024 dip vs the 2.3 peak (123.35) appears structural — at 1024 GPU is fillrate-bound, so converting `glBegin`→`glDrawArrays` on the multitex path costs a small amount of driver pipelining without unlocking GPU headroom. Reverting would lose the 640 win. Banked; expected to recover on AltiVec phases. |
-| Phase 4.1 — AltiVec alias lerp (pad-to-4 + vec_madd) | ⏳ pending official bench | TBD | Demo1 smoke neutral on both targets (expected — viewmodel is the only alias on demo1). Build OK on G3 (no AltiVec; scalar pad-to-4 layout) and G4 (`__ALTIVEC__`-gated AltiVec block). Real win lives on demo3 (zombies, ogres) at end-of-round full grid. |
+| Phase 4.1 — AltiVec alias lerp (pad-to-4 + vec_madd) | ✅ | `4a261c76` | Demo1 neutral on both targets as predicted (viewmodel is the only alias surface on demo1): G4 1024 119.75, G4 640 151.85, G3 1024 24.75, G3 640 23.80. Build OK on G3 (scalar pad-to-4 fallback) and G4 (`__ALTIVEC__`-gated AltiVec block; `vec_splats` unavailable in gcc-4.0 so used the constructor form). Real impact on alias-heavy demos (demo3 zombies/ogres) is deferred to end-of-round full grid. |
 
 **Architectural state we're building on:**
 - Two binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`. No runtime dispatch yet.
@@ -371,7 +371,7 @@ Demos with mostly brush rendering won't move.
 
 **Visual safety:** none.
 
-**Actual outcome (TBD commit):** smoke neutral on demo1 1024 / 640 for
+**Actual outcome (`4a261c76`):** smoke neutral on demo1 1024 / 640 for
 both targets, as predicted (only the viewmodel is alias on demo1).
 G4 build accepts the AltiVec path (`__ALTIVEC__` defined under
 `-maltivec`). Implementation note: gcc-4.0 (Apple's PPC toolchain on
