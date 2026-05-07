@@ -186,6 +186,21 @@ void S_Init (void)
 
 	Con_Printf("\nSound Initialization\n");
 
+#ifdef __ALTIVEC__
+	// PPC port -- Phase 4.2: -noaltivec-snd disables the AltiVec
+	// 16-bit mixer in SND_PaintChannelFrom16. Audio bugs are hard to
+	// A/B without a rebuild, so the runtime opt-out is worth the
+	// branch cost (one branch per channel paint, dwarfed by the loop).
+	{
+		extern qboolean snd_altivec_disabled;
+		if (COM_CheckParm("-noaltivec-snd"))
+		{
+			snd_altivec_disabled = true;
+			Con_Warning ("Phase 4.2 AltiVec sound mixer disabled at command line\n");
+		}
+	}
+#endif
+
 	Cmd_AddCommand("play", S_Play);
 	Cmd_AddCommand("playvol", S_PlayVol);
 	Cmd_AddCommand("stopsound", S_StopAllSoundsC);

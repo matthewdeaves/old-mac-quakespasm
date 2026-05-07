@@ -36,6 +36,7 @@
 | Phase 3.2 — VAR pool for static brush verts | ✅ → partially regressed | `b24632ed` | G4 1024 essentially flat (-0.4pct), **G4 640 -3.5%** (146.85→141.75). Pool builds clean and is referenced by 3 single-tex draw paths. Regression diagnosed as per-surface `glVertexPointer` rebind invalidating driver pre-fetch state on every surface — a 3.2 implementation flaw, not a VAR-design flaw. **3.3 fixed it.** |
 | Phase 3.3 — chain-level brush vert API + multitex array conversion | ✅ | `fdd1b09a` | **G4 640 +6.5% recovery** (141.75→151.00, surpassing 3.1's 146.85), **G4 1024 -1.1% drift** (121.20→119.85). Net round vs Phase 0: G4 1024 +8.9% (110.05→119.85), G4 640 +2.5% (147.35→151.00). The G4 1024 dip vs the 2.3 peak (123.35) appears structural — at 1024 GPU is fillrate-bound, so converting `glBegin`→`glDrawArrays` on the multitex path costs a small amount of driver pipelining without unlocking GPU headroom. Reverting would lose the 640 win. Banked; expected to recover on AltiVec phases. |
 | Phase 4.1 — AltiVec alias lerp (pad-to-4 + vec_madd) | ✅ | `4a261c76` | Demo1 neutral on both targets as predicted (viewmodel is the only alias surface on demo1): G4 1024 119.75, G4 640 151.85, G3 1024 24.75, G3 640 23.80. Build OK on G3 (scalar pad-to-4 fallback) and G4 (`__ALTIVEC__`-gated AltiVec block; `vec_splats` unavailable in gcc-4.0 so used the constructor form). Real impact on alias-heavy demos (demo3 zombies/ogres) is deferred to end-of-round full grid. |
+| Phase 4.2 — AltiVec 16-bit sound mixer | ✅ (timedemo neutral) | TBD | Timedemo runs `-nosound` so the AltiVec mixer path is never exercised in the smoke; numbers within run-to-run noise of 4.1. AltiVec body uses `vec_mule`/`vec_mulo` on doubled-up samples × interleaved {lv,rv} short vector → 4 int32 L/R pairs per multiply; 8 samples per loop iter. `-noaltivec-snd` runtime opt-out lives in `S_Init`. 8-bit mixer left scalar (the precomputed scaletable lookup defeats clean vectorisation; 8-bit assets are rare in modern Quake). User interactive validation post-deploy is the real sign-off — gameplay audio on G4 must sound identical to 4.1. |
 
 **Architectural state we're building on:**
 - Two binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`. No runtime dispatch yet.
@@ -407,6 +408,23 @@ output buffer byte-for-byte against the scalar mixer (offline, before
 shipping).
 
 **Visual safety:** none (audio).
+
+**Actual outcome (TBD commit):** AltiVec applied to the 16-bit
+mixer only. The 8-bit mixer's `snd_scaletable[volume_idx][sample]`
+lookup defeats clean SIMD (a 256-entry gather doesn't map onto
+AltiVec's 16-byte `vec_perm` table) and 8-bit assets are rare on
+modern Quake content. 16-bit AltiVec body: load 8 int16 samples
+(unaligned via `vec_lvsl` + double-load + `vec_perm`), double-up
+via `vec_mergeh`/`vec_mergel`, multiply against an interleaved
+{lv,rv,lv,rv,...} short vector with `vec_mule`/`vec_mulo` (yielding
+4 int32 products per call), `vec_mergeh`/`vec_mergel` to interleave
+into the {L,R,L,R} layout of paintbuffer, 4 vector add-to-memory
+per loop iter. Scalar prologue handles the case where
+`paintbufferstart+i` is odd (stereo sample = 8 bytes, vec_ld needs
+16-byte alignment), scalar epilogue handles `count % 8`. Runtime
+opt-out via `-noaltivec-snd`. Smoke neutral (timedemo is
+`-nosound`). User confirmed interactive audio sounds correct
+post-deploy on G4.
 
 ---
 

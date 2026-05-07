@@ -23,11 +23,30 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+// PPC port -- Phase 4.2: AltiVec on G4 builds for the 16-bit mixer.
+// G3 (no -maltivec) compiles without altivec.h. The 8-bit mixer's
+// scaletable lookup defeats clean vectorisation, so it stays scalar.
+#ifdef __ALTIVEC__
+#include <altivec.h>
+#endif
+
 #define	PAINTBUFFER_SIZE	2048
-portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE];
+// 16-byte alignment lets the AltiVec mixer use vec_ld/vec_st without
+// the unaligned-load permute trick on this buffer. The static gets
+// 8-byte alignment by default (sizeof(portable_samplepair_t)) so we
+// upgrade explicitly.
+portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE] __attribute__((aligned(16)));
 int		snd_scaletable[32][256];
 int		*snd_p, snd_linear_count;
 short		*snd_out;
+
+// PPC port -- Phase 4.2: -noaltivec-snd opt-out (parsed in S_Init,
+// see snd_dma.c). Set true to disable the AltiVec mixer path even
+// when __ALTIVEC__ is built. Runtime opt-out matters for audio
+// because bugs are hard to A/B without a rebuild.
+#ifdef __ALTIVEC__
+qboolean snd_altivec_disabled = false;
+#endif
 
 static int	snd_vol;
 
@@ -509,7 +528,87 @@ static void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count, in
 	rightvol /= 256;
 	sfx = (signed short *)sc->data + ch->pos;
 
-	for (i = 0; i < count; i++)
+	i = 0;
+
+#ifdef __ALTIVEC__
+	// PPC port -- Phase 4.2: AltiVec 16-bit mixer.
+	//
+	// Per scalar reference: paintbuffer[i].left  += sfx[i] * leftvol;
+	//                       paintbuffer[i].right += sfx[i] * rightvol;
+	//
+	// Per iteration: load 8 int16 samples, double to {s0,s0,s1,s1,...},
+	// multiply against an interleaved {lv,rv,lv,rv,...} short vector
+	// using vec_mule (even lanes -> *lv) + vec_mulo (odd lanes -> *rv).
+	// vec_mergeh/vec_mergel combine the four int32 products per half
+	// back into the {L,R,L,R} layout of paintbuffer for a 4-vector
+	// add-to-memory (16 ints = 8 stereo samples per loop body).
+	//
+	// Volumes are bounded above (ch->leftvol clamped to 255 just above,
+	// snd_vol typically 256, /256 brings them well under int16's 32k
+	// ceiling; even with a high sfxvolume cvar the product fits).
+	// vec_mule of int16 produces int32 so the sample*vol term can't
+	// overflow either way.
+	//
+	// Alignment: paintbuffer is __attribute__((aligned(16))), but
+	// (paintbufferstart + i) is in units of 8-byte stereo samples, so
+	// we need (start+i) even for vec_ld to land on a 16-byte boundary.
+	// Scalar prologue handles the odd case. sfx may be at any int16
+	// alignment; we use the lvsl + double-load + vec_perm idiom for
+	// it. The runtime opt-out (snd_altivec_disabled) lets the user
+	// fall back via -noaltivec-snd if audio glitches show up.
+	if (!snd_altivec_disabled && count >= 16)
+	{
+		if ((paintbufferstart + i) & 1)
+		{
+			data = sfx[i];
+			paintbuffer[paintbufferstart + i].left  += data * leftvol;
+			paintbuffer[paintbufferstart + i].right += data * rightvol;
+			i++;
+		}
+
+		const vector signed short lv_splat = (vector signed short){
+			(short)leftvol, (short)leftvol, (short)leftvol, (short)leftvol,
+			(short)leftvol, (short)leftvol, (short)leftvol, (short)leftvol
+		};
+		const vector signed short rv_splat = (vector signed short){
+			(short)rightvol, (short)rightvol, (short)rightvol, (short)rightvol,
+			(short)rightvol, (short)rightvol, (short)rightvol, (short)rightvol
+		};
+		const vector signed short lvrv = vec_mergeh(lv_splat, rv_splat);
+
+		for (; i + 8 <= count; i += 8)
+		{
+			signed short *sp = &sfx[i];
+			vector unsigned char shift = vec_lvsl(0, (unsigned char *)sp);
+			vector signed short s_lo = vec_ld(0,  sp);
+			vector signed short s_hi = vec_ld(15, sp);
+			vector signed short samples = (vector signed short)vec_perm(
+			    (vector unsigned char)s_lo, (vector unsigned char)s_hi, shift);
+
+			vector signed short s_dup_hi = vec_mergeh(samples, samples);
+			vector signed short s_dup_lo = vec_mergel(samples, samples);
+
+			vector signed int hi_e = vec_mule(s_dup_hi, lvrv);
+			vector signed int hi_o = vec_mulo(s_dup_hi, lvrv);
+			vector signed int lo_e = vec_mule(s_dup_lo, lvrv);
+			vector signed int lo_o = vec_mulo(s_dup_lo, lvrv);
+
+			vector signed int pair0 = vec_mergeh(hi_e, hi_o);
+			vector signed int pair1 = vec_mergel(hi_e, hi_o);
+			vector signed int pair2 = vec_mergeh(lo_e, lo_o);
+			vector signed int pair3 = vec_mergel(lo_e, lo_o);
+
+			int *pb = &paintbuffer[paintbufferstart + i].left;
+			vec_st(vec_add(vec_ld(0,  pb), pair0),  0, pb);
+			vec_st(vec_add(vec_ld(16, pb), pair1), 16, pb);
+			vec_st(vec_add(vec_ld(32, pb), pair2), 32, pb);
+			vec_st(vec_add(vec_ld(48, pb), pair3), 48, pb);
+		}
+	}
+#endif
+
+	// Scalar tail (and full-loop fallback when AltiVec is off).
+	for (; i < count; i++)
 	{
 		data = sfx[i];
 	// this was causing integer overflow as observed in quakespasm
