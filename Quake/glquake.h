@@ -214,6 +214,24 @@ extern	qboolean	gl_apple_client_storage_able;
 #endif
 extern	qboolean	gl_apple_storage_hint_able;
 
+// PPC port -- APPLE_vertex_array_range (Phase 3.1+). Pre-VBO equivalent
+// for parking static geometry in driver-cached VRAM. Required for the
+// brush-vert pool plan in 3.2; G4 only (R128 / Panther 10.3 doesn't
+// advertise the extension per benchmarks/gl-info/g3-rage128-panther.txt).
+#ifndef GL_VERTEX_ARRAY_RANGE_APPLE
+#define GL_VERTEX_ARRAY_RANGE_APPLE 0x851D
+#endif
+#ifndef GL_VERTEX_ARRAY_STORAGE_HINT_APPLE
+#define GL_VERTEX_ARRAY_STORAGE_HINT_APPLE 0x851F
+#endif
+typedef void (APIENTRYP QS_PFNGLVERTEXARRAYRANGEAPPLEPROC) (GLsizei length, const GLvoid *pointer);
+typedef void (APIENTRYP QS_PFNGLFLUSHVERTEXARRAYRANGEAPPLEPROC) (GLsizei length, const GLvoid *pointer);
+typedef void (APIENTRYP QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC) (GLenum pname, GLint param);
+extern QS_PFNGLVERTEXARRAYRANGEAPPLEPROC          GL_VertexArrayRangeAPPLEFunc;
+extern QS_PFNGLFLUSHVERTEXARRAYRANGEAPPLEPROC     GL_FlushVertexArrayRangeAPPLEFunc;
+extern QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC     GL_VertexArrayParameteriAPPLEFunc;
+extern	qboolean	gl_apple_var_able;
+
 //ericw -- GLSL
 
 // SDL 1.2 has a bug where it doesn't provide these typedefs on OS X!

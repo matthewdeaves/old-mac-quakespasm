@@ -108,6 +108,10 @@ qboolean gl_vbo_able = false; //ericw
 qboolean gl_cva_able = false; // PPC port -- EXT_compiled_vertex_array
 qboolean gl_apple_client_storage_able = false; // PPC port -- APPLE_client_storage
 qboolean gl_apple_storage_hint_able = false;   // PPC port -- APPLE_texture_range (per-texture cached-VRAM hint)
+qboolean gl_apple_var_able = false;            // PPC port -- APPLE_vertex_array_range (Phase 3.1+, G4 only)
+QS_PFNGLVERTEXARRAYRANGEAPPLEPROC          GL_VertexArrayRangeAPPLEFunc      = NULL;
+QS_PFNGLFLUSHVERTEXARRAYRANGEAPPLEPROC     GL_FlushVertexArrayRangeAPPLEFunc = NULL;
+QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC     GL_VertexArrayParameteriAPPLEFunc = NULL;
 qboolean gl_glsl_able = false; //ericw
 GLint gl_max_texture_units = 0; //ericw
 qboolean gl_glsl_gamma_able = false; //ericw
@@ -1107,6 +1111,35 @@ static void GL_CheckExtensions (void)
 	{
 		Con_Printf("FOUND: APPLE_texture_range\n");
 		gl_apple_storage_hint_able = true;
+	}
+
+	// APPLE_vertex_array_range (Phase 3.1) -- PPC port
+	// Pre-VBO equivalent. Lets us park static brush geometry in
+	// driver-cached VRAM (Phase 3.2 will actually use it). Pure
+	// scaffolding here — detection + entry-point resolution. Behavior
+	// gated on gl_apple_var_able which Phase 3.2 will check.
+	//
+	// G4 / Radeon 9000 / Tiger 10.4: extension present per
+	// benchmarks/gl-info/g4-radeon9000-tiger.txt.
+	// G3 / R128 / Panther 10.3: NOT present per
+	// benchmarks/gl-info/g3-rage128-panther.txt → flag stays false on
+	// G3 by detection alone, no special-case needed.
+	if (COM_CheckParm("-novar"))
+		Con_Warning ("APPLE_vertex_array_range disabled at command line\n");
+	else if (GL_ParseExtensionList(gl_extensions, "GL_APPLE_vertex_array_range"))
+	{
+		GL_VertexArrayRangeAPPLEFunc      = (QS_PFNGLVERTEXARRAYRANGEAPPLEPROC)      SDL_GL_GetProcAddress("glVertexArrayRangeAPPLE");
+		GL_FlushVertexArrayRangeAPPLEFunc = (QS_PFNGLFLUSHVERTEXARRAYRANGEAPPLEPROC) SDL_GL_GetProcAddress("glFlushVertexArrayRangeAPPLE");
+		GL_VertexArrayParameteriAPPLEFunc = (QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC) SDL_GL_GetProcAddress("glVertexArrayParameteriAPPLE");
+		if (GL_VertexArrayRangeAPPLEFunc && GL_FlushVertexArrayRangeAPPLEFunc && GL_VertexArrayParameteriAPPLEFunc)
+		{
+			Con_Printf("FOUND: APPLE_vertex_array_range\n");
+			gl_apple_var_able = true;
+		}
+		else
+		{
+			Con_Warning ("Couldn't link to APPLE_vertex_array_range functions\n");
+		}
 	}
 
 	// multitexture
