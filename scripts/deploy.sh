@@ -134,9 +134,10 @@ ssh "$HOST" 'chmod +x ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2
 # Contents/Resources/QuakeSpasm.icns (sourced from MacOSX/QuakeSpasm.icns
 # in the repo). Without this scrub Finder would keep showing the old
 # pasted overlay because kHasCustomIcon makes the Icon\r resource fork
-# win over CFBundleIconFile.
+# win over CFBundleIconFile. find -name "Icon?" matches the literal
+# Icon-followed-by-CR filename without the inline-CR-quoting hell.
 APP=~/Desktop/quake/Quakespasm.app
-[ -e "$APP/Icon"$'"'"'\r'"'"'" ] && rm -f "$APP/Icon"$'"'"'\r'"'"'"
+find "$APP" -maxdepth 1 -name "Icon?" -exec rm -f {} \; 2>/dev/null
 # SetFile is in /Developer/Tools on Tiger and at /usr/bin on Lion. -a c
 # clears the kHasCustomIcon flag (lowercase = clear, capital = set).
 if command -v SetFile >/dev/null 2>&1; then
