@@ -37,6 +37,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qboolean mip_altivec_disabled = false;
 #endif
 
+// Pass A item 5 / §14.3 follow-up: upload static textures via Apple's
+// fast BGRA + 8_8_8_8_REV path instead of GL_RGBA + GL_UNSIGNED_BYTE.
+// Phase 2.1 already proved this on the per-frame lightmap path; same
+// trick on TexMgr_LoadImage32 covers world textures, alias skins,
+// particle/sky/HUD textures. Load-time only — no per-frame fps move.
+//
+// Default-on; pass -nobgra-static on the command line to fall back to
+// the legacy RGBA upload path. The conversion is an in-place RGBA→BGRA
+// byte swap on the source buffer right before glTexImage2D; downstream
+// mipmap-down passes are byte-component-agnostic so no other code
+// path needs to change. d_8to24table[] stays RGBA byte order — the
+// table-flip alternative would have broken byte-access sites in
+// gl_rmisc.c, gl_sky.c, r_part.c, gl_draw.c.
+static qboolean bgra_static_disabled = false;
+
 static const int	gl_solid_format = 3;
 static const int	gl_alpha_format = 4;
 
@@ -729,6 +744,16 @@ void TexMgr_Init (void)
 	}
 #endif
 
+	// Pass A item 5: -nobgra-static falls back to the legacy
+	// GL_RGBA + GL_UNSIGNED_BYTE upload format on TexMgr_LoadImage32.
+	// Default path is GL_BGRA + GL_UNSIGNED_INT_8_8_8_8_REV (Apple's
+	// fast path; documented faster on G3, G4, and Lion's GMA 950).
+	if (COM_CheckParm ("-nobgra-static"))
+	{
+		bgra_static_disabled = true;
+		Con_Warning ("Pass A item 5 BGRA static-texture upload disabled at command line\n");
+	}
+
 	// load notexture images
 	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (src_offset_t)notexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
 	nulltexture = TexMgr_LoadImage (NULL, "nulltexture", 2, 2, SRC_RGBA, nulltexture_data, "", (src_offset_t)nulltexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
@@ -1246,6 +1271,9 @@ TexMgr_LoadImage32 -- handles 32bit source data
 static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 {
 	int	internalformat,	miplevel, mipwidth, mipheight, picmip;
+	const qboolean use_bgra = !bgra_static_disabled;
+	const GLenum upload_format = use_bgra ? GL_BGRA : GL_RGBA;
+	const GLenum upload_type = use_bgra ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE;
 
 	if (!gl_texture_NPOT)
 	{
@@ -1253,6 +1281,26 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 		data = TexMgr_ResampleTexture (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA);
 		glt->width = TexMgr_Pad(glt->width);
 		glt->height = TexMgr_Pad(glt->height);
+	}
+
+	// Pass A item 5: in-place RGBA→BGRA byte swap before any mipmap-down
+	// or upload work. Mipmap and edge-fix passes are byte-component
+	// independent so the layout flip propagates cleanly through them.
+	// glTexImage2D below then takes the GL_BGRA + 8_8_8_8_REV fast path
+	// on Apple's GL stacks (G3 R128, G4 Radeon 9000, Lion GMA 950).
+	if (use_bgra)
+	{
+		byte *p = (byte *)data;
+		const int npix = glt->width * glt->height;
+		int i;
+		byte tmp;
+		for (i = 0; i < npix; i++, p += 4)
+		{
+			tmp = p[0];
+			p[0] = p[2];
+			p[2] = tmp;
+			// p[1] (G) and p[3] (A) unchanged
+		}
 	}
 
 	// mipmap down
@@ -1277,7 +1325,7 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	// upload
 	GL_Bind (glt);
 	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
-	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, upload_format, upload_type, data);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP && !(glt->flags & TEXPREF_WARPIMAGE)) // warp image mipmaps are generated later
@@ -1297,7 +1345,7 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 				TexMgr_MipMapH (data, mipwidth, mipheight);
 				mipheight >>= 1;
 			}
-			glTexImage2D (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, upload_format, upload_type, data);
 		}
 	}
 
