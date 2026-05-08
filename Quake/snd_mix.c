@@ -263,6 +263,8 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 	int parity;
 
 	input = (float *) malloc(sizeof(float) * (filter->kernelsize + count));
+	if (!input)
+		return;	// silently drop this filter pass on OOM rather than crash
 
 // set up the input buffer
 // memory holds the previous filter->kernelsize samples of input.

@@ -231,7 +231,7 @@ void CL_NextDemo (void)
 	if (cls.demonum == -1)
 		return;		// don't play demos
 
-	if (!cls.demos[cls.demonum][0] || cls.demonum == MAX_DEMOS)
+	if (cls.demonum == MAX_DEMOS || !cls.demos[cls.demonum][0])
 	{
 		cls.demonum = 0;
 		if (!cls.demos[cls.demonum][0])

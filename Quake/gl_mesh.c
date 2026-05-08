@@ -505,6 +505,8 @@ static void GLMesh_LoadVertexBuffer (qmodel_t *m, const aliashdr_t *hdr)
 // create the vertex buffer (empty)
 
 	vbodata = (byte *) malloc(totalvbosize);
+	if (!vbodata)
+		Sys_Error ("GLMesh_LoadVertexBuffer: malloc(%d) failed", totalvbosize);
 	memset(vbodata, 0, totalvbosize);
 
 // fill in the vertices at the start of the buffer

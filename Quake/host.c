@@ -688,7 +688,7 @@ void _Host_Frame (float time)
 		return;			// something bad happened, or the server disconnected
 
 // keep the random time dependent
-	rand ();
+	(void) rand ();
 
 // decide the simulation time
 	if (!Host_FilterTime (time))

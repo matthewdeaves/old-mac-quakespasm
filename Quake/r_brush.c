@@ -492,8 +492,14 @@ int AllocBlock (int w, int h, int *x, int *y)
 	{
 		if (texnum == lightmap_count)
 		{
+			struct lightmap_s *new_lightmaps;
 			lightmap_count++;
-			lightmaps = (struct lightmap_s *) realloc(lightmaps, sizeof(*lightmaps)*lightmap_count);
+			// realloc-into-self leaks the old block on NULL, so capture
+			// into a temporary first.
+			new_lightmaps = (struct lightmap_s *) realloc(lightmaps, sizeof(*lightmaps)*lightmap_count);
+			if (!new_lightmaps)
+				Sys_Error ("AllocBlock: realloc failed (%d lightmaps)", lightmap_count);
+			lightmaps = new_lightmaps;
 			memset(&lightmaps[texnum], 0, sizeof(lightmaps[texnum]));
 			lightmaps[texnum].data = (byte *) calloc(1, 4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT);
 			//as we're only tracking one texture, we don't need multiple copies of allocated any more.
