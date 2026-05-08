@@ -1,10 +1,15 @@
 # Build artifacts (produced by scripts/build.sh)
 /build/
 
-# Vendored installers (~5 GB) — not in git. README.md inside is committed
-# and lists download URLs + checksums; setup-lion.sh expects these locally.
+# Vendored installers (~5 GB total) — the giant ones are not in git.
+# README.md inside is committed and lists download URLs + checksums;
+# setup-lion.sh expects them locally.
 /prereqs/*
 !/prereqs/README.md
+# Graphics Tools (1.5 MB Tiger-vintage OpenGL Profiler etc., extracted
+# from the Xcode 2.5 DMG payload) IS small enough to vendor — it's
+# inert binaries, no SDK clutter.
+!/prereqs/graphics-tools/
 
 # Make outputs from in-tree builds
 Quake/*.o

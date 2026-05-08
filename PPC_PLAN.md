@@ -775,3 +775,409 @@ file build/quakespasm-g4   # must report ppc_7400
 
 `scripts/parallel-bench.sh` is unaffected — it parallelizes the bench
 *runs* across G3 and G4, not the build.
+
+---
+
+## 13. Round v3 — Continuation plan (drafted 2026-05-08, not started)
+
+> Status: drafted, not started. v2 + epilogue is the current shipping
+> tip (`99cb89c4`). This section can be picked up cold by reading top-
+> to-bottom; no implicit context.
+
+**Goal of this round:** broaden beyond timedemo fps. v2 saturated the
+"obvious cvar + Apple fast path + AltiVec compute" levers. Three areas
+remain measurably leverable:
+
+1. **G4 demo3 fps** — the dynamic-light cells still have a scalar
+   software lightmap composer running every frame. AltiVec'ing that
+   loop is the biggest single piece of perf still on the table for
+   either machine.
+2. **Map load time** — until now we've optimised purely for steady-
+   state fps. The `TexMgr_MipMap*` and palette-expand paths fire only
+   at level load and are wholly scalar. G4 has obvious AltiVec
+   targets; G3 has none (no AltiVec) but inherits from #1 because
+   `R_BuildLightMap` runs at load too.
+3. **Visual upgrades on G4 we can now afford** — demo2 sits at
+   179.6 fps and demo1 at 122.3. Spending 1-3% on `r_shadows`, full
+   trilinear filtering, etc. is now defensible.
+
+G3 keeps its visual-neutral floor with one optional quality-trade knob
+(§13.7 below) flagged for explicit user approval.
+
+Phase numbering continues from v2: **4.4, 4.5, 4.6** are AltiVec
+follow-ons to the existing 4.x family. **7** is the diagnostic
+capstone. **8** is research-flavoured and gated on 7. Cvar-only
+config edits don't get phase numbers.
+
+### 13.1 Summary table (impact × confidence ordering)
+
+| #   | Phase / change                                     | Targets | Type            | Effort | Risk    | Expected impact                          | Visual |
+|-----|----------------------------------------------------|---------|-----------------|--------|---------|------------------------------------------|--------|
+| 4.4 | AltiVec `R_BuildLightMap` + `R_AddDynamicLights`   | G4 only | fps + load-time | medium | low     | demo3 +3-8% steady-state, faster atlas builds at level load | none |
+| 4.5 | AltiVec `TexMgr_MipMapW` / `TexMgr_MipMapH`        | G4 only | load-time only  | small  | very low| 30-50% off mipchain build phase per map  | none   |
+| 4.6 | Fuse alias `s*lightcolor` mul into 4.1 lerp        | G4 only | fps             | trivial| trivial | demo3 1024 +0.5-1% (the +0.9% cell)      | none   |
+| —   | G3 `gl_subdivide_size 256` autoexec edit           | G3 only | fps             | trivial| trivial | speculative +1-3% G3                     | none   |
+| —   | G4 `r_shadows 1` autoexec edit                     | G4 only | visual upgrade  | trivial| low     | -1 to -2% demo3, drop-shadows on alias   | **+**  |
+| —   | G4 `gl_texturemode GL_LINEAR_MIPMAP_LINEAR`        | G4 only | visual upgrade  | trivial| low     | -1 to -3% fillrate, smoother mip transitions | **+** |
+| 13.7| **G3 `gl_picmip 1`** — quality-trade decision      | G3 only | fps             | trivial| **visual cost** | speculative on the 1024 fillrate cell; needs user accept on softer textures | **−** (gated) |
+| 7   | `gl_perfprint` diagnostic cvar                     | both    | infra           | small  | none    | 0 fps direct; enables every future round | none   |
+| 8   | QuakeC VM threading (computed-goto dispatch)       | both    | gameplay CPU    | medium | medium  | 10-15% gameplay-side CPU on QC-heavy maps; **timedemo doesn't measure it** | none |
+
+### 13.2 Phase 4.4 — AltiVec `R_BuildLightMap` + `R_AddDynamicLights` (G4)
+
+**Why this is the headline:** the v2 epilogue's residual demo3 G4
+−10.6% was attributed to "Phase 2.x's per-sample cost shift on lit
+brush surfaces." That's only half the story. Phase 2 made the
+*driver-side* upload faster (BGRA, client_storage, cached hint), but
+every dirty lightmap still passes through `R_BuildLightMap` first to
+*produce* the upload payload. That function is wholly scalar and runs
+every frame for every dirty surface. Demo3 is dlight-heavy, so the
+scalar production cost dominates demo3 specifically.
+
+It also runs at level load — `GL_BuildLightmaps` calls it once per
+world surface during `Mod_LoadBrushModel` to compute the initial
+atlas. So one AltiVec implementation pays out twice: per-frame on
+demo3, and once-per-map on every load.
+
+**Hot loops:**
+
+`Quake/r_brush.c:1069-1075` — composition (called per lightmap style
+per surface, MAXLIGHTMAPS=4):
+```c
+for (i = 0; i < size; i++) {
+    *bl++ += *lightmap++ * scale;   // R
+    *bl++ += *lightmap++ * scale;   // G
+    *bl++ += *lightmap++ * scale;   // B
+}
+```
+Pattern: byte → unsigned int multiply-add. AltiVec idiom is
+`vec_unpackh`/`vec_unpackl` (byte→short), then `vec_mladd` for the
+multiply-add into 32-bit lanes. Standard shape; we already wrote
+the same idiom for `SND_PaintChannelFrom16` in Phase 4.2
+(`Quake/snd_mix.c`).
+
+`Quake/r_brush.c:1090-1190` — bound + invert + shift + pack (called
+per pixel per lightmap):
+```c
+r = *bl++ >> 8;  g = *bl++ >> 8;  b = *bl++ >> 8;
+*(unsigned int*)dest = (0xFFu<<24) | (rr<<16) | (gg<<8) | bb;  // BGRA case
+```
+Pattern: 32-bit shift + saturate-to-255 + pack-to-byte. AltiVec
+`vec_packsu` does the saturate-and-pack in one instruction. The
+final BGRA byte assembly is `vec_perm` against a constant
+permutation vector.
+
+`Quake/gl_rlight.c` (`R_AddDynamicLights`) — same family. Per-dlight,
+walks `blocklights` adding `(rad - dist)` to affected texels with
+attenuation. Float-to-int conversion and clamp; folds into the same
+phase commit.
+
+**Critical caveat — `r_lightmapwide` branch:** the BuildLightMap
+output has two formats, gated on `r_lightmapwide`:
+- Default (8888_REV): clamp to 255, pack 4 bytes → `vec_packsu` works.
+- Wide (10_10_10_2): clamp to 1023, pack as `(r<<22)|(g<<12)|(b<<2)|3`
+  — there's no `vec_packsu`-equivalent for 10-bit. **Phase 4.4 should
+  AltiVec only the 8888_REV path** and fall through to scalar for
+  wide10bits. Both targets currently auto-set `r_lightmapwide`
+  according to `gl_packed_pixels` extension presence (see
+  `gl_rmisc.c:223`); both have it, so wide is on by default. **We need
+  to either (a) flip the per-target default to off via autoexec on
+  G4 to exercise the AltiVec path, or (b) AltiVec the wide path too
+  with a hand-written 10-bit pack.** Decision deferred to
+  implementation; pick whichever measures faster on the actual G4.
+
+**A/B knob:** `-noaltivec-lm`. Mirrors `-noaltivec-snd` from 4.2.
+
+**Validation strategy (offline pixel equivalence):**
+1. Build instrumented binary that runs both scalar and AltiVec paths,
+   `memcmp`s the output, asserts identical (or logs first
+   discrepancy).
+2. Boot a level, walk through dlight-heavy areas. If any mismatch,
+   dump the inputs (input lightmap bytes, scale values, blocklights
+   accumulator) and diff offline.
+3. Once memcmp-clean across 100+ surfaces, drop the assert and ship.
+
+This is stronger validation than 4.1 / 4.2 got — both passed visual
+sign-off (V6, V7) but never had per-pixel offline checks. Worth the
+discipline here because lightmap output drives the entire visible
+scene's shading; a one-bit error tints the whole world.
+
+**Predicted impact:**
+- G4 demo3 1024×768: 91.75 → ~95-99 fps (+3-8%). The +0.9% cell
+  partially recovers.
+- G4 demo3 640×480: 107.25 → ~111-117 fps (+4-9%). The −10.6%
+  residual from epilogue partially recovers.
+- G4 demo1/demo2: ±0% (low dlight churn — same reason BGRA didn't
+  show on demo1).
+- Map load time: noticeable on Arcane Dimensions / large custom maps;
+  measurable with the in-engine `Host_Frametime` infra during
+  `Mod_LoadBrushModel`.
+
+### 13.3 Phase 4.5 — AltiVec mipmap chain build (G4)
+
+**Files:** `Quake/gl_texmgr.c:776-821` (`TexMgr_MipMapW`,
+`TexMgr_MipMapH`).
+
+Two functions, both pure byte-pair averaging:
+```c
+out[0] = (in[0] + in[4])>>1;
+out[1] = (in[1] + in[5])>>1;
+out[2] = (in[2] + in[6])>>1;
+out[3] = (in[3] + in[7])>>1;
+```
+
+AltiVec has `vec_avg` which computes `(a+b+1)>>1` saturation-friendly
+on int8 vectors, **one instruction** for what's currently 4 scalar
+add+shifts per pixel-pair. There's also `vec_avg` modes for u8/s8/
+u16/s16 — the u8 variant matches the byte-pair averaging exactly,
+modulo the `+1` rounding which the scalar code omits. Decision: ship
+the `vec_avg` rounding. The 0.5-LSB difference is invisible (this is
+mipmap construction, not lightmap composition) and the rounded
+average is arguably more correct.
+
+Called from `TexMgr_LoadImage32` for every mip level of every 32-bit
+texture. Typical map: 200 textures × ~5 mip levels = 1000
+invocations. Pure load-time win.
+
+**Won't move timedemo fps** — mipchain build runs once during atlas
+upload, never during play. Visible payoff is the load-bar moving
+faster.
+
+**A/B knob:** `-noaltivec-mip`.
+
+**Validation:** offline `memcmp` against scalar output on a test
+texture corpus. Once-rounding the difference between vec_avg and
+scalar is measurable as a uniform off-by-1 on some pixels — fine, but
+flag it explicitly so reviewers don't think the AltiVec path is buggy.
+
+**Predicted impact:** 30-50% off the mipchain-build phase of
+`Mod_LoadBrushModel`. Big maps (start.bsp + custom 1k+ texture maps)
+gain noticeable wall-clock at load. Negligible for vanilla id1 maps.
+
+### 13.4 Phase 4.6 — Fuse alias color into the 4.1 AltiVec lerp (G4)
+
+**Files:** `Quake/r_alias.c:452-455`.
+
+Inside the existing AltiVec lerp loop in `GL_AliasFrame_Begin`:
+```c
+alias_color_scratch[i*4+0] = s * lightcolor[0];
+alias_color_scratch[i*4+1] = s * lightcolor[1];
+alias_color_scratch[i*4+2] = s * lightcolor[2];
+alias_color_scratch[i*4+3] = entalpha;
+```
+
+`s` is computed scalar (a `shadedots[]` lookup blended with the same
+blend factor as the position lerp). After computing `s`, splat to a
+vector and do one `vec_madd` against `(vector float){lightcolor[0],
+lightcolor[1], lightcolor[2], entalpha/s}` — or rather, store
+`(vector float){s*lightcolor[0], s*lightcolor[1], s*lightcolor[2],
+entalpha}` directly via two muls. Either way, one or two AltiVec ops
+replace 4 scalar mul+stores.
+
+**Trivial rider on Phase 4.4 or as standalone.** Lands in the same
+commit as 4.4 to amortise the bench/ship overhead.
+
+**Predicted impact:** demo3 1024 (+0.5-1%, the alias-bound +0.9%
+cell). Other cells flat.
+
+### 13.5 G3 `gl_subdivide_size 256` autoexec test (no code)
+
+Edit `scripts/bundle/autoexec-g3.cfg`, add `gl_subdivide_size 256`.
+Default 128. Larger value → fewer warp-surface subdivisions → ~4×
+fewer triangles for sky/water polys.
+
+R128 is per-vertex-cost-sensitive (1999 silicon), so reducing vertex
+count on warp surfaces should help. Visual: classic-warp tessellation
+density drops, but the warp distortion is per-vertex-screen-space on
+R128 — coarser mesh shouldn't change the apparent water motion.
+
+5-minute test. Bench, then either commit or revert.
+
+**Predicted impact:** speculative 1-3% on G3. Low confidence; high
+ROI for the test cost.
+
+### 13.6 G4 visual upgrades (no code)
+
+Two autoexec edits in `scripts/bundle/autoexec-g4.cfg`:
+
+1. **`r_shadows 1`** — alias model planar drop-shadow. Currently
+   default 0. Costs ~1-2% on demo3 (alias-heavy), 0% elsewhere.
+   Visual: monsters and weapon viewmodel cast a soft dark blob on
+   the floor. Affordable now.
+
+2. **`gl_texturemode "GL_LINEAR_MIPMAP_LINEAR"`** — trilinear
+   filtering. Currently `GL_LINEAR_MIPMAP_NEAREST` (bilinear at
+   chosen mip, no inter-mip blend). Bumping to trilinear smooths
+   the seam where mip levels transition with distance. ~1-3%
+   fillrate cost on Radeon 9000. Pairs with the existing
+   `gl_texture_anisotropy 8`.
+
+Both ship as autoexec-only changes, no rebuild. Bench after each.
+**If demo3 G4 is already tight after 4.4 lands, drop the trilinear
+and keep just `r_shadows`** — `r_shadows` is the bigger
+visual-per-fps trade.
+
+### 13.7 G3 `gl_picmip 1` — **explicit user-decision required**
+
+> This violates §8 "no visual sacrifice." Listed separately because
+> the cost-benefit on G3 specifically is plausibly net-good for a
+> "best PPC port for that machine" trade, but the user owns the
+> visual call.
+
+`gl_picmip 1` halves all texture resolutions at upload. The Rage 128
+has 16 MB VRAM. With `gl_picmip 0` (current) on a modern QS-class
+scene, texture VRAM pressure is real and probably part of why the
+G3 1024×768 cell has been flat at 24.7 fps the entire project.
+Halving texture working set frees ~50% of texture VRAM, may unlock
+the framebuffer / lightmap caches, and may move the 1024 cell
+upward.
+
+**Visual cost:** textures look softer up close. Walls in particular
+lose surface detail. Distant geometry is unaffected (mipmap already
+takes those down).
+
+**Suggested protocol:**
+1. Smoke-bench G3 with `gl_picmip 1` set in autoexec-g3.cfg.
+2. If 1024 cell doesn't move (still ~24.7), revert immediately —
+   no point taking visual cost for nothing.
+3. If 1024 cell moves to 30+, deploy a build to G3, walk e1m1
+   interactively, screenshot a few first-person texture-detail
+   shots, judge visually.
+4. User makes the call: ship or revert.
+
+This is the only G3 lever left that has a plausible chance of moving
+the 1024 cell. Everything else has been tried.
+
+### 13.8 Phase 7 — `gl_perfprint` diagnostic cvar
+
+**Why this is its own phase:** v2 + epilogue surfaced multiple
+"can't reason about this without a profiler" moments — Phase 5
+mipmap blew up 35% and we couldn't tell where the time went; the
+demo3 G4 −10.6% diagnosis was wrong on first attempt and only
+cleared up after multiple A/B tests. A profiler isn't available
+on Tiger; the next-best is in-engine instrumentation we control.
+
+**Design sketch:** add `gl_perfprint` cvar (default 0). When non-
+zero, instrument the per-frame render path with `mach_absolute_time()`
+markers and accumulate a rolling 60-frame average per region.
+Print to console every N frames (gated by cvar value). Regions:
+- `R_RecursiveWorldNode` (PVS walk + culling)
+- `R_DrawTextureChains_*` (brush draws — separate single-tex / multitex)
+- `R_BuildLightMap` total per frame (compose + pack)
+- `R_UploadLightmaps` (driver-side upload time)
+- `R_DrawAliasModels` (alias loop)
+- `R_DrawParticles`
+- `R_UpdateWarpTextures`
+- `R_DrawWaterChains`
+- `GL_FlushTransparentChains` / fog passes
+- `Sky_DrawSky`
+- `SwapBuffers` / vsync wait
+
+Output format:
+```
+gl_perfprint: world=2.3ms (12% nodes,8% chains) lm=1.1ms(build)+0.4ms(up) alias=0.8ms part=0.2ms warp=0.1ms sky=0.3ms swap=0.5ms total=5.7ms (175.4 fps)
+```
+
+**Files affected:** `Quake/gl_rmain.c` (frame dispatch + cvar
+register), small instrumentation hooks across `r_world.c`,
+`r_brush.c`, `r_alias.c`, `r_part.c`, `gl_warp.c`, `gl_sky.c`.
+Each hook is two `mach_absolute_time` calls + accumulator add.
+
+**Cost when cvar=0:** zero. Hooks should compile out via macro
+or stay as cheap `if (gl_perfprint.value)` branches that the
+predictor handles cleanly.
+
+**A/B with `-perfprint` cmdline.** Default off in shipping
+binary. Instrumented binary is a separate build target if
+overhead measurable.
+
+**Visual sign-offs:** none — diagnostic only.
+
+**Predicted impact:** zero direct fps. Foundation for everything
+that comes after.
+
+### 13.9 Phase 8 — QuakeC VM threading (research, gated on Phase 7)
+
+**Why this matters and isn't measurable today:** timedemo replays
+recorded packets — server logic doesn't execute. Real interactive
+play runs `SV_Physics` on every entity and the QuakeC VM
+(`pr_exec.c`) interprets the per-frame `think` function for every
+monster, trigger, and projectile. On a boss fight with 20+ active
+monsters, the QC VM can dominate a frame's CPU budget. **Timedemo
+will never show this.** Phase 7's `gl_perfprint` should add a
+`SV_Physics` region to expose it.
+
+**Lever:** `pr_exec.c`'s opcode dispatch is a tight `switch`
+statement. PowerPC has computed-goto via gcc's `&&label` extension —
+threading the dispatcher (each opcode handler ends with `goto
+*next_op_handler`) eliminates the switch's branch prediction churn
+on the dispatch jump. Well-trodden technique on QC VMs (FTE,
+DarkPlaces both ship JITs or threaded interpreters).
+
+**Predicted impact:** 10-15% gameplay-side CPU on QC-heavy maps.
+**Zero on timedemo.** Validation requires actual gameplay benchmark
+infra, which we don't have. Phase 7's per-region timer would suffice
+for "before/after threading on the same map."
+
+**Effort:** medium. The threading transform itself is mechanical
+once you've decided on a representation. Subtle bugs come from
+opcodes that change `pr_xstatement` or call user functions
+(`OP_CALL*`).
+
+**Why this is round v3 and not v2:** can't measure the win without
+Phase 7. Don't ship optimisations you can't verify.
+
+### 13.10 Visual sign-offs to capture
+
+| #   | Question | How to verify |
+|-----|----------|----------------|
+| V8  | Does the AltiVec `R_BuildLightMap` produce pixel-identical output to scalar? | Offline `memcmp` against scalar on 100+ surface samples. Required clean before ship. |
+| V9  | Does the AltiVec `TexMgr_MipMap*` produce visually identical mipchains? | Offline `memcmp` (allowing uniform off-by-1 from `vec_avg` rounding). Visual: load a map and walk to extreme distance — no mip-banding regressions. |
+| V10 | Does `r_shadows 1` look correct on G4? (no z-fighting on the floor, no double-shadow under viewmodel) | Interactive playthrough on G4, e1m1 → start.bsp; screenshot under direct overhead light. |
+| V11 | Does trilinear filtering on G4 introduce mip-edge artifacts? | Walk a long corridor, check for shimmer at the mip seam (~mid-distance). |
+| V12 | Does `gl_subdivide_size 256` on G3 visually break sky/water? | Interactive G3 play, look at sky on e1m1 entry yard, check water in e1m3. |
+| V13 (gated) | Is `gl_picmip 1` on G3 acceptable as a "best port for the silicon" trade? | User judgment after seeing screenshots and bench delta. Only fires if §13.7 step 3 reaches user. |
+
+### 13.11 Explicit cuts (carried forward, no relitigation)
+
+- **Phase 4.3 palette expand** (8→32 byte gather) — already documented
+  as skipped. `vec_perm` doesn't span 256-entry tables; multi-chunk
+  dispatch costs as much as scalar. The real lever for faster map
+  loads here is **async/threaded image expansion** via SDL_Thread,
+  which is a structural rewrite, not a phase. Consider for round v4
+  if loads are still painful after 4.5.
+- **AltiVec `ResampleSfx`** — once per sound, then cache-hit. Map
+  loads ~50-100 sounds, microseconds in absolute. Not worth the
+  code.
+- **AltiVec `BoxOnPlaneSide`** — already cheap (one branch + one
+  dot product). Not the bottleneck.
+- **Phase 5 mipmap revisit** without Phase 7 first — burned twice in
+  v2, blind without the profiler. Gate on Phase 7.
+- **G3 dynamic-light tuning** (e.g. `r_dynamic 0`, dlight throttling)
+  — visual loss. §8 won't-do covers this.
+- **`r_oldwater 0` on G3** — counter-tested in epilogue; was the
+  +105% gift in reverse. Never go back.
+- **Phase 6 fat binary** — packaging convenience, zero perf. Defer
+  indefinitely; per-target binaries continue to work fine.
+
+### 13.12 Suggested commit / bench sequence
+
+| Step | Phase / change                          | Commit shape                             |
+|------|-----------------------------------------|------------------------------------------|
+| 1    | Phase 4.4 + 4.6 (bundled)               | code commit + smoke + bench-and-commit   |
+| 2    | Phase 4.5                               | code commit + smoke + bench-and-commit   |
+| 3    | G3 `gl_subdivide_size 256`              | autoexec edit + smoke; commit if helpful, revert if not |
+| 4    | G4 `r_shadows 1` + trilinear            | autoexec edit + smoke; visual sign-off V10/V11 |
+| 5    | (Optional) G3 `gl_picmip 1` decision    | per §13.7 protocol — user gate          |
+| 6    | Phase 7 `gl_perfprint`                  | code commit; no bench (diagnostic)       |
+| 7    | End-of-round full grid                  | `scripts/bench-and-commit.sh "v3 wrap"` (no `--quick`) |
+
+Items 1-2 are the perf+load-time core. Items 3-4 are autoexec-only
+and can be batched into a single bench cycle if the decisions all
+land the same way. Item 5 is gated on user. Item 6 is Phase 7.
+Phase 8 is deferred to round v4 unless interactive-play perf
+specifically becomes a goal.
+
+Methodology continues from §10: bench-and-commit cadence, smoke per
+phase, full grid at end of round, A/B knobs ship in every PR
+(`-noaltivec-lm`, `-noaltivec-mip`, `-perfprint`).
