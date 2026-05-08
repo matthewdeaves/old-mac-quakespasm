@@ -76,7 +76,10 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			if (inwidth == 2)
 				sample = LittleShort ( ((short *)data)[srcsample] );
 			else
-				sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+				/* unsigned 8-bit (0..255, 128=silence) → signed 16-bit;
+				 * use *256 not <<8 to avoid signed-shift UB when the
+				 * post-bias value is negative (UBSan caught this). */
+				sample = ((int)(unsigned char)(data[srcsample]) - 128) * 256;
 			if (sc->width == 2)
 				((short *)sc->data)[i] = sample;
 			else
@@ -180,22 +183,29 @@ static int	iff_chunk_len;
 
 static short GetLittleShort (void)
 {
-	short val = 0;
-	val = *data_p;
-	val = val + (*(data_p+1)<<8);
+	/* Compose in unsigned to avoid signed-shift UB when high byte ≥ 0x80
+	 * (`<<8` of a value that promotes to int can produce 0x80nn..0xFFnn
+	 * which is fine for 16 bits but the int promotion + signed cast at
+	 * the end is the cleanest path). */
+	unsigned val;
+	val = (unsigned)data_p[0];
+	val |= (unsigned)data_p[1] << 8;
 	data_p += 2;
-	return val;
+	return (short)val;
 }
 
 static int GetLittleLong (void)
 {
-	int val = 0;
-	val = *data_p;
-	val = val + (*(data_p+1)<<8);
-	val = val + (*(data_p+2)<<16);
-	val = val + (*(data_p+3)<<24);
+	/* Top byte left-shifted by 24 was UB on signed int (UBSan caught
+	 * a value of 192<<24 in WAV chunk parsing). Build in unsigned, cast
+	 * to int at the end — same wire result, defined behavior. */
+	unsigned val;
+	val  = (unsigned)data_p[0];
+	val |= (unsigned)data_p[1] << 8;
+	val |= (unsigned)data_p[2] << 16;
+	val |= (unsigned)data_p[3] << 24;
 	data_p += 4;
-	return val;
+	return (int)val;
 }
 
 static void FindNextChunk (const char *name)

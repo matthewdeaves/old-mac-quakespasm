@@ -162,6 +162,17 @@ ifeq ($(USE_CODEC_UMX),1)
 CFLAGS+= -DUSE_CODEC_UMX
 endif
 
+# EXTRA_CFLAGS / EXTRA_LDFLAGS — composable user-extras for analysis builds
+# (warning maxout, sanitizers, -fanalyzer, profile-instr-generate, etc.).
+# We use a separate var instead of letting the user override CFLAGS on the
+# command line, because every `CFLAGS += -DUSE_SDL2` etc. above gets stomped
+# by a command-line CFLAGS= assignment (GNU make: command-origin variables
+# defeat conditional Makefile appends). Routing through EXTRA_CFLAGS keeps
+# the Makefile's conditional config intact while letting analysis runs add
+# warnings/instrumentation cleanly.
+CFLAGS+= $(EXTRA_CFLAGS)
+LDFLAGS+= $(EXTRA_LDFLAGS)
+
 ifeq ($(HOST_OS),haiku)
 COMMON_LIBS= -lGL
 else

@@ -1,6 +1,14 @@
 # Build artifacts (produced by scripts/build.sh)
 /build/
 
+# Static-analysis raw output. The summarised .log files and triage notes
+# under analysis/ ARE committed; bulky/binary derivatives are ignored.
+/analysis/raw/
+/analysis/scanbuild/
+/analysis/infer/
+/analysis/*.profraw
+/analysis/*.profdata
+
 # Vendored installers (~5 GB total) — the giant ones are not in git.
 # README.md inside is committed and lists download URLs + checksums;
 # setup-lion.sh expects them locally.

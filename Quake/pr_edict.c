@@ -331,7 +331,10 @@ static const char *PR_ValueString (int type, eval_t *val)
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		q_snprintf (line, sizeof(line), ".%s", PR_GetString(def->s_name));
+		/* Defensive: ED_FieldAtOfs returns NULL on miss. Older code
+		 * dereferenced unconditionally; corrupted progs could crash
+		 * the engine via PR_ValueString during edict printing. */
+		q_snprintf (line, sizeof(line), ".%s", def ? PR_GetString(def->s_name) : "?");
 		break;
 	case ev_void:
 		q_snprintf (line, sizeof(line), "void");
@@ -384,7 +387,8 @@ static const char *PR_UglyValueString (int type, eval_t *val)
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		q_snprintf (line, sizeof(line), "%s", PR_GetString(def->s_name));
+		/* Defensive: see PR_ValueString above. */
+		q_snprintf (line, sizeof(line), "%s", def ? PR_GetString(def->s_name) : "?");
 		break;
 	case ev_void:
 		q_snprintf (line, sizeof(line), "void");
