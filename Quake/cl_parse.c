@@ -961,8 +961,19 @@ void CL_ParseStaticSound (int version) //johnfitz -- added argument
 }
 
 
-#if 0	/* for debugging. from fteqw. */
-static void CL_DumpPacket (void)
+/*
+====================
+CL_DumpPacket_f
+
+Hex+ASCII dump of the most recently received network packet to the
+console. Bound as the "dumppacket" cvar so we have a tcpdump-style
+view from inside the running engine when something goes wrong on a
+machine where shell tooling is awkward (e.g. the PPC bench targets).
+
+Original from fteqw.
+====================
+*/
+void CL_DumpPacket_f (void)
 {
 	int			i, pos;
 	unsigned char	*packet = net_message.data;
@@ -994,7 +1005,6 @@ static void CL_DumpPacket (void)
 
 	Con_Printf("CL_DumpPacket, --- END ---\n");
 }
-#endif	/* CL_DumpPacket */
 
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
 
