@@ -115,14 +115,149 @@ committed without measuring its effect.**
 
 **G3 headline:** flat across all phases as designed. R128 / Panther 10.3 doesn't expose `APPLE_vertex_array_range`, `ARB_vertex_buffer_object`, or `APPLE_texture_range`, so there's no VRAM-resident geometry path on this stack. The Phase 2 changes (BGRA, client_storage, cached hint) were measured neutral on demo1 — predicted dynamic-light wins live on demo3 which we couldn't re-run after G3's display state stuck.
 
-**Known regression:** G4 demo3 640 lands at 107.25 vs Phase 0's 119.90 (−10.6%). A/B testing during the round wrap (`-novar`) recovered ~6 fps of that gap; the residual ~6 fps appears to come from Phase 4.1 (AltiVec alias lerp pad-to-4 layout) interacting with demo3's high alias-vertex count at low resolution. Good candidate for a future round to dig into — likely fix is rewriting the byte→vector construction in `r_alias.c` to avoid the `(vector float){...}` constructor's stack-temp + `lvx` round-trip on gcc-4.0 (e.g. via `vec_perm` + manual unpack from a 4-byte aligned reload).
+**Known regression (re-diagnosed 2026-05-08, see "Round v2 epilogue" below):**
+G4 demo3 640 lands at 107.25 vs Phase 0's 119.90 (−10.6%). The original
+diagnosis (residual ~6 fps from Phase 4.1's `(vector float){...}`
+constructor LHS stall) turned out to be wrong on testing. The residual
+comes from Phase 2.x's per-sample cost shift on lit brush surfaces
+(documented in the Phase 2.3 commit as the trade for the +14% demo2
+wins). Phase 4.1's AltiVec compute is actually +2 fps over scalar — see
+epilogue.
 
 **Round v2 cumulative narrative:**
 - **Phase 2** delivered the biggest measurable wins (demo1/demo2 lightmap fast path on G4) once the `client_storage` + `STORAGE_CACHED_APPLE` pairing was completed at 2.3.
 - **Phase 3** (VAR pool) tested as a net loss across the workload mix; default flipped to opt-in (`-var`). Code preserved for future use if a workload appears that benefits.
-- **Phase 4.1** (AltiVec alias lerp) is a wash at best, possibly a small loss at low res; `pad-to-4` layout is correct in principle but the construction path on this toolchain is suboptimal. Worth revisiting.
+- **Phase 4.1** (AltiVec alias lerp) — original diagnosis from the first round-wrap was wrong; epilogue testing on Day N showed it's a +2 fps win over scalar, not a wash. Stays as-is.
 - **Phase 4.2** (AltiVec sound mixer) doesn't show in `-nosound` timedemo; user-confirmed correct under interactive gameplay. CPU savings under sound are real but unmeasured.
 - **Phases 4.3 + 6** documented and skipped (load-time + packaging respectively, neither contributes to the fps/visuals goal of this round).
+
+---
+
+## Round v2 epilogue (2026-05-08) — three diagnoses revisited
+
+After the round-wrap commit `2a6217b1` shipped, three follow-up
+experiments tested the recorded hypotheses. Two failed instructively
+and one delivered the biggest single perf surprise of the project.
+
+### Experiment 1: Phase 4.1b vec_perm rewrite of the alias lerp
+
+**Hypothesis:** the residual ~6 fps demo3 640 G4 loss attributed to
+Phase 4.1 was the gcc-4.0 `(vector float){byte,byte,byte,0}` constructor
+costing a load-hit-store stall (stack temp + `lvx` round-trip) on the
+7450 inside the per-vert lerp loop.
+
+**Action:** replaced the constructor path with the canonical AltiVec
+unaligned-byte-load idiom — `vec_lvsl` + double `vec_ld` + `vec_perm`
+to land 4 bytes in lanes 0..3, then `vec_mergeh` against zero (×2) to
+zero-extend bytes → halfwords → ints, then `vec_ctf(uintvec, 0)` to
+floats. Lane 3 receives the trivertx's `lightnormalindex` as garbage
+that the size=3 stride=16 `glVertexPointer` ignores anyway.
+
+**Result:** demo3 640 G4 = 107.25 fps. Identical to the constructor
+form within noise. Hypothesis disproved. Either the constructor wasn't
+producing an LHS stall (gcc-4.0's optimizer may have found a better
+lowering than predicted), or any compute saving from the rewrite was
+swamped by the underlying memory-access pattern of the loop.
+**Code restored to constructor form** — no perf change to ship and no
+reason to land code churn.
+
+### Experiment 2: Phase 4.1 full revert
+
+**Hypothesis:** maybe the pad-to-4 layout itself (16-byte stride in
+`glVertexPointer` vs the original 12-byte tight pack) was costing 33%
+extra vertex-stream bandwidth, and that's where the residual lived.
+
+**Action:** reverted `alias_pos_scratch` to `[MAXALIASVERTS * 3]` tight
+pack, dropped the 16-byte alignment, removed the AltiVec lerp branches
+entirely, restored `glVertexPointer (3, GL_FLOAT, 0, ...)`.
+
+**Result:** demo3 640 G4 = **104.90 fps. 2 fps WORSE than current.**
+The AltiVec compute is helping; the pad-to-4 layout's bandwidth tax
+is real but smaller than the AltiVec compute saving on this hardware.
+Phase 4.1 is doing its job. Code restored.
+
+### Experiment 3: Phase 5 — SGIS warpimage with frame-cadence throttle
+
+**Hypothesis:** archived `PPC_PLAN_1_3.md` predicted "best case neutral,
+worst case −3 to −5 fps" for adding mipmaps to the warpimage on
+Radeon 9000 / Tiger via the SGIS_generate_mipmap fallback, throttled
+by `r_waterupdaterate 4` to amortize the per-frame software-mipgen
+cost. With the +14% G4 demo2 headroom from Phase 2, even the worst-case
+prediction looked spendable for the visual upgrade of mipmapped distant
+water.
+
+**Action:** implemented the full 1.3 sub-plan (SGIS detection in
+`gl_vidsdl.c`, `gl_sgis_mipmap_able` flag, `r_waterupdaterate` cvar with
+gate at the top of `R_UpdateWarpTextures`, `TEXPREF_MIPMAP` admitted on
+warpimage when SGIS is the only mipgen path, `GL_GENERATE_MIPMAP_SGIS`
+texparam set per warpimage at upload). Per-target tuning set
+`r_waterupdaterate 4` in `scripts/bundle/autoexec-g4.cfg`.
+
+**Result:** **−35% on G4 demo1 1024 (122.30 → 79.00)**, far worse than
+the archive plan's worst-case prediction. demo1 doesn't even render
+visible water — so the regression must be coming from somewhere outside
+`R_UpdateWarpTextures` itself. Likely candidates: the SGIS texparam
+being set on every warpimage triggers software mipchain generation in
+`TexMgr_RecalcWarpImageSize` (called once at level load and at vid
+restart) AND on every subsequent `glCopyTexSubImage2D` regardless of
+the throttle — the parameter is sticky on the texture, the throttle
+only gates `R_UpdateWarpTextures`, but if the warpimage is ever
+re-bound elsewhere with the parameter still set, the driver may
+software-fallback. Without an OpenGL profiler on Tiger to see what's
+actually happening at the driver level, the failure mode is opaque.
+**Reverted entirely.** Code preserved in archive but not landing.
+
+### Experiment 4 (the surprise): G3 `r_oldwater 1`
+
+**Background:** during the Phase 5 bench cycle, the user reported that
+the G3 was showing the bright-blue water flicker bug — the Rage 128
+framebuffer-copy refraction tint that Phase 0's `r_oldwater 2` (auto:
+classic warp above 640×480, new at/below) was supposed to have fixed.
+Re-reading Phase 0's commit message revealed why: the Phase 0 A/B test
+compared `r_oldwater 0` (always new water) vs `r_oldwater 2` (auto), and
+**at 640×480 those are the same path** — auto only kicks in *above*
+640. So Phase 0 never tested classic warp at 640×480.
+
+**Action:** changed `scripts/bundle/autoexec-g3.cfg` from `r_oldwater 2`
+to `r_oldwater 1` (always classic warped). Eliminates the bright-blue
+flicker at all resolutions. Re-deployed G3 (no rebuild — config-only
+change).
+
+**Result:** **+105% on G3 demo1 640×480 (23.70 → 48.50 fps)**. demo3
+640 also runs at 36.80 fps (no prior measurement, but consistent with
+the demo1 jump). G3 1024 cells unchanged (`r_oldwater 1` and
+`r_oldwater 2` both produce classic warp at 1024). User confirmed the
+visual bug is gone.
+
+This is the biggest single performance gain of the project. The
+Rage 128's screen-copy refraction was costing more than half the
+framerate at 640×480, and Phase 0 missed it because the test matrix
+didn't isolate the classic-vs-new-water choice from the auto-mode
+choice. Lesson worth keeping: when measuring an A/B, name the actual
+code path each leg exercises, not the cvar value — a single cvar can
+collapse to the same path under specific conditions and a "0 vs 2"
+comparison can be a no-op A/A test in disguise.
+
+### Final shipping configuration after epilogue
+
+| Cell | Phase 0 (`3e502882`) | Round v2 wrap (`cf27e3b9`) | After epilogue | Δ vs Phase 0 |
+|---|---:|---:|---:|---:|
+| G4 demo1 1024×768 | 110.05 | **122.30** | 122.30 | **+11.1%** |
+| G4 demo1  640×480 | 147.35 | 150.50 | 150.50 | +2.1% |
+| G4 demo2 1024×768 | 108.25 | **123.65** | 123.65 | **+14.2%** |
+| G4 demo2  640×480 | 156.60 | **179.60** | 179.60 | **+14.7%** |
+| G4 demo3 1024×768 |  90.90 |  91.75 |  91.75 | +0.9% |
+| G4 demo3  640×480 | 119.90 | 107.25 | 107.25 | −10.6% (known) |
+| G3 demo1 1024×768 |  24.95 |  24.70 |  24.70 | −1.0% |
+| G3 demo1  640×480 |  23.70 |  23.70 | **48.50** | **+105%** |
+| G3 demo2 1024×768 |  24.70 |  24.70 |  24.70 | flat |
+| G3 demo3 1024×768 |  20.70 |  20.75 |  20.70 | flat |
+| G3 demo3  640×480 | (n/a) | (n/a) | **36.80** | (new) |
+
+The epilogue's only landed code change is the G3 autoexec edit. Phase
+4.1b vec_perm rewrite and Phase 5 SGIS warpimage were both implemented,
+benchmarked, and reverted; their lessons live in this document and in
+the archived `PPC_PLAN_1_3.md`.
 
 ---
 
