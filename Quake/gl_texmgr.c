@@ -58,7 +58,13 @@ static const int	gl_alpha_format = 4;
 static cvar_t	gl_texturemode = {"gl_texturemode", "", CVAR_ARCHIVE};
 static cvar_t	gl_texture_anisotropy = {"gl_texture_anisotropy", "1", CVAR_ARCHIVE};
 static cvar_t	gl_max_size = {"gl_max_size", "0", CVAR_NONE};
-static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_NONE};
+// PPC port (round v4): gl_picmip flipped to CVAR_ARCHIVE so a user
+// toggling it in the console (e.g. `gl_picmip 1; vid_restart` on G3 to
+// halve texture resolutions and free ~50% of Rage 128's 16 MB VRAM)
+// sticks across launches. Engine default 0 preserves upstream behaviour.
+// PPC_PLAN.md §13.7 flags this as the only G3 lever left that might move
+// the 1024×768 cell off its 24 fps floor.
+static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_ARCHIVE};
 
 // PPC port (round v4): texture LOD bias. Negative values pull sharper
 // (higher-detail) mip levels; positive values pick coarser. Targets the

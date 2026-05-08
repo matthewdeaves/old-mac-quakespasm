@@ -424,6 +424,11 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&cl_gun_fovscale);
 
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
+	// PPC port (round v4): same handler, but moves the resulting file
+	// to ~/Desktop/quakespasm-screenshots/ for easy access without
+	// digging into the .app bundle. F12 is default-bound to this in
+	// default_cfg.h.
+	Cmd_AddCommand ("screenshot_desktop",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
 
@@ -825,7 +830,40 @@ void SCR_ScreenShot_f (void)
 		ok = false;
 
 	if (ok)
-		Con_Printf ("Wrote %s\n", imagename);
+	{
+		// PPC port (round v4): if called via the `screenshot_desktop`
+		// console command (default-bound to F12 in default_cfg.h), move
+		// the freshly-written file from id1/ to ~/Desktop/quakespasm-
+		// screenshots/. Lets a user grab manual gameplay screenshots
+		// without spelunking into the .app bundle to find them. The
+		// vanilla `screenshot` command keeps writing to id1/ so the
+		// bench/screenshot scripts that scrape from there continue to
+		// work unchanged.
+		if (q_strcasecmp(Cmd_Argv(0), "screenshot_desktop") == 0)
+		{
+			const char *home = getenv("HOME");
+			if (home && *home)
+			{
+				char src[MAX_OSPATH], dst_dir[MAX_OSPATH], dst[MAX_OSPATH];
+				q_snprintf (src, sizeof(src), "%s/%s", com_gamedir, imagename);
+				q_snprintf (dst_dir, sizeof(dst_dir), "%s/Desktop/quakespasm-screenshots", home);
+				Sys_mkdir (dst_dir);
+				q_snprintf (dst, sizeof(dst), "%s/%s", dst_dir, imagename);
+				if (rename(src, dst) == 0)
+					Con_Printf ("Wrote %s\n", dst);
+				else
+					Con_Printf ("Wrote %s (move to Desktop failed)\n", imagename);
+			}
+			else
+			{
+				Con_Printf ("Wrote %s ($HOME unset, can't move to Desktop)\n", imagename);
+			}
+		}
+		else
+		{
+			Con_Printf ("Wrote %s\n", imagename);
+		}
+	}
 	else
 		Con_Printf ("SCR_ScreenShot_f: Couldn't create %s\n", imagename);
 

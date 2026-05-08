@@ -21,8 +21,11 @@ static const char default_cfg[] =
 "bind w +forward\n"
 "bind DOWNARROW +back\n"
 "bind s +back\n"
-"bind LEFTARROW +left\n"
-"bind RIGHTARROW +right\n"
+// PPC port (round v4): user prefers strafe-on-arrows (matches modern FPS
+// muscle memory). Hold ALT to turn (`+strafe` toggles the mapping), or
+// rebind in the in-game options menu.
+"bind LEFTARROW +moveleft\n"
+"bind RIGHTARROW +moveright\n"
 
 "bind SPACE +jump\n"
 
@@ -55,7 +58,11 @@ static const char default_cfg[] =
 "bind F6 \"echo Quicksaving...; wait; save quick\"\n"
 "bind F9 \"echo Quickloading...; wait; load quick\"\n"
 "bind F10 \"quit\"\n"
-"bind F12 \"screenshot\"\n"
+// PPC port (round v4): F12 saves screenshot to ~/Desktop/quakespasm-
+// screenshots/ instead of into the .app bundle's id1/ folder. The plain
+// `screenshot` console command still writes to id1/ so the headless
+// bench / screenshot tools keep working.
+"bind F12 \"screenshot_desktop\"\n"
 
 "bind \\ +mlook\n"
 
