@@ -85,7 +85,6 @@ LDFLAGS +=-mmacosx-version-min=11.0
 USE_RPATH=1
 endif
 #CFLAGS += $(call check_gcc,-std=gnu11,)
-CFLAGS += $(CPUFLAGS)
 ifeq ($(USE_RPATH),1)
 LDFLAGS+=-Wl,-rpath,@executable_path/../Frameworks
 endif
@@ -104,6 +103,14 @@ define do_strip
 	$(call cmd_strip,$(1));
 endef
 endif
+# PPC port -- moved CPUFLAGS APPEND below the DEBUG=0 block so per-target
+# `-O3` (set in scripts/build.sh CPUFLAGS) wins the -O level instead of
+# being silently overridden by the `-O2` above. Previously CPUFLAGS was
+# appended before the DEBUG block, so the last `-O*` flag on the gcc/clang
+# command line was -O2; build-warning-survey §6h flagged this. Fix
+# verified by inspection: post-fix command lines end in `... -O2 -fweb
+# -frename-registers ... -O3 -mtune=...` so -O3 wins.
+CFLAGS += $(CPUFLAGS)
 
 ifeq ($(DO_USERDIRS),1)
 CFLAGS += -DDO_USERDIRS=1
