@@ -75,6 +75,18 @@ cvar_t	r_shadow_distance = {"r_shadow_distance","0",CVAR_ARCHIVE};
 cvar_t	r_wateralpha = {"r_wateralpha","1",CVAR_ARCHIVE};
 cvar_t	r_litwater = {"r_litwater","1",CVAR_NONE};
 cvar_t	r_dynamic = {"r_dynamic","1",CVAR_ARCHIVE};
+// PPC port -- Round v5 B1: distance gate for dynamic-light surface
+// passes. Mirrors r_shadow_distance. 0 = unlimited (engine default,
+// upstream parity). Non-zero skips dlights whose origin is beyond N
+// units from the viewer, before BSP marking and the surface re-blend
+// pass. Headline G3 lever -- on R128 each dlight is a full extra
+// blending pass over every surface it touches; distance-gating those
+// passes directly removes GPU work that we can't otherwise reduce
+// from a GPU-bound regime. G3 autoexec is set to 768 (intuitive: a
+// dlight 768 units away is barely visible during normal play).
+// G4/G4mini/Lion left at 0 -- they have headroom and the player
+// cares more about full-range dynamic lighting there.
+cvar_t	r_dynamic_distance = {"r_dynamic_distance","0",CVAR_ARCHIVE};
 cvar_t	r_novis = {"r_novis","0",CVAR_ARCHIVE};
 
 cvar_t	gl_finish = {"gl_finish","0",CVAR_NONE};

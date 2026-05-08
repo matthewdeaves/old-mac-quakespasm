@@ -247,6 +247,24 @@ void R_PushDlights (void)
 	{
 		if (l->die < cl.time || !l->radius)
 			continue;
+		// PPC port -- Round v5 B1: distance gate. R128 has no
+		// fragment-shader dynamic-light path, so each dlight that
+		// reaches R_MarkLights triggers a full BSP recursion AND a
+		// surface-reblend GPU pass per touched face. Distance-gating
+		// here removes both costs (CPU + GPU) for lights too far
+		// to be visually material. 0 = unlimited (engine default,
+		// upstream parity). G3 autoexec sets ~768. Squared compare
+		// avoids a sqrt; matches r_shadow_distance pattern.
+		if (r_dynamic_distance.value > 0.0f)
+		{
+			vec3_t	diff;
+			float	d2, md;
+			VectorSubtract (l->origin, r_origin, diff);
+			d2 = DotProduct (diff, diff);
+			md = r_dynamic_distance.value;
+			if (d2 > md * md)
+				continue;
+		}
 		R_MarkLights (l, i, cl.worldmodel->nodes);
 		PERF_COUNT (PERF_CNT_DLIGHT);
 	}
