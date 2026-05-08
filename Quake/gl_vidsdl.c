@@ -1054,9 +1054,13 @@ static void GL_CheckExtensions (void)
 	// post-exit. Confirmed reproducible. Skip the Lock hint on that
 	// renderer; arrays still flow.
 	//
+	// Opt-in retest hatch: `-r128-cva` overrides the R128 skip so we can
+	// re-validate the corruption on the current Phase 2.x lightmap pipeline
+	// without rebuilding. Default behavior (no flag) is unchanged.
+	//
 	if (COM_CheckParm("-nocva"))
 		Con_Warning ("EXT_compiled_vertex_array Lock disabled at command line\n");
-	else if (gl_renderer && strstr(gl_renderer, "Rage 128"))
+	else if (gl_renderer && strstr(gl_renderer, "Rage 128") && !COM_CheckParm("-r128-cva"))
 		Con_Warning ("EXT_compiled_vertex_array Lock skipped on Rage 128 (in-game corruption; arrays unaffected)\n");
 	else if (GL_ParseExtensionList(gl_extensions, "GL_EXT_compiled_vertex_array"))
 	{

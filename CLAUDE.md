@@ -105,6 +105,13 @@ pre-§14.3 glBegin/glEnd path. Default is the new client-array path
 (submission-overhead reduction; smoke neutral on standard demos
 because they barely exercise warp updates).
 
+**Pass B B6 retest hatch:** `-r128-cva` (G3 only — Rage 128 detection)
+overrides the default skip of `glLockArraysEXT` on R128 so we can
+revisit whether the Phase 2.x lightmap pipeline incidentally fixed
+the in-game colour-band corruption. Default unchanged: R128 still
+skips Lock automatically. Parsed in `gl_vidsdl.c` `GL_CheckExtensions`.
+G4/Lion are unaffected — they get CVA Lock as before.
+
 **Why this matters:** project goal is best-looking Quake at
 playable fps; the only way to navigate that trade-space honestly is
 to be able to flip individual contributions at runtime and watch
