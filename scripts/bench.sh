@@ -22,9 +22,10 @@ W="${RES%x*}"
 H="${RES#*x}"
 
 case "$TARGET" in
-  g3)   HOST="PowerMacG3"; TIMEOUT=240 ;;
-  g4)   HOST="g4";         TIMEOUT=120 ;;
-  lion) HOST="lion";       TIMEOUT=60  ;;  # 2.33 GHz Core 2 Duo finishes timedemo fast
+  g3)     HOST="PowerMacG3"; TIMEOUT=240 ;;
+  g4)     HOST="g4";         TIMEOUT=120 ;;
+  g4mini) HOST="g4mini";     TIMEOUT=120 ;;  # G4 mini, 1.25-1.5 GHz Tiger
+  lion)   HOST="lion";       TIMEOUT=60  ;;  # 2.33 GHz Core 2 Duo finishes timedemo fast
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 

@@ -5,6 +5,13 @@ that's expensive to re-derive. **The full plan lives in `PPC_PLAN.md`** — read
 that for hardware inventory, decisions, the bench script, optimization list,
 etc. This file is just the sticky facts.
 
+**Read `MISTAKES.md` before lighting up an idea that smells "easy" or
+"load-time only / zero risk".** It's an append-only log of approaches we
+tried, why they broke, and what we learned. Newest at the top. Append to
+it whenever a change is reverted, a phase regresses unexpectedly, or a
+fix turns out to be wrong. Don't re-litigate items unless the entry's
+"if we revisit" guidance changes.
+
 ## Tooling — DON'T reinvent these inline
 
 The full build/deploy/bench loop is scripted. Don't write inline ssh+make
@@ -118,12 +125,29 @@ SSH aliases live in `~/.ssh/config`:
   `caffeinate` if you've configured one) and retry.
 - `PowerMacG3` — Blue & White, 450 MHz, 10.3.9 Panther, Rage 128 16 MB.
 - `g4` — Quicksilver-class 867 MHz, 10.4.11 Tiger, Radeon 9000, AltiVec.
+- `g4mini` — Mac mini G4, 1.42 GHz 7447A, 10.4.11 Tiger, ATI Radeon 9200
+  / 32 MB AGP, AltiVec. Added 2026-05-08 as a second G4-class data point
+  alongside the Quicksilver. Same arch / SDK as `g4` so `deploy.sh g4mini`
+  reuses `build/quakespasm-g4`. Different GPU (Radeon 9200 32MB vs
+  Quicksilver's Radeon 9000 64MB) — useful for separating CPU-bound from
+  fillrate-bound effects on the G4 side.
 
 Old-Mac SSH (Lion + PPC) needs legacy crypto. The config entries already
 include `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
 `KexAlgorithms +diffie-hellman-group-exchange-sha1[,group14-sha1[,group1-sha1]]`,
 and use `id_rsa_tiger` (RSA, not ed25519 — pre-2014 OpenSSH can't validate
 ed25519). Ad-hoc `ssh user@ip` without these flags will fail.
+
+## Don't run `scripts/bench.sh` legs in parallel from one shell
+
+A `bench.sh g3 ... &` plus `bench.sh g4 ... &` from the same workstation
+shell stresses the local network/ssh stack and can produce a wrong
+G3 fps reading — observed 14.7 fps when run concurrent with a G4 cell,
+vs 23.1 fps the same binary delivers run alone. Both runs completed
+successfully (no crash, no timeout); the G3 just churned through
+demo1 in ~3× the wall time. Use `parallel-bench.sh` for the proper
+concurrent matrix — it has its own log redirection and process
+management — or run cells serially with `bench.sh`.
 
 ## Don't run `scripts/build.sh g3` and `g4` in parallel
 

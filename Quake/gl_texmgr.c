@@ -1284,9 +1284,25 @@ TexMgr_LoadImage32 -- handles 32bit source data
 static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 {
 	int	internalformat,	miplevel, mipwidth, mipheight, picmip;
-	const qboolean use_bgra = !bgra_static_disabled;
-	const GLenum upload_format = use_bgra ? GL_BGRA : GL_RGBA;
-	const GLenum upload_type = use_bgra ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE;
+	// Pass A item 5 (BGRA static-texture upload) was attempted and
+	// reproducibly crashed all four bench targets (G3 + G4 Quicksilver
+	// + G4 mini + Lion x86_64) at the COM_FindFile→Image_LoadImage→
+	// Mod_LoadTextures path during map load. The in-place RGBA→BGRA
+	// byte swap is too clever: somewhere in the resample / mipmap-
+	// down / upload pipeline the GL_BGRA + GL_UNSIGNED_INT_8_8_8_8_REV
+	// path corrupts hunk-allocated filename strings adjacent to the
+	// texture buffer and the next replacement-image lookup explodes
+	// (signature: EXC_BAD_ACCESS at a high stack-area address derived
+	// from a register pointing into the trashed strings). Phase 2.1
+	// lightmaps work because they are written byte-by-byte to match
+	// the format; this static-texture path tries to reuse RGBA buffers
+	// in-place and that doesn't fly.
+	//
+	// Reverted to the legacy GL_RGBA + GL_UNSIGNED_BYTE upload path on
+	// every target. Future round can revisit with a per-pixel rewrite
+	// (no in-place swap; allocate a fresh BGRA target buffer) if the
+	// load-time win is genuinely measurable.
+	(void)bgra_static_disabled;  // flag kept for round-wrap reporting; not consulted
 
 	if (!gl_texture_NPOT)
 	{
@@ -1294,26 +1310,6 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 		data = TexMgr_ResampleTexture (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA);
 		glt->width = TexMgr_Pad(glt->width);
 		glt->height = TexMgr_Pad(glt->height);
-	}
-
-	// Pass A item 5: in-place RGBA→BGRA byte swap before any mipmap-down
-	// or upload work. Mipmap and edge-fix passes are byte-component
-	// independent so the layout flip propagates cleanly through them.
-	// glTexImage2D below then takes the GL_BGRA + 8_8_8_8_REV fast path
-	// on Apple's GL stacks (G3 R128, G4 Radeon 9000, Lion GMA 950).
-	if (use_bgra)
-	{
-		byte *p = (byte *)data;
-		const int npix = glt->width * glt->height;
-		int i;
-		byte tmp;
-		for (i = 0; i < npix; i++, p += 4)
-		{
-			tmp = p[0];
-			p[0] = p[2];
-			p[2] = tmp;
-			// p[1] (G) and p[3] (A) unchanged
-		}
 	}
 
 	// mipmap down
@@ -1338,7 +1334,7 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	// upload
 	GL_Bind (glt);
 	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
-	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, upload_format, upload_type, data);
+	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP && !(glt->flags & TEXPREF_WARPIMAGE)) // warp image mipmaps are generated later
@@ -1358,7 +1354,7 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 				TexMgr_MipMapH (data, mipwidth, mipheight);
 				mipheight >>= 1;
 			}
-			glTexImage2D (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, upload_format, upload_type, data);
+			glTexImage2D (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 	}
 

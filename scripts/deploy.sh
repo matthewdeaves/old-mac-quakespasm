@@ -21,6 +21,18 @@ case "$TARGET" in
     RSYNC_EXTRA=""
     SDL_BIN_OVERRIDE=""  # Tiger uses the bundled SDL.framework's SDL binary as-is
     ;;
+  g4mini)
+    # Mac mini G4 — second G4-class bench target, added 2026-05-08.
+    # Same arch as g4 (Quicksilver) so reuses build/quakespasm-g4. Tiger
+    # 10.4 like the Quicksilver, so the bundled SDL.framework Just Works.
+    # Different GPU class (G4 mini ships ATI Radeon 9200 / 32 MB or
+    # Intel GMA 950 on later models) — so it's a separate data point for
+    # CPU-bound vs fillrate-bound diagnosis.
+    HOST="g4mini"
+    RSYNC_EXTRA=""
+    SDL_BIN_OVERRIDE=""
+    BIN_TARGET="g4"  # reuse the g4 binary
+    ;;
   lion)
     HOST="lion"
     RSYNC_EXTRA=""
@@ -33,10 +45,10 @@ case "$TARGET" in
     ;;
 esac
 
-BIN="$REPO_ROOT/build/quakespasm-$TARGET"
+BIN="$REPO_ROOT/build/quakespasm-${BIN_TARGET:-$TARGET}"
 if [ ! -f "$BIN" ]; then
   echo "binary not found: $BIN" >&2
-  echo "run: scripts/build.sh $TARGET" >&2
+  echo "run: scripts/build.sh ${BIN_TARGET:-$TARGET}" >&2
   exit 1
 fi
 
