@@ -1238,3 +1238,149 @@ Methodology continues from §10: bench-and-commit cadence, smoke per
 phase, full grid at end of round, A/B knobs ship in every PR
 (`-altivec-lm` opt-in for 4.4, `-noaltivec-mip` for 4.5, `-perfprint`
 for 7).
+
+## 14. End-of-round final review + Round v4 prep (drafted 2026-05-08)
+
+> Status: drafted. Triggered after §13's perf phases landed and the
+> goal-pivot commit (best-looking Quake at playable fps) updated the
+> shipping config. Lives at the end of round v3 — the order is
+> **(a) final review → (b) implement findings → (c) fat-binary
+> tooling**, matching the user's directive on 2026-05-08.
+
+### 14.1 Goals of the final review
+
+Three explicit user asks driving §14:
+
+1. **"Exhaust the things that increase fps and increase graphical
+   beauty."** Round v3 closed §13's headlined items but the codebase
+   is large; there are more leverable hot paths and visual options we
+   haven't touched yet.
+2. **"Don't just silence warnings — use compiler/static-analysis
+   tooling to find dead or inefficient code."** Treat warnings + lints
+   as a discovery surface, not just a hygiene chore.
+3. **"Dead code that could improve graphics or fps with some more
+   work — keep and revive."** Distinguish between unconditionally-dead
+   code (kill) and conditionally-dead code that's reachable under a
+   different cvar / SDK / extension (revive — sometimes the right fix
+   is to flip the gate on, not to remove the gated branch).
+
+The fat-binary tooling work (saved to
+`docs/research/fat-binary-feasibility.md` — verified clean lipo merge,
+SDL slice swap viable) is **explicitly deferred until §14.1-§14.3
+ship.** Bisectability of per-target binaries is more valuable during
+the optimisation tail than packaging convenience.
+
+### 14.2 Discovery passes
+
+Drafted as agent-driven sweeps so the main session doesn't drown in
+file enumeration. Three passes, run in parallel where independent:
+
+**Pass A — code-review sweep for unexploited fps + visual wins.**
+Touch every renderer/engine path NOT in §0's "what's done" list and
+ask: is there a cheaper algorithm, an Apple GL fast path we haven't
+flipped on, an AltiVec lever we haven't tried, a cvar default that
+favours ugly-and-fast we should revisit under the new playable-fps-
+floor framing? Output: ranked list of candidate Phase-N items, each
+with predicted impact (fps and/or visual) and an estimate of effort.
+
+**Pass B — static analysis triage.** Run cppcheck, clang's
+`scan-build` (Lion's Xcode 4.6 has it), and `gcc-4.0 -Wstrict-aliasing
+-Wcast-align -Wconversion` strict-mode passes against the codebase.
+Group findings into:
+
+- **Kill** — truly unreachable code that no cvar/SDK/extension flag
+  can ever turn back on. Dead-strip.
+- **Revive** — code currently dead because of an `#if 0`,
+  `#ifdef DISABLED_FEATURE`, or unset cvar default, but that the
+  **goal pivot** says we should now consider enabling. Examples we
+  expect to find:
+  - Visual quality knobs that ship default-off but were once
+    contemplated (look for `// TODO: enable when …` comments).
+  - GL extension fast paths gated on something we now have detected
+    (e.g. extra `APPLE_*` paths beyond the four §0 phases already
+    landed).
+  - `#if 0` blocks containing AltiVec or scalar SIMD prototypes.
+- **Latent bug** — works today but undefined behaviour (cast-align,
+  signed/unsigned mix, strict-aliasing). Fix in place.
+- **Style/noise** — `-Wmissing-field-initializers` etc. Sweep
+  separately, low priority.
+
+The build-warnings agent's findings (see
+`docs/research/build-warning-survey.md`) are the seed for Pass B —
+several items there map directly to the kill/revive/latent-bug
+buckets. Notably:
+
+- `r_brush.c:1240,1285,1302` BSP cast-align hits map to the lightmap
+  rebuild path — a Phase-2.x AltiVec target that's currently scalar.
+  Should be in Pass A's revive bucket as a future AltiVec hot-loop
+  candidate.
+- The `-O3 → -O2` Lion downgrade (warning agent §7 item 4) sits in
+  latent-bug; fixing it might surface a measurable Lion fps win.
+
+**Pass C — exercise Phase 7 `gl_perfprint` for live profile data.**
+Run G4 demo3 1024x768 with `-perfprint` enabled, capture
+`qconsole.log`, parse the per-region timing to confirm where the
+remaining frame budget lives. Crosses §14's outputs with reality —
+e.g. if Pass A flags a candidate phase predicting "will help
+R_DrawWorld" but Pass C shows R_DrawWorld is < 5% of the frame, that
+phase ranks below something hitting a 30%-of-frame region.
+
+### 14.3 Implementation phase
+
+Once Passes A+B+C produce a ranked list, prioritise like §13's
+trajectory did: ROI ÷ risk × (fps gain OR visual upgrade), with the
+new acceptance criteria from §13.6 reframe (fps drops are OK if the
+cell stays above the per-platform floor — G4/Lion ≥ 60 fps,
+G3 ≥ 20 fps).
+
+Each implemented item ships as its own commit with:
+- the perf/visual mechanism in the message,
+- a smoke bench against parent commit (per §10 methodology),
+- a runtime toggle (cvar or `-flag`) so end-of-round-end review can
+  A/B individual contributions (per CLAUDE.md "Toggleable knobs"
+  requirement).
+
+Hard-coded foundational phases (1, 1.1, 2.x, 3.x, 4.1, 4.6) might get
+runtime toggles retrofitted during Pass A/B if the agents flag a
+need. Specifically `-noaltivec-lerp` (Phase 4.1 + 4.6) is an
+already-noted candidate.
+
+### 14.4 Round-wrap full-grid bench
+
+After §14.3 implementation lands, run the full grid once via
+`scripts/bench-and-commit.sh "v3 round wrap"` (no `--quick`) — three
+demos × two res × three runs × three machines = 54 cells. Captures
+the cumulative trajectory.
+
+### 14.5 Fat-binary tooling phase (Phase 6 revisited)
+
+After §14.4. Per `docs/research/fat-binary-feasibility.md`
+recommendation:
+
+1. Add `scripts/build-fat.sh` that drives g3 + g4 + lion
+   sub-builds sequentially under the existing flock, then
+   `lipo -create` into `build/quakespasm-fat`.
+2. One-time `lipo -replace ppc` of
+   `MacOSX/SDL.framework/Versions/A/SDL` with
+   `MacOSX/SDL-panther.dylib`, committed as the new bundled framework.
+3. `scripts/deploy.sh` becomes target-agnostic — same bundle ships to
+   G3/G4/Lion verbatim, dyld picks each host's slice.
+4. Verify on each target: `Quakespasm.app` from the same bundle runs
+   on G3 + G4 + Lion. Bench numbers should match the per-target
+   binaries within noise.
+
+Open prerequisite question (from research §8 open questions): does
+`SDL-panther.dylib` run cleanly on G4/Tiger? If yes, single PPC SDL
+slice serves both. If no, the framework needs dual PPC slices too
+(matching the engine's dual-PPC layout). Test: deploy a fat bundle to
+G4 with the panther-slice SDL, run timedemo, verify no
+`SDL_VideoInit` crash and visual output is correct.
+
+### 14.6 Won't-do (carried forward)
+
+Same as §13.11 plus, after the end-of-round review:
+
+- Anything Pass A surfaces as "interesting but visual loss" — out of
+  scope for the project goal (best looking + playable fps).
+- Anything Pass B surfaces as "kill" — kept committed-deleted in git
+  history; not preserved in tree.
