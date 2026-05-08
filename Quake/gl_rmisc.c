@@ -236,6 +236,21 @@ void R_Init (void)
 
 	Sky_Init (); //johnfitz
 	Fog_Init (); //johnfitz
+
+#ifdef __ALTIVEC__
+	// PPC port -- Phase 4.4: AltiVec lightmap compose loop in
+	// R_BuildLightMap. Default-DISABLED (regressed -0.5..-2.3% on G4
+	// smoke; see r_brush.c:40-58 for the experiment record). Pass
+	// -altivec-lm on the launch command line to opt in.
+	{
+		extern qboolean lm_altivec_disabled;
+		if (COM_CheckParm("-altivec-lm"))
+		{
+			lm_altivec_disabled = false;
+			Con_Warning ("Phase 4.4 AltiVec lightmap compose ENABLED at command line (experimental)\n");
+		}
+	}
+#endif
 }
 
 /*

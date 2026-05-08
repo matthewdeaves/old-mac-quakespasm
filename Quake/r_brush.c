@@ -24,6 +24,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+// PPC port -- Phase 4.4: AltiVec for the lightmap compose loop in
+// R_BuildLightMap. Same conditional pattern as snd_mix.c so G3 (no
+// -maltivec) compiles cleanly.
+#ifdef __ALTIVEC__
+#include <altivec.h>
+#endif
+
 extern cvar_t gl_fullbrights, r_drawflat, gl_overbright, r_oldwater; //johnfitz
 extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
 
@@ -37,7 +44,28 @@ int		lightmap_count;
 static int	allocated[LMBLOCK_WIDTH];
 static int	last_lightmap_allocated;
 
-static unsigned	blocklights[LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3]; //johnfitz -- was 18*18, added lit support (*3) and loosened surface extents maximum (LMBLOCK_WIDTH*LMBLOCK_HEIGHT)
+// PPC port -- Phase 4.4: aligned to 16 so the AltiVec compose loop in
+// R_BuildLightMap can use vec_ld/vec_st without lvsl gymnastics. Cost is
+// at most 12 bytes of padding on the .bss; saves a vec_perm per
+// 16-byte stride in the hot inner loop.
+static unsigned	blocklights[LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3] __attribute__((aligned(16))); //johnfitz -- was 18*18, added lit support (*3) and loosened surface extents maximum (LMBLOCK_WIDTH*LMBLOCK_HEIGHT)
+
+#ifdef __ALTIVEC__
+// PPC port -- Phase 4.4: AltiVec lightmap compose is OPT-IN by default
+// after the smoke result regressed -0.5% to -2.3% across all four G4
+// cells (vs the +3-8% predicted in PPC_PLAN.md §13.2). The code is
+// preserved in tree as a starting point for future tuning — the math is
+// correct and matches the scalar reference, but per-iteration AltiVec
+// overhead (lvsl + double-load + vec_perm + 16-lane init for scale_v)
+// appears to outweigh the per-byte throughput win at typical surface
+// sizes. Pass `-altivec-lm` on the launch command line to opt in for
+// further experimentation.
+//
+// This default is a deliberate fail-closed: the v2 Phase 5 SGIS
+// regression cost a full bench cycle and was reverted entirely, so for
+// 4.4 we keep the experimental code reachable but inert.
+qboolean lm_altivec_disabled = true;
+#endif
 
 
 /*
@@ -1067,6 +1095,92 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				surf->cached_light[maps] = scale;	// 8.8 fraction
 				//johnfitz -- lit support via lordhavoc
 				bl = blocklights;
+				i = 0;
+
+#ifdef __ALTIVEC__
+				// PPC port -- Phase 4.4: AltiVec lightmap compose.
+				//
+				// Per scalar reference (3 statements above):
+				//     bl[k] += lightmap[k] * scale, for k in [0, size*3).
+				//
+				// scale is unsigned (8.8 fixed-point); max possible value
+				// is 25*22 = 550 (lightstyle 'z' under r_flatlightstyles 2)
+				// or 256 (default), well under 16 bits. Fits vec_mule/mulo
+				// of u16 × u16 → u32. Per-byte lightmap value is 0..255.
+				// Product max = 255 * 550 = 140,250 — well under u32.
+				//
+				// Per vector iteration: load 16 lightmap bytes, splat scale
+				// to 8 u16 lanes, vec_mule + vec_mulo to produce 16 u32
+				// products in two halves, accumulate into bl[k..k+15].
+				//
+				// blocklights is __attribute__((aligned(16))), so
+				// vec_ld/vec_st on bl work without permute. lightmap is
+				// surf->samples (not aligned in general); use lvsl +
+				// double-load + vec_perm idiom for the byte fetch.
+				//
+				// Replaces 16 scalar (load + zero-extend + mul + load +
+				// add + store) sequences with 4 vec_ld + 4 vec_add +
+				// 4 vec_st on the accumulator, and 1 lvsl+2 vec_ld+1
+				// vec_perm+2 vec_mergeh/l+4 mule/mulo+4 mergeh/l on the
+				// product. The runtime opt-out (lm_altivec_disabled) lets
+				// the user fall back via -noaltivec-lm if visual bugs
+				// show up.
+				if (!lm_altivec_disabled && size >= 6)
+				{
+					int N = size * 3;
+					vector unsigned char zero_u8 = (vector unsigned char)vec_splat_u8(0);
+					vector unsigned short scale_v = (vector unsigned short){
+						(unsigned short)scale, (unsigned short)scale,
+						(unsigned short)scale, (unsigned short)scale,
+						(unsigned short)scale, (unsigned short)scale,
+						(unsigned short)scale, (unsigned short)scale
+					};
+					int k;
+
+					for (k = 0; k + 16 <= N; k += 16)
+					{
+						// Unaligned 16-byte byte load.
+						vector unsigned char shift = vec_lvsl(0, &lightmap[k]);
+						vector unsigned char lm_lo = vec_ld(0,  &lightmap[k]);
+						vector unsigned char lm_hi = vec_ld(15, &lightmap[k]);
+						vector unsigned char lm   = vec_perm(lm_lo, lm_hi, shift);
+
+						// Zero-extend bytes -> u16 (high half + low half).
+						vector unsigned short lm_h = (vector unsigned short)
+							vec_mergeh(zero_u8, lm);
+						vector unsigned short lm_l = (vector unsigned short)
+							vec_mergel(zero_u8, lm);
+
+						// u16 * u16 -> u32 (4 lanes each from even/odd).
+						// vec_mule picks lanes 0,2,4,6; vec_mulo picks 1,3,5,7.
+						// Re-interleave with merge to recover {0,1,2,3} order.
+						vector unsigned int p_he = vec_mule(lm_h, scale_v);
+						vector unsigned int p_ho = vec_mulo(lm_h, scale_v);
+						vector unsigned int r_h0 = vec_mergeh(p_he, p_ho);
+						vector unsigned int r_h1 = vec_mergel(p_he, p_ho);
+
+						vector unsigned int p_le = vec_mule(lm_l, scale_v);
+						vector unsigned int p_lo = vec_mulo(lm_l, scale_v);
+						vector unsigned int r_l0 = vec_mergeh(p_le, p_lo);
+						vector unsigned int r_l1 = vec_mergel(p_le, p_lo);
+
+						// bl is 16-aligned; aligned add-to-memory.
+						unsigned int *blk = &bl[k];
+						vec_st(vec_add(vec_ld( 0, blk), r_h0),  0, blk);
+						vec_st(vec_add(vec_ld(16, blk), r_h1), 16, blk);
+						vec_st(vec_add(vec_ld(32, blk), r_l0), 32, blk);
+						vec_st(vec_add(vec_ld(48, blk), r_l1), 48, blk);
+					}
+
+					// Scalar tail for the remaining (N - k) bytes.
+					for (; k < N; k++)
+						bl[k] += lightmap[k] * scale;
+
+					bl       += N;
+					lightmap += N;
+				}
+				else
+#endif
 				for (i=0 ; i<size ; i++)
 				{
 					*bl++ += *lightmap++ * scale;

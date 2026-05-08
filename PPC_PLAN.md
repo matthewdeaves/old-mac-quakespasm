@@ -813,7 +813,7 @@ config edits don't get phase numbers.
 
 | #   | Phase / change                                     | Targets | Type            | Effort | Risk    | Expected impact                          | Visual |
 |-----|----------------------------------------------------|---------|-----------------|--------|---------|------------------------------------------|--------|
-| 4.4 | AltiVec `R_BuildLightMap` + `R_AddDynamicLights`   | G4 only | fps + load-time | medium | low     | demo3 +3-8% steady-state, faster atlas builds at level load | none |
+| 4.4 | AltiVec `R_BuildLightMap` + `R_AddDynamicLights`   | G4 only | fps + load-time | medium | low     | demo3 +3-8% steady-state, faster atlas builds at level load — **TRIED 2026-05-08, regressed −0.5..−2.3%; opt-in only, see §13.2 status** | none |
 | 4.5 | AltiVec `TexMgr_MipMapW` / `TexMgr_MipMapH`        | G4 only | load-time only  | small  | very low| 30-50% off mipchain build phase per map  | none   |
 | 4.6 | Fuse alias `s*lightcolor` mul into 4.1 lerp        | G4 only | fps             | trivial| trivial | demo3 1024 +0.5-1% (the +0.9% cell)      | none   |
 | —   | G3 `gl_subdivide_size 256` autoexec edit           | G3 only | fps             | trivial| trivial | speculative +1-3% G3                     | none   |
@@ -825,7 +825,27 @@ config edits don't get phase numbers.
 
 ### 13.2 Phase 4.4 — AltiVec `R_BuildLightMap` + `R_AddDynamicLights` (G4)
 
-**Why this is the headline:** the v2 epilogue's residual demo3 G4
+> **Status (2026-05-08):** compose-loop AltiVec was implemented and
+> smoke-tested (HEAD = parent of commit landing 4.4). Result:
+> regressed every cell on G4 — demo3 1024 −1.6%, demo3 640 −2.3%,
+> demo1 1024 −0.9%, demo1 640 −0.5%. Net **worse** than scalar
+> against the +3-8% prediction below. Hypothesis: per-iteration
+> AltiVec overhead (`vec_lvsl` + double-`vec_ld` + `vec_perm` for
+> unaligned lightmap byte fetch + 8-lane `scale_v` init) dominates
+> the per-byte throughput win on typical surface sizes
+> (smax×tmax ≈ 16-256 pixels → N=48-768 bytes → 3-48 vector
+> iterations). Code is preserved in `r_brush.c` opt-in via
+> `-altivec-lm`; default is disabled. R_AddDynamicLights AltiVec
+> deferred — its 3-AoS / 4-SoA structural mismatch makes it a
+> poor target on its own. **Future angles to try (round v4 or
+> later):** (a) raise `size >= 6` threshold to e.g. 64+ to skip
+> small surfaces; (b) drop unaligned-byte idiom, copy lightmap
+> into a 16-aligned scratch buffer per call; (c) bundle compose
+> with a vectorised AddDynamicLights so the dlight cells get the
+> compounded win. None of these are obviously net positive without
+> a working profiler — gate behind Phase 7 first.
+
+**Why this was the headline:** the v2 epilogue's residual demo3 G4
 −10.6% was attributed to "Phase 2.x's per-sample cost shift on lit
 brush surfaces." That's only half the story. Phase 2 made the
 *driver-side* upload faster (BGRA, client_storage, cached hint), but
@@ -1164,20 +1184,22 @@ Phase 7. Don't ship optimisations you can't verify.
 
 | Step | Phase / change                          | Commit shape                             |
 |------|-----------------------------------------|------------------------------------------|
-| 1    | Phase 4.4 + 4.6 (bundled)               | code commit + smoke + bench-and-commit   |
-| 2    | Phase 4.5                               | code commit + smoke + bench-and-commit   |
-| 3    | G3 `gl_subdivide_size 256`              | autoexec edit + smoke; commit if helpful, revert if not |
-| 4    | G4 `r_shadows 1` + trilinear            | autoexec edit + smoke; visual sign-off V10/V11 |
-| 5    | (Optional) G3 `gl_picmip 1` decision    | per §13.7 protocol — user gate          |
-| 6    | Phase 7 `gl_perfprint`                  | code commit; no bench (diagnostic)       |
-| 7    | End-of-round full grid                  | `scripts/bench-and-commit.sh "v3 wrap"` (no `--quick`) |
+| 1    | ~~Phase 4.4 + 4.6 (bundled)~~ Phase 4.4 tried, regressed → opt-in (§13.2). Phase 4.6 standalone next. | single code commit; no bench (no behavior change in shipping config) |
+| 2    | Phase 4.6 (alias color fuse)            | code commit + smoke + bench-and-commit (small predicted +0.5-1%) |
+| 3    | Phase 4.5 (mipmap chain build)          | code commit + smoke + bench-and-commit (load-time only; smoke just confirms it doesn't break play) |
+| 4    | G3 `gl_subdivide_size 256`              | autoexec edit + smoke; commit if helpful, revert if not |
+| 5    | G4 `r_shadows 1` + trilinear            | autoexec edit + smoke; visual sign-off V10/V11 |
+| 6    | (Optional) G3 `gl_picmip 1` decision    | per §13.7 protocol — user gate          |
+| 7    | Phase 7 `gl_perfprint`                  | code commit; no bench (diagnostic)       |
+| 8    | End-of-round full grid                  | `scripts/bench-and-commit.sh "v3 wrap"` (no `--quick`) |
 
-Items 1-2 are the perf+load-time core. Items 3-4 are autoexec-only
-and can be batched into a single bench cycle if the decisions all
-land the same way. Item 5 is gated on user. Item 6 is Phase 7.
-Phase 8 is deferred to round v4 unless interactive-play perf
-specifically becomes a goal.
+After 4.4 regressed, items 2-3 are now the perf+load-time core.
+Items 4-5 are autoexec-only and can be batched into a single bench
+cycle if the decisions all land the same way. Item 6 is gated on
+user. Item 7 is Phase 7. Phase 8 is deferred to round v4 unless
+interactive-play perf specifically becomes a goal.
 
 Methodology continues from §10: bench-and-commit cadence, smoke per
 phase, full grid at end of round, A/B knobs ship in every PR
-(`-noaltivec-lm`, `-noaltivec-mip`, `-perfprint`).
+(`-altivec-lm` opt-in for 4.4, `-noaltivec-mip` for 4.5, `-perfprint`
+for 7).
