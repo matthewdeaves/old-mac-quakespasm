@@ -282,6 +282,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 
 // draw
 	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
+	PERF_COUNT_ADD (PERF_CNT_ALIAS_TRIS, paliashdr->numtris);
 
 // clean up
 	GL_DisableVertexAttribArrayFunc (texCoordsAttrIndex);
@@ -604,6 +605,7 @@ static void GL_AliasFrame_Draw (aliashdr_t *paliashdr)
 	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT,
 	                (unsigned short *)((byte *)paliashdr + paliashdr->indexes));
 	rs_aliaspasses += paliashdr->numtris;
+	PERF_COUNT_ADD (PERF_CNT_ALIAS_TRIS, paliashdr->numtris);
 }
 
 static void GL_AliasFrame_End (void)

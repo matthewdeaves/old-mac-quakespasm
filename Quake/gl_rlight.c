@@ -248,6 +248,7 @@ void R_PushDlights (void)
 		if (l->die < cl.time || !l->radius)
 			continue;
 		R_MarkLights (l, i, cl.worldmodel->nodes);
+		PERF_COUNT (PERF_CNT_DLIGHT);
 	}
 }
 

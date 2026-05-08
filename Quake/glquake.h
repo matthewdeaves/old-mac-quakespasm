@@ -515,4 +515,12 @@ void R_ScaleView_DeleteTexture (void);
 
 float GL_WaterAlphaForSurface (msurface_t *fa);
 
+/* Round v5 A6 -- gl_perfprint.h provides PERF_BEGIN/PERF_END region
+ * timing AND PERF_COUNT/PERF_COUNT_ADD per-frame call counters. Pulled
+ * into the central GL header so any renderer TU can increment counters
+ * at submission sites without per-file include juggling. Macros expand
+ * to ((void)0) when not on Apple, so non-Apple analysis builds are
+ * unaffected. */
+#include "gl_perfprint.h"
+
 #endif	/* GLQUAKE_H */

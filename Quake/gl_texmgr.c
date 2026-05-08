@@ -1892,6 +1892,7 @@ void GL_Bind (gltexture_t *texture)
 		currenttexture[currenttarget - GL_TEXTURE0_ARB] = texture->texnum;
 		glBindTexture (GL_TEXTURE_2D, texture->texnum);
 		texture->visframe = r_framecount;
+		PERF_COUNT (PERF_CNT_BIND);
 	}
 }
 

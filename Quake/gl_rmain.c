@@ -145,7 +145,12 @@ cvar_t gl_perfprint = {"gl_perfprint", "0", CVAR_NONE};
 // callback. Faster to test than the cvar struct on every region
 // boundary.
 qboolean gl_perfprint_active = false;
+// Round v5 A6 -- mirror of (gl_perfprint.value >= 2). Gates the
+// counter-increment fast path so routine `gl_perfprint 1` runs pay
+// zero counter cost.
+qboolean gl_perfprint_counters_on = false;
 uint64_t gl_perf_accum[PERF_REGION_COUNT];
+uint32_t gl_perf_counters[PERF_CNT_COUNT];
 static uint64_t  gl_perf_frame_count;
 
 // Time conversion: mach_absolute_time() ticks are CPU-frequency-relative
@@ -161,11 +166,18 @@ static const char *const gl_perf_region_names[PERF_REGION_COUNT] = {
 	"alias", "alpha", "part", "vmodel", "swap"
 };
 
+// Round v5 A6 -- counter labels. Order must match perf_counter_t.
+static const char *const gl_perf_counter_names[PERF_CNT_COUNT] = {
+	"binds", "draws", "dlights", "surfs", "atris"
+};
+
 static void Gl_Perfprint_Callback (cvar_t *var)
 {
 	gl_perfprint_active = (var->value > 0.0f);
+	gl_perfprint_counters_on = (var->value >= 2.0f);
 	// Reset on toggle so the printed window starts fresh.
 	memset (gl_perf_accum, 0, sizeof (gl_perf_accum));
+	memset (gl_perf_counters, 0, sizeof (gl_perf_counters));
 	gl_perf_frame_count = 0;
 }
 
@@ -217,6 +229,24 @@ void R_PerfPrint_FrameEnd (void)
 		            " (%.1f fps)", 1000.0 / total_ms);
 
 	Con_Printf ("%s\n", line);
+
+	// Round v5 A6 -- second line of API-call counters when level >= 2.
+	// Per-frame averages over the same PERF_PRINT_INTERVAL window.
+	if (gl_perfprint_counters_on)
+	{
+		int j;
+		n = q_snprintf (line, sizeof (line), "gl_perfprint:");
+		for (j = 0; j < PERF_CNT_COUNT; j++)
+		{
+			double per_frame = (double)gl_perf_counters[j]
+			                 / (double)PERF_PRINT_INTERVAL;
+			n += q_snprintf (line + n, sizeof (line) - n,
+			                 " %s=%.0f", gl_perf_counter_names[j], per_frame);
+			if (n >= (int)sizeof (line) - 32) break;
+		}
+		Con_Printf ("%s\n", line);
+		memset (gl_perf_counters, 0, sizeof (gl_perf_counters));
+	}
 
 	memset (gl_perf_accum, 0, sizeof (gl_perf_accum));
 	gl_perf_frame_count = 0;

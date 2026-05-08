@@ -126,6 +126,8 @@ void DrawGLPoly (glpoly_t *p)
 	glDrawArrays (GL_POLYGON, 0, p->numverts);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 	glDisableClientState (GL_VERTEX_ARRAY);
+	PERF_COUNT (PERF_CNT_SURFACE);
+	PERF_COUNT (PERF_CNT_DRAW);
 }
 
 /*
@@ -192,6 +194,8 @@ void R_DrawBrushChainSurface (msurface_t *s)
 		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), v + 3);
 		glDrawArrays (GL_POLYGON, 0, s->polys->numverts);
 	}
+	PERF_COUNT (PERF_CNT_SURFACE);
+	PERF_COUNT (PERF_CNT_DRAW);
 }
 
 void R_BindBrushChain_Multi (void)
@@ -236,6 +240,8 @@ void R_DrawBrushChainSurface_Multi (msurface_t *s)
 		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), v + 5);
 		glDrawArrays (GL_POLYGON, 0, s->polys->numverts);
 	}
+	PERF_COUNT (PERF_CNT_SURFACE);
+	PERF_COUNT (PERF_CNT_DRAW);
 }
 
 /*
