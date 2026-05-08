@@ -265,6 +265,20 @@ void R_Init (void)
 			Con_Warning ("Phase 4.4 AltiVec lightmap compose ENABLED at command line (experimental)\n");
 		}
 	}
+
+	// PPC port -- §14.3 item 4: AltiVec R_AddDynamicLights inner loop.
+	// Default-DISABLED (Phase 4.4 same-shape regressed; conservative
+	// shape until we measure positive on G4 demo3). Pass
+	// -altivec-dlights to opt in for a measurement run; flip the
+	// default in r_brush.c if smoke shows net positive.
+	{
+		extern qboolean dlights_altivec_disabled;
+		if (COM_CheckParm("-altivec-dlights"))
+		{
+			dlights_altivec_disabled = false;
+			Con_Warning ("§14.3 AltiVec R_AddDynamicLights ENABLED at command line (experimental)\n");
+		}
+	}
 #endif
 }
 

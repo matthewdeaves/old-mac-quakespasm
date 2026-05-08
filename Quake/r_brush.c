@@ -65,6 +65,11 @@ static unsigned	blocklights[LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3] __attribute__((align
 // regression cost a full bench cycle and was reverted entirely, so for
 // 4.4 we keep the experimental code reachable but inert.
 qboolean lm_altivec_disabled = true;
+
+// PPC port -- §14.3 item 4: -altivec-dlights opt-in (default off, mirrors
+// Phase 4.4 conservative shape). Parsed in R_Init (gl_rmisc.c). Set to
+// false to enable the AltiVec R_AddDynamicLights inner-loop path.
+qboolean dlights_altivec_disabled = true;
 #endif
 
 
@@ -1023,6 +1028,64 @@ void R_AddDynamicLights (msurface_t *surf)
 		cgreen = cl_dlights[lnum].color[1] * 256.0f;
 		cblue = cl_dlights[lnum].color[2] * 256.0f;
 		//johnfitz
+
+#ifdef __ALTIVEC__
+		// PPC port -- §14.3 item 4: AltiVec the per-texel attenuation
+		// add. Replaces 3 scalar fmul + 3 fcttoint + 3 int-loads/stores
+		// inside the gate with one vec_madd (3 lanes used) + one vec_cts
+		// + a stack-spill to extract 3 int lanes back to bl[0..2]. The
+		// (cred, cgreen, cblue) constant vector is loop-invariant for
+		// this dlight's iteration so it hoists out cleanly.
+		//
+		// AoS/SoA mismatch caveat (carried from Phase 4.4): we cannot
+		// 4-wide on `s` because bl strides 3 ints per pixel. Per-pixel
+		// 3-channel mul is the only clean shape.
+		//
+		// Default-disabled like Phase 4.4 because the structural risk
+		// is the same — Phase 4.4 also looked clean on paper and
+		// regressed at smoke. Opt-in via -altivec-dlights so we can
+		// measure the actual delta on G4 demo3 specifically before
+		// flipping the default. Pass A predicted +1-3% on demo3 1024;
+		// Pass C profile shows R_AddDynamicLights inside `world` which
+		// is ~12% of frame, so a 50% gain in this fn = ~6% fps ceiling.
+		if (!dlights_altivec_disabled)
+		{
+			const vector float cv = (vector float){cred, cgreen, cblue, 0.0f};
+			const vector float zero_v = (vector float){0.0f, 0.0f, 0.0f, 0.0f};
+			union { vector signed int v; int i[4]; } u;
+
+			for (t = 0 ; t<tmax ; t++)
+			{
+				td = local[1] - t*16;
+				if (td < 0)
+					td = -td;
+				for (s=0 ; s<smax ; s++)
+				{
+					sd = local[0] - s*16;
+					if (sd < 0)
+						sd = -sd;
+					if (sd > td)
+						dist = sd + (td>>1);
+					else
+						dist = td + (sd>>1);
+					if (dist < minlight)
+					{
+						vector float bv;
+						vector float prod;
+						brightness = rad - dist;
+						bv = (vector float){brightness, brightness, brightness, 0.0f};
+						prod = vec_madd (bv, cv, zero_v);
+						u.v = vec_cts (prod, 0);
+						bl[0] += u.i[0];
+						bl[1] += u.i[1];
+						bl[2] += u.i[2];
+					}
+					bl += 3;
+				}
+			}
+		}
+		else
+#endif
 		for (t = 0 ; t<tmax ; t++)
 		{
 			td = local[1] - t*16;
