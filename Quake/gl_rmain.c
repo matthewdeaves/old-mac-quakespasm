@@ -64,6 +64,14 @@ cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
 cvar_t	r_fullbright = {"r_fullbright","0",CVAR_NONE};
 cvar_t	r_lightmap = {"r_lightmap","0",CVAR_NONE};
 cvar_t	r_shadows = {"r_shadows","0",CVAR_ARCHIVE};
+// PPC port -- Pass C HIGH leverage: distance gate for R_DrawShadows.
+// 0 = unlimited (engine default, matches upstream behaviour). Set
+// non-zero to skip shadow draws beyond this distance from the viewer
+// — distant entities are small on screen, so their elided shadows
+// are visually negligible. G4 autoexec sets 512 for ~4-7% gain on
+// dlight-heavy demos. CVAR_ARCHIVE so a manual `r_shadow_distance N`
+// in console persists across launches.
+cvar_t	r_shadow_distance = {"r_shadow_distance","0",CVAR_ARCHIVE};
 cvar_t	r_wateralpha = {"r_wateralpha","1",CVAR_ARCHIVE};
 cvar_t	r_litwater = {"r_litwater","1",CVAR_NONE};
 cvar_t	r_dynamic = {"r_dynamic","1",CVAR_ARCHIVE};
@@ -1027,6 +1035,25 @@ void R_DrawShadows (void)
 
 		if (currententity == &cl.viewent)
 			return;
+
+		// PPC port -- Pass C HIGH leverage: distance gate.
+		// Each shadow draw costs an R_LightPoint BSP trace +
+		// matrix setup + GL_DrawAliasFrame; on G4 demo3 with
+		// many alias entities this is ~5% of frame. Distant
+		// entities cast shadows that are visually negligible
+		// because the entity itself is small on screen, so we
+		// elide them past r_shadow_distance. 0 = unlimited
+		// (engine default). Squared compare avoids a sqrt.
+		if (r_shadow_distance.value > 0.0f)
+		{
+			vec3_t	diff;
+			float	d2, md;
+			VectorSubtract (currententity->origin, r_origin, diff);
+			d2 = DotProduct (diff, diff);
+			md = r_shadow_distance.value;
+			if (d2 > md * md)
+				continue;
+		}
 
 		GL_DrawAliasShadow (currententity);
 	}

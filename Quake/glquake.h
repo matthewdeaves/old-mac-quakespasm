@@ -136,6 +136,7 @@ extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_lightmapwide;
 extern	cvar_t	r_shadows;
+extern	cvar_t	r_shadow_distance;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_lavaalpha;
 extern	cvar_t	r_telealpha;
