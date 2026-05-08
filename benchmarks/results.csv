@@ -223,3 +223,4 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
 2026-05-08T18:55:08Z,da8574c0,g4,demo1,1024x768,110.1,NA,NA,110.1
 2026-05-08T18:55:11Z,da8574c0,g4mini,demo1,1024x768,76.6,NA,NA,76.6
 2026-05-08T18:57:02Z,da8574c0,g3,demo1,1024x768,24.5,24.5,24.7,24.60
+2026-05-08T20:06:32Z,f739a7c2,g3,demo1,1024x768,27.0,27.0,NA,NA
