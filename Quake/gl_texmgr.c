@@ -746,9 +746,22 @@ void TexMgr_Init (void)
 
 	// Pass A item 5: -nobgra-static falls back to the legacy
 	// GL_RGBA + GL_UNSIGNED_BYTE upload format on TexMgr_LoadImage32.
-	// Default path is GL_BGRA + GL_UNSIGNED_INT_8_8_8_8_REV (Apple's
-	// fast path; documented faster on G3, G4, and Lion's GMA 950).
-	if (COM_CheckParm ("-nobgra-static"))
+	// Default path is GL_BGRA + GL_UNSIGNED_INT_8_8_8_8_REV on little-
+	// endian (Lion's GMA 950 driver wants this). On big-endian PPC
+	// (G3 R128 Panther + G4 Radeon 9000 Tiger), the engine deliberately
+	// disables EXT_packed_pixels (gl_vidsdl.c host_bigendian check —
+	// upstream sezero/quakespasm#114) because the integer-level reinterp
+	// of GL_UNSIGNED_INT_8_8_8_8_REV trashes texture data and, in
+	// observed crashes, corrupts adjacent hunk-allocated filename strings
+	// so subsequent COM_FindFile calls EXC_BAD_ACCESS during
+	// Mod_LoadTextures replacement-image lookups. So gate this path off
+	// on big-endian by default.
+	if (host_bigendian)
+	{
+		bgra_static_disabled = true;
+		Con_Printf ("Pass A item 5 BGRA static-texture upload skipped on big endian\n");
+	}
+	else if (COM_CheckParm ("-nobgra-static"))
 	{
 		bgra_static_disabled = true;
 		Con_Warning ("Pass A item 5 BGRA static-texture upload disabled at command line\n");
