@@ -650,7 +650,11 @@ void Sbar_DrawInventory (void)
 			Sbar_DrawCharacter ( (6*i+3)*8 + 2, -24, 18 + num[2] - '0');
 	}
 
-	flashon = 0;
+	// Items, hipnotic items, rogue items, and sigils all share a single
+	// global 5 Hz blink phase: when `flashon` is set, recently-picked-up
+	// icons skip their draw (creating the blink-off frame). Original
+	// Quake behaviour; the upstream `flashon = 0` killed it outright.
+	flashon = ((int)(cl.time * 10)) & 1;
 	// items
 	for (i = 0; i < 6; i++)
 	{
