@@ -1404,3 +1404,81 @@ Same as §13.11 plus, after the end-of-round review:
   scope for the project goal (best looking + playable fps).
 - Anything Pass B surfaces as "kill" — kept committed-deleted in git
   history; not preserved in tree.
+
+---
+
+## 15. Round v5 — Tooling-driven quality + G3-focused perf (started 2026-05-08, in progress)
+
+Round goal: wire the static-analysis and sanitiser infrastructure
+that's been missing, fix what it surfaces, and target G3's GPU-bound
+regime with effects-preserving perf phases. User direction:
+"anything that can help get more fps but not sacrifice graphic
+quality/gorgeousness".
+
+Plan file: `/home/matt/.claude/plans/the-code-has-had-iterative-scott.md`.
+
+### 15.1 Track A — Tooling (mostly done overnight 2026-05-08/09)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| **A1** Linux build target on Ubuntu | ✅ done | `scripts/build-linux.sh {default,asan,ubsan,analyze}`. Substrate for static + runtime analysis on the orchestration host. |
+| **A2** Static analyser battery + `analyze-all.sh` | ✅ done (partial) | cppcheck, gcc -fanalyzer, shellcheck wired and run. scan-build/clang-tidy/flawfinder/sparse/iwyu need `sudo apt install clang-tools clang-tidy flawfinder sparse iwyu` — pending the user's morning sudo. |
+| **A3** ASan + UBSan demo runs | ✅ done | ASan clean. UBSan caught 3 real signed-shift UB sites in `snd_mem.c` -- all fixed (`463ec405`-class). 1 residual 64-bit-only alignment diagnostic in glpic_t cast, deferred (no impact on 32-bit PPC ship targets). |
+| **A4** Compiler warning maxout | ✅ done | Linux build: 1595 warnings under modern gcc 15 across 11 classes. 4 real `-Wnull-dereference` in `pr_edict.c` -- fixed. PPC gcc-4.0: 3 false-positive uninit warnings, no real bugs. Triage in `analysis/warnings-triage.md`. |
+| **A5** Optimisation-report capture | ✅ done | 13616-line `vec-missed.log` from gcc 15 vectoriser. Mostly null result: 70% irreducible (GL submission walls), 20% vec3 below vectoriser min width, 5% vendored libs, 5% non-hot. Hot paths already AltiVec'd or below threshold. Triage in `analysis/perf-candidates.md`. |
+| **A6** `gl_perfprint` API-call counters | ✅ done | New `gl_perfprint 2` tier emits binds/draws/dlights/surfs/atris per frame. Verified working on Lion. Lion demo1 1024 averages ~30-50 binds/frame, ~2-7 draws/frame. PPC machines verify in morning bench. |
+| **A7** `analysis/` tree + repo discipline | ✅ done | `analysis/INDEX.md` is the map. Per-tool logs committed; raw HTML/profraw .gitignored. `MISTAKES.md` updated with B3 finding. |
+
+### 15.2 Track B — Performance (G3-first, then cross-target)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| **B1** G3 dlight distance gate | ✅ code landed (180ce9dc), bench pending | New `r_dynamic_distance` cvar, default 0 (engine), G3 autoexec sets 768. Mirrors `r_shadow_distance` Pass C HIGH pattern. Squared compare in `R_PushDlights`. Lion smoke confirms engine-default behaviour preserved (96.75 vs 96.65 fps within noise). G3 morning bench will validate the +5-15% headline. |
+| **B2** State-change batching | gated on A6 measurement | A6 shipped; G3 bind counts pending morning bench. Decision: implement if G3 demo3 binds/frame > 1000; skip if < 500. |
+| **B3** Lion PGO + LTO | ❌ closed (negative result) | Lion clang 1.7 (LLVM 2.9-based) too old for `-fprofile-instr-generate` (silently no-ops). LTO works but +0.2 fps neutral on demo1 1024 (within noise). Kept `LTO=1` opt-in env var on `scripts/build.sh lion`. Documented in `MISTAKES.md`. |
+| **B4** R_CullBox unroll | ❌ closed (already done) | gl_rmain.c:466 has trivial 4-iter loop that gcc-4.0 -O3 unrolls automatically. Agent 2 candidate stale. |
+| **B5** Scalar dlight cast hoist | deferred to morning | Visual fidelity needs G3/G4 to verify. Plan: 8-bit fixed-point integer math; expected 0% framerate gain on G3 (GPU-bound) but frees CPU headroom. |
+| **B6** AngleVectors per-entity caching | deferred | Bigger refactor; needs G3/G4 bench. |
+| **B7** R_MarkLights tail-recursion → goto | ❌ closed (already done) | gl_rlight.c:168 already uses the goto-loop pattern. Agent 2 candidate stale. |
+| **B8** Conditional G3 visual re-enable | deferred | Gated on cumulative B-track results. |
+
+### 15.3 Real bugs fixed this round
+
+(All from Track A static + runtime sweeps, all in commits Round v5 A1/A2/A7 and snd_mem follow-ups.)
+
+1. `pr_edict.c:333,386` — null-deref in `PR_ValueString` /
+   `PR_UglyValueString` if `ED_FieldAtOfs` returns NULL on a corrupted
+   .progs lookup. **Defensive ternary added; happy path unchanged.**
+
+2. `snd_mem.c:79` — signed-shift UB on 8→16-bit PCM upconvert.
+   Replaced `<<8` with `*256` (defined for in-range signed multiply).
+
+3. `snd_mem.c:185-201` — `GetLittleShort` / `GetLittleLong` building
+   integer values via signed-int `<<8/16/24` of unsigned bytes, UB
+   on high-bit set. Rewrote both to compose in `unsigned` and cast
+   to signed at the end. Same wire result, defined behaviour.
+
+### 15.4 Sudo-gated install pending morning
+
+```
+sudo apt install -y clang-tools clang-tidy flawfinder sparse iwyu
+```
+
+After this, rerun `scripts/analyze-all.sh` to add scan-build,
+clang-tidy, flawfinder, sparse, and iwyu to the analysis battery.
+Infer is not packaged in apt and is deferred (release tarball
+install).
+
+### 15.5 Remaining work for morning (G3/G4 wake-up)
+
+1. Run `scripts/parallel-bench.sh --quick` to validate B1
+   (`r_dynamic_distance 768`) on G3 demo3 specifically. Headline
+   target: +5-15% on demo3 1024. Demo1/demo2 expected neutral.
+2. Run `gl_perfprint 2` on G3 to determine B2 disposition (state-
+   change batching). If binds/frame > 1000, implement; else drop.
+3. Decide B5/B6 priority based on B1 outcome -- if B1 hit the
+   target, B5/B6 are headroom rather than necessity.
+4. Sudo install the missing analysers, rerun the battery, triage
+   any new findings.
+5. End-of-round v5 full grid bench (`scripts/bench-and-commit.sh
+   "Round v5 wrap"`) once B-track is closed.
