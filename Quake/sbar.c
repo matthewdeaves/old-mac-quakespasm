@@ -1113,7 +1113,7 @@ void Sbar_IntermissionText (int x, int y, const char *str, int color)
 		if (!pic)
 			continue;
 		Draw_Pic (x, y, pic);
-		x += pic ? pic->width : 24;
+		x += pic->width;
 	}
 }
 

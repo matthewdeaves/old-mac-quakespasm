@@ -1366,29 +1366,18 @@ int PR_SetEngineString (const char *s)
 
 	if (!s)
 		return 0;
-#if 0	/* can't: sv.model_precache & sv.sound_precache points to pr_strings */
-	if (s >= pr_strings && s <= pr_strings + pr_stringssize)
-		Host_Error("PR_SetEngineString: \"%s\" in pr_strings area\n", s);
-#else
+	// Can't bounds-check against pr_strings + pr_stringssize: sv.model_precache
+	// and sv.sound_precache point into pr_strings, so anything within the
+	// string heap is a legitimate ABI-visible engine string.
 	if (s >= pr_strings && s <= pr_strings + pr_stringssize - 2)
 		return (int)(s - pr_strings);
-#endif
 	for (i = 0; i < pr_numknownstrings; i++)
 	{
 		if (pr_knownstrings[i] == s)
 			return -1 - i;
 	}
-	// new unknown engine string
-	//Con_DPrintf ("PR_SetEngineString: new engine string %p\n", s);
-#if 0
-	for (i = 0; i < pr_numknownstrings; i++)
-	{
-		if (!pr_knownstrings[i])
-			break;
-	}
-#endif
-//	if (i >= pr_numknownstrings)
-//	{
+	// new unknown engine string — append at the end (linear; pr_knownstrings
+	// semantics don't permit slot reuse without breaking outstanding refs)
 		if (i >= pr_maxknownstrings)
 			PR_AllocStringSlots();
 		pr_numknownstrings++;

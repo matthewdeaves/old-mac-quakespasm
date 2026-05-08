@@ -744,12 +744,6 @@ FIXME: make work...
 scalar checkpos (entity, vector)
 =================
 */
-#if 0
-static void PF_checkpos (void)
-{
-}
-#endif
-
 //============================================================================
 
 static byte	*checkpvs;	//ericw -- changed to malloc

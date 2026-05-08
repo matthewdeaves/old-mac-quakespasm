@@ -264,10 +264,6 @@ void CL_Record_f (void)
 
 	if (c == 2 && cls.state == ca_connected)
 	{
-#if 0
-		Con_Printf("Can not record - already connected to server\nClient demo recording must be started before connecting\n");
-		return;
-#endif
 		if (cls.signon < 2)
 		{
 			Con_Printf("Can't record - try again when connected\n");

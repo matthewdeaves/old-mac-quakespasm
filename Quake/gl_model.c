@@ -2340,59 +2340,9 @@ static void Mod_LoadSubmodels (lump_t *l)
 	//johnfitz
 }
 
-/*
-=================
-Mod_BoundsFromClipNode -- johnfitz
-
-update the model's clipmins and clipmaxs based on each node's plane.
-
-This works because of the way brushes are expanded in hull generation.
-Each brush will include all six axial planes, which bound that brush.
-Therefore, the bounding box of the hull can be constructed entirely
-from axial planes found in the clipnodes for that hull.
-=================
-*/
-#if 0 /* disabled for now -- see in Mod_SetupSubmodels()  */
-static void Mod_BoundsFromClipNode (qmodel_t *mod, int hull, int nodenum)
-{
-	mplane_t	*plane;
-	mclipnode_t	*node;
-
-	if (nodenum < 0)
-		return; //hit a leafnode
-
-	node = &mod->clipnodes[nodenum];
-	plane = mod->hulls[hull].planes + node->planenum;
-	switch (plane->type)
-	{
-
-	case PLANE_X:
-		if (plane->signbits == 1)
-			mod->clipmins[0] = q_min(mod->clipmins[0], -plane->dist - mod->hulls[hull].clip_mins[0]);
-		else
-			mod->clipmaxs[0] = q_max(mod->clipmaxs[0], plane->dist - mod->hulls[hull].clip_maxs[0]);
-		break;
-	case PLANE_Y:
-		if (plane->signbits == 2)
-			mod->clipmins[1] = q_min(mod->clipmins[1], -plane->dist - mod->hulls[hull].clip_mins[1]);
-		else
-			mod->clipmaxs[1] = q_max(mod->clipmaxs[1], plane->dist - mod->hulls[hull].clip_maxs[1]);
-		break;
-	case PLANE_Z:
-		if (plane->signbits == 4)
-			mod->clipmins[2] = q_min(mod->clipmins[2], -plane->dist - mod->hulls[hull].clip_mins[2]);
-		else
-			mod->clipmaxs[2] = q_max(mod->clipmaxs[2], plane->dist - mod->hulls[hull].clip_maxs[2]);
-		break;
-	default:
-		//skip nonaxial planes; don't need them
-		break;
-	}
-
-	Mod_BoundsFromClipNode (mod, hull, node->children[0]);
-	Mod_BoundsFromClipNode (mod, hull, node->children[1]);
-}
-#endif /* #if 0 */
+/* Mod_BoundsFromClipNode (johnfitz) was deleted: it produced incorrect
+   bounds on rotating brush models. Bounds are now taken from hull0 in
+   Mod_SetupSubmodels. */
 
 /* EXTERNAL VIS FILE SUPPORT:
  */
@@ -2619,13 +2569,10 @@ visdone:
 		//johnfitz -- correct physics cullboxes so that outlying clip brushes on doors and stuff are handled right
 		if (i > 0 || strcmp(mod->name, sv.modelname) != 0) //skip submodel 0 of sv.worldmodel, which is the actual world
 		{
-			// start with the hull0 bounds
+			// hull0 bounds: clipnode-derived bounds (Mod_BoundsFromClipNode)
+			// were tried and removed — they fucked up on rotating models.
 			VectorCopy (mod->maxs, mod->clipmaxs);
 			VectorCopy (mod->mins, mod->clipmins);
-
-			// process hull1 (we don't need to process hull2 becuase there's
-			// no such thing as a brush that appears in hull2 but not hull1)
-			//Mod_BoundsFromClipNode (mod, 1, mod->hulls[1].firstclipnode); // (disabled for now becuase it fucks up on rotating models)
 		}
 		//johnfitz
 

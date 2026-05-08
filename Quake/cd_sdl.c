@@ -54,7 +54,6 @@ static double	endOfTrack = -1.0, pausetime = -1.0;
 static SDL_CD	*cd_handle;
 static int	cd_dev = -1;
 static float	old_cdvolume;
-static qboolean	hw_vol_works = true;
 
 
 static void CDAudio_Eject(void)
@@ -370,20 +369,6 @@ static void CD_f (void)
 	Con_Printf ("cd: unknown command \"%s\"\n", command);
 }
 
-static qboolean CD_GetVolume (void *unused)
-{
-/* FIXME: write proper code in here when SDL
-   supports cdrom volume control some day. */
-	return false;
-}
-
-static qboolean CD_SetVolume (void *unused)
-{
-/* FIXME: write proper code in here when SDL
-   supports cdrom volume control some day. */
-	return false;
-}
-
 static qboolean CDAudio_SetVolume (float value)
 {
 	if (!cd_handle || !enabled)
@@ -396,16 +381,8 @@ static qboolean CDAudio_SetVolume (float value)
 	else
 		CDAudio_Resume();
 
-	if (!hw_vol_works)
-	{
-		return false;
-	}
-	else
-	{
-/* FIXME: write proper code in here when SDL
-   supports cdrom volume control some day. */
-		return CD_SetVolume (NULL);
-	}
+	/* SDL 1.2 has no CD volume API. */
+	return false;
 }
 
 void CDAudio_Update(void)
@@ -566,10 +543,6 @@ int CDAudio_Init(void)
 
 	Cmd_AddCommand ("cd", CD_f);
 
-	hw_vol_works = CD_GetVolume (NULL); /* no SDL support at present. */
-	if (hw_vol_works)
-		hw_vol_works = CDAudio_SetVolume (bgmvolume.value);
-
 	return 0;
 }
 
@@ -578,8 +551,6 @@ void CDAudio_Shutdown(void)
 	if (!cd_handle)
 		return;
 	CDAudio_Stop();
-	if (hw_vol_works)
-		CD_SetVolume (NULL); /* no SDL support at present. */
 #ifdef __linux__
 	SDL_CDStop(cd_handle);	/* see CDAudio_Stop() */
 #endif
