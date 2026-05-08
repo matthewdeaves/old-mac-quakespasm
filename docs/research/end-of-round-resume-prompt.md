@@ -183,7 +183,52 @@ with and without `-noglslalias` to see whether the GLSL path is
 actually faster than the immediate-mode-equivalent fallback on
 GMA 950. Could be ±10% either direction.
 
-### 5. Distance-gated R_DrawShadows (Pass C HIGH priority)
+### 5a. Phase 4.4 + §14.3 item 4 retuning — make AltiVec actually win
+
+Two AltiVec phases that landed code-correct but neutral or
+regressed and were stowed as opt-in: **Phase 4.4** (AltiVec lightmap
+compose loop in `R_BuildLightMap`) and **§14.3 item 4** (AltiVec
+`R_AddDynamicLights`). Both are preserved in tree behind
+`-altivec-lm` / `-altivec-dlights` cmdline flags (default off).
+PPC_PLAN.md §13.2 status block lists three concrete retuning paths
+noted at the time and never tried:
+
+  a. **Raise the surface-size threshold** — `R_BuildLightMap`
+     compose currently enters AltiVec when `size >= 6` (= 18 bytes
+     of lightmap, 1 vec iteration with 2-byte scalar tail). Most
+     surfaces are small (smax×tmax ≈ 16-256 pixels), so prologue
+     cost (lvsl + double-load + vec_perm + 8-lane scale_v init)
+     dominates. Try `size >= 64` (= 192 bytes / 12 vec iters
+     minimum) — may flip the balance.
+
+  b. **Copy lightmap to a 16-aligned scratch buffer per call** —
+     drops the unaligned-byte fetch idiom (lvsl + double-vec_ld +
+     vec_perm) entirely. Cost: 1 memcpy at function entry. Win:
+     each iter loses 3 vec ops. For surfaces ≥ ~256 bytes the
+     break-even should land easily.
+
+  c. **Bundle compose with vectorised AddDynamicLights** — share
+     one prologue across the two passes. Today the compose loop
+     and dlight loop both run on the same `blocklights[]`
+     accumulator; merging them into one pass that produces the
+     final compose+dlight result saves the second function-entry
+     overhead AND keeps the data hot in L1.
+
+**Use Pass C live profile data to decide.** Phase 7 `gl_perfprint`
+is in tree (commit 88bd6fb6); run G4 demo3 1024 with `-perfprint`
+and **separately** with `-perfprint -altivec-lm` and `-perfprint
+-altivec-dlights -altivec-lm` to see whether each AltiVec path
+shifts the `world` region budget. If a tuning genuinely wins on
+the profile, flip the default in `r_brush.c` and ship via a
+bench-and-commit. If they remain neutral with all retunings
+applied, formally cut both phases and remove the dead code
+(downgrade them from "opt-in" to "kill" in PPC_PLAN.md §13).
+
+Estimated effort: medium. Path (a) is trivial (one constant
+change), path (b) is small (~30 LOC), path (c) is medium (~80 LOC
+restructure of `R_BuildLightMap` body). Try in that order.
+
+### 5b. Distance-gated R_DrawShadows (Pass C HIGH priority)
 
 Pass C analysis flagged this as the single biggest leverable item
 for G4 demo3. Currently `r_shadows 1` triggers a per-entity shadow
