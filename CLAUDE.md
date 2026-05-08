@@ -226,26 +226,45 @@ Per-target flags (full set, including the `-isysroot` and version-min):
 Cosmetic linker warnings about `-mlong-branch` from Apple's `crt1.o`/`crt2.o`
 are harmless on PPC builds. Suppress with `-Wl,-w` if noisy.
 
-## Bundle is fat-aware — same layout serves all three targets
+## Bundle is fully universal — same layout serves all four targets
 
-`MacOSX/SDL.framework` and `MacOSX/codecs/lib/*.dylib` are all built fat
-(ppc + i386 + x86_64), so deploy.sh assembles the SAME bundle structure for
-G3, G4, and Lion. The only target-specific divergence is:
-1. The `quakespasm` binary itself (per-arch).
-2. G3 swaps in `MacOSX/SDL-panther.dylib` (PPC-only, 10.3-built) over the
-   framework's `Versions/A/SDL` slot — the bundled fat slice's PPC build was
-   linked against 10.6 SDK and crashes on Panther.
+`MacOSX/SDL.framework` is fat (x86_64 + i386 + ppc) where the **ppc slice
+is the Panther-compatible 10.3.9-SDK build**, not the 10.6-SDK build that
+ships upstream. `MacOSX/codecs/lib/*.dylib` are all fat too. Combined
+with the fat engine binary (`build/quakespasm-fat` — ppc750 + ppc7400 +
+x86_64), `deploy.sh fat <target>` ships the same bundle byte-for-byte
+to G3, G4, G4mini, and Lion. The only per-host action `deploy.sh` takes
+is rsync.
 
-## SDL.framework on Panther needs a custom build
+## How the fat SDL was built (round v4 §14.5)
 
-The bundled `MacOSX/SDL.framework` is built against the 10.6 SDK and
-**crashes on Panther** inside `SDL_VideoInit + 608` (jumps to invalid
-address — calls a Quartz API that doesn't exist on 10.3). For G3
-deployments we ship `MacOSX/SDL-panther.dylib` — a PPC-only SDL 1.2.15
-built on Lion against the 10.3.9 SDK with `--disable-video-x11
---disable-altivec --disable-cdrom`. `scripts/deploy.sh g3` automatically
-swaps it into the framework's `Versions/A/SDL` slot. G4 (Tiger) runs
-the bundled SDL fine.
+Until round v4 we shipped the upstream fat SDL (10.6 SDK) and ran a
+per-host swap in `deploy.sh g3` that overlaid `MacOSX/SDL-panther.dylib`
+on top of `Versions/A/SDL`. The swap is gone — the bundled framework
+itself now carries the Panther slice. To regenerate it from a fresh
+upstream fat (e.g. on an SDL version bump):
+
+```sh
+# On Lion (lipo + install_name_tool live there)
+cp upstream-SDL.framework/Versions/A/SDL /tmp/SDL-fat-orig
+install_name_tool -id "@executable_path/SDL.framework/Versions/A/SDL" /tmp/SDL-fat-orig
+lipo -replace ppc /path/to/MacOSX/SDL-panther.dylib /tmp/SDL-fat-orig \
+     -output /path/to/MacOSX/SDL.framework/Versions/A/SDL
+```
+
+`SDL-panther.dylib` is a ppc-only SDL 1.2.15 built against 10.3.9 SDK
+with `--disable-video-x11 --disable-altivec --disable-cdrom`. Why it's
+needed: upstream's PPC slice was linked against the 10.6 SDK and crashes
+inside `SDL_VideoInit + 608` on Panther (jumps to a Quartz address that
+doesn't exist on 10.3). The Panther slice still loads and works on
+Tiger and Lion, so one slice covers both PPC OS versions.
+
+Why `install_name_tool -id` first: dyld matches LC_LOAD_DYLIB against
+the loaded slice's LC_ID_DYLIB. The upstream framework's three slices
+were id'd `@executable_path/../Frameworks/SDL.framework/...`, which
+doesn't match where we actually drop it. Re-iding all three to
+`@executable_path/SDL.framework/Versions/A/SDL` aligns with the engine
+binary's install_name fixup in `scripts/build.sh:109`.
 
 The bundled SDL also presents a version mismatch on G4 even when it
 loads: the system `/Library/Frameworks/SDL.framework` (if present from

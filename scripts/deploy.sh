@@ -26,34 +26,31 @@ if [ "${1:-}" = "fat" ]; then
 fi
 TARGET="${1:?usage: $0 [fat] <g3|g4|g4mini|lion>}"
 
+# MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
+# ppc slice is the Panther-compatible build. One framework serves all
+# four targets — no per-host SDL swap. See "How the fat SDL was built"
+# in CLAUDE.md if it ever needs regenerating from MacOSX/SDL-panther.dylib.
 case "$TARGET" in
   g3)
     HOST="PowerMacG3"
     RSYNC_EXTRA="--protocol=29"  # Panther's rsync 2.5.x is older than Ubuntu's
-    SDL_BIN_OVERRIDE="$REPO_ROOT/MacOSX/SDL-panther.dylib"  # 10.3-built PPC SDL
     ;;
   g4)
     HOST="g4"
     RSYNC_EXTRA=""
-    SDL_BIN_OVERRIDE=""  # Tiger uses the bundled SDL.framework's SDL binary as-is
     ;;
   g4mini)
     # Mac mini G4 — second G4-class bench target, added 2026-05-08.
     # Same arch as g4 (Quicksilver) so reuses build/quakespasm-g4. Tiger
-    # 10.4 like the Quicksilver, so the bundled SDL.framework Just Works.
-    # Different GPU class (G4 mini ships ATI Radeon 9200 / 32 MB or
-    # Intel GMA 950 on later models) — so it's a separate data point for
-    # CPU-bound vs fillrate-bound diagnosis.
+    # 10.4 like the Quicksilver. Different GPU class (Radeon 9200 / 32 MB)
+    # — separate data point for CPU-bound vs fillrate-bound diagnosis.
     HOST="g4mini"
     RSYNC_EXTRA=""
-    SDL_BIN_OVERRIDE=""
     BIN_TARGET="g4"  # reuse the g4 binary
     ;;
   lion)
     HOST="lion"
     RSYNC_EXTRA=""
-    SDL_BIN_OVERRIDE=""  # Lion uses the bundled SDL.framework's SDL binary
-                         # (fat: x86_64 + i386 + ppc) as-is
     ;;
   *)
     echo "unknown target: $TARGET" >&2
@@ -61,13 +58,7 @@ case "$TARGET" in
     ;;
 esac
 
-# Fat-mode override: ship build/quakespasm-fat regardless of host. The
-# SDL_BIN_OVERRIDE rule still applies — G3 still needs the Panther-built
-# SDL slice (the bundled fat SDL's PPC slice was built against 10.6 SDK
-# and crashes on Panther). So fat-on-G3 still does the SDL swap, while
-# fat-on-G4/G4mini/Lion uses the bundled framework as-is. This is asymmetric
-# but unavoidable until SDL.framework gets a Panther-compatible PPC slice
-# baked in (Round v4 §14.5 task #15).
+# Fat-mode: ship build/quakespasm-fat regardless of host.
 if [ "$MODE" = "fat" ]; then
   BIN_TARGET="fat"
 fi
@@ -95,15 +86,6 @@ cp "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$STAGE/Quakespasm.app/Contents/Resour
 cp -r "$REPO_ROOT/MacOSX/English.lproj"   "$STAGE/Quakespasm.app/Contents/Resources/"
 cp "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$STAGE/Quakespasm.app/Contents/MacOS/"
 cp -r "$REPO_ROOT/MacOSX/SDL.framework"   "$STAGE/Quakespasm.app/Contents/MacOS/"
-
-# G3 needs the 10.3-built SDL binary swapped in (system 10.6-SDK build crashes)
-if [ -n "$SDL_BIN_OVERRIDE" ]; then
-  if [ ! -f "$SDL_BIN_OVERRIDE" ]; then
-    echo "missing $SDL_BIN_OVERRIDE — needed for $TARGET deploy" >&2
-    exit 1
-  fi
-  cp "$SDL_BIN_OVERRIDE" "$STAGE/Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL"
-fi
 
 cp "$BIN" "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 chmod +x "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"

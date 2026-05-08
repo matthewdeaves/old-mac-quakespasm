@@ -1377,26 +1377,24 @@ recommendation:
    per-target flock, then `lipo -create`s on the Lion build host (lipo
    isn't available on Ubuntu) and ships back a 3-arch fat as
    `build/quakespasm-fat`. Three slices: `ppc750`, `ppc7400`, `x86_64`.
-2. **Deferred to round v4.** One-time `lipo -replace ppc` of the
-   bundled `SDL.framework/Versions/A/SDL` with `MacOSX/SDL-panther.dylib`
-   needs the SDL question below resolved before committing the
-   framework swap. Until then `deploy.sh` keeps the per-target
-   PPC-only swap on G3.
-3. **Deferred to round v4.** Target-agnostic `deploy.sh` that ships
-   the same bundle to every host depends on item 2.
-4. **Round v3 partial verification.** Sanity post-build is
-   `lipo -info build/quakespasm-fat` showing the three slices. Full
-   "deploy fat to each host and run timedemo" verification is part of
-   item 3, deferred.
-
-Open prerequisite question (from research §8 open questions, still
-open): does `SDL-panther.dylib` run cleanly on G4/Tiger? If yes,
-single PPC SDL slice serves both. If no, the framework needs dual PPC
-slices too (matching the engine's dual-PPC layout). Test: deploy a
-fat bundle to G4 with the panther-slice SDL, run timedemo, verify no
-`SDL_VideoInit` crash and visual output is correct. Punted because
-the user is out of session and the test is destructive (modifies G4's
-SDL.framework slot); pick up in round v4.
+2. ✅ **Done (Round v4, 2026-05-08).** One-time `lipo -replace ppc` of
+   the bundled `SDL.framework/Versions/A/SDL` with `MacOSX/SDL-panther.dylib`,
+   plus `install_name_tool -id "@executable_path/SDL.framework/Versions/A/SDL"`
+   on the fat to align all three slices with the engine binary's load
+   command. The result is committed as the new canonical
+   `MacOSX/SDL.framework/Versions/A/SDL`. See CLAUDE.md "How the fat
+   SDL was built" for regeneration steps.
+3. ✅ **Done (Round v4, 2026-05-08).** `deploy.sh` is now fully
+   target-agnostic — the `SDL_BIN_OVERRIDE` codepath was removed
+   because the bundled framework already carries the Panther slice.
+4. ✅ **Done (Round v4, 2026-05-08).** Smoke verification: deployed
+   the new fat bundle to G4, G3, and Lion, ran `bench.sh <host> demo1
+   1024x768 1` on each. All three returned sensible fps (G4 108.5 vs
+   v3 110.1; Lion 95.2 vs v3 96.7; G3 24.2 vs v3 24.0 — all within
+   ~1.5% noise band) with no `SDL_VideoInit` crash on any host. The
+   open question "does `SDL-panther.dylib` run cleanly on G4/Tiger"
+   resolves **yes** — Panther-built ppc slice serves both 10.3 and
+   10.4 PPC OSes, so a single PPC slice covers both.
 
 ### 14.6 Won't-do (carried forward)
 
