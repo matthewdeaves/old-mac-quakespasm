@@ -104,6 +104,7 @@ qboolean gl_texture_env_add = false; //johnfitz
 qboolean gl_swap_control = false; //johnfitz
 qboolean gl_anisotropy_able = false; //johnfitz
 float gl_max_anisotropy; //johnfitz
+qboolean gl_texture_lod_bias_able = false; // PPC port — EXT_texture_lod_bias / GL 1.4 LOD bias
 qboolean gl_texture_NPOT = false; //ericw
 qboolean gl_vbo_able = false; //ericw
 qboolean gl_cva_able = false; // PPC port -- EXT_compiled_vertex_array
@@ -1312,6 +1313,38 @@ static void GL_CheckExtensions (void)
 	{
 		gl_max_anisotropy = 1;
 		Con_Warning ("texture_filter_anisotropic not supported\n");
+	}
+
+	// EXT_texture_lod_bias / GL 1.4 LOD bias
+	//
+	// User-reported on G4 Quicksilver / Radeon 9000: distant brick walls
+	// + slipgate signs render with very soft mipmap LODs that sharpen
+	// only as the camera approaches. Lion / GMA 950 with the same
+	// trilinear+aniso settings doesn't show the issue, so it's a Radeon
+	// driver mip-selection difference. Fix is `gl_texture_lodbias` cvar
+	// wired to the texture-environment LOD bias parameter — negative
+	// values pull sharper (higher-detail) mips. EXT_texture_lod_bias
+	// dates from 2000, supported on every Radeon 7000+ era GPU including
+	// the R9000 on Tiger; GL 1.4 unified the same constant value (0x8501)
+	// into glTexParameter. We use the EXT TexEnv path so we work on
+	// pre-1.4 drivers (R9000 reports GL 1.3) — same constant, same
+	// effect on the driver.
+	if (GL_ParseExtensionList(gl_extensions, "GL_EXT_texture_lod_bias"))
+	{
+		Con_Printf ("FOUND: EXT_texture_lod_bias\n");
+		gl_texture_lod_bias_able = true;
+	}
+	else if (gl_version_major > 1 || (gl_version_major == 1 && gl_version_minor >= 4))
+	{
+		// GL 1.4+ has it core; the constant value is the same. Even
+		// without the EXT extension string we can use glTexEnvf with
+		// the same enum.
+		Con_Printf ("FOUND: GL 1.4 texture LOD bias (core)\n");
+		gl_texture_lod_bias_able = true;
+	}
+	else
+	{
+		Con_Warning ("texture_lod_bias not supported — gl_texture_lodbias will be inert\n");
 	}
 
 	// texture_non_power_of_two

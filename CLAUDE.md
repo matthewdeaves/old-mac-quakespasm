@@ -33,8 +33,22 @@ scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
 scripts/build-fat.sh              build a 3-arch (ppc750+ppc7400+x86_64) universal
                                   binary by composing g3/g4/lion sub-builds with
-                                  lipo. Output: build/quakespasm-fat. See §14.5
-                                  in PPC_PLAN.md for the deploy story (deferred).
+                                  lipo. Output: build/quakespasm-fat.
+scripts/deploy.sh fat <host>      ship build/quakespasm-fat to <host> with all
+                                  three per-arch autoexec files in id1/. Engine
+                                  hook in host.c:891 picks the right slice's
+                                  autoexec at boot via __VEC__ / __ppc__ /
+                                  __x86_64__ macros. (Per-target form
+                                  scripts/deploy.sh <host> still works for
+                                  pure single-arch builds.)
+scripts/screenshot.sh <host>      drive the deployed Quakespasm fat (or per-target)
+                                  through demo1/demo2/demo3 with `screenshot tga`
+                                  inserted at intervals. Saves into
+                                  ~/Desktop/quakespasm-screens-<hostname>/ on the
+                                  target and fetches a copy to
+                                  benchmarks/screenshots/<host>/. Tunable shot
+                                  density via SHOTS_PER_DEMO + WAITS_BETWEEN_SHOTS
+                                  in the script.
 ```
 
 There's also a `ppc-ops` skill (`.claude/skills/ppc-ops/SKILL.md`) and
@@ -96,6 +110,7 @@ a complete map.
 | `r_shadows`             | (default 0) | 1           | (default)    | G4 alias drop-shadow. §13.6, costs -11% but stays > 60 fps. Defensively re-cleared in autoexec because CVAR_ARCHIVE makes a stale `1` from any past session sticky. |
 | `gl_texturemode`        | (default GL_LINEAR_MIPMAP_NEAREST) | `GL_LINEAR_MIPMAP_LINEAR` (trilinear) | (default) | G4 trilinear pairs with anisotropy 8. §13.6. |
 | `r_shadow_distance`     | (default 0 = unlimited) | 512 | (default 0) | Pass C HIGH (Round v3 Task #10): elide shadow draws past N units from viewer. Engine default 0 preserves upstream; G4 sets 512 for ~4-7% on dlight-heavy demos. Squared compare in `R_DrawShadows`. |
+| `gl_texture_lodbias`    | (default 0)            | -1.5         | 0            | Round v4 Task #20: bias the diffuse-texture mipmap LOD selection. User reported soft mips on G4 / Radeon 9000 distant brick walls; Lion / GMA 950 unaffected on the same engine. Negative pulls sharper mip chains. Wired via `glTexEnvf(GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, …)` in `gl_texmgr.c`. Inert if neither GL 1.4 nor `EXT_texture_lod_bias` is present (R128 falls back silently). |
 
 **Hard-coded (no runtime toggle yet) — flag if a future round wants
 to A/B these:** Phase 1 `frsqrte` mathlib, Phase 1.1 client vertex

@@ -59,6 +59,13 @@ static cvar_t	gl_texturemode = {"gl_texturemode", "", CVAR_ARCHIVE};
 static cvar_t	gl_texture_anisotropy = {"gl_texture_anisotropy", "1", CVAR_ARCHIVE};
 static cvar_t	gl_max_size = {"gl_max_size", "0", CVAR_NONE};
 static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_NONE};
+
+// PPC port (round v4): texture LOD bias. Negative values pull sharper
+// (higher-detail) mip levels; positive values pick coarser. Targets the
+// G4 / Radeon 9000 mipmap-blur reported on distant brick surfaces.
+// Engine default 0 preserves upstream behaviour. CVAR_ARCHIVE so user
+// console adjustments stick across launches.
+static cvar_t	gl_texture_lodbias = {"gl_texture_lodbias", "0", CVAR_ARCHIVE};
 static GLint	gl_hardware_maxsize;
 
 #define	MAX_GLTEXTURES	4096
@@ -187,6 +194,43 @@ static void TexMgr_TextureMode_f (cvar_t *var)
 
 	Con_Printf ("\"%s\" is not a valid texturemode\n", gl_texturemode.string);
 	Cvar_SetQuick (&gl_texturemode, glmodes[glmode_idx].name);
+}
+
+/*
+===============
+TexMgr_LODBias_f -- called when gl_texture_lodbias changes (PPC port).
+
+EXT_texture_lod_bias / GL 1.4 LOD bias is set via the texture environment
+on each TMU (not per-texture-object), so we don't need to walk
+active_gltextures — the bias is a TMU state. We apply on TMU0 always
+(the only TMU when not multitexturing); TMU1 is where the lightmap binds
+during world rendering and we leave it at 0 because biasing the lightmap
+away from its native LOD would just shift colour into the wrong texel.
+
+Clamp to a sane range: -4..4. Most drivers cap at 8 anyway, but going
+beyond -2 is already crunchy aliasing on Quake's small textures.
+===============
+*/
+static void TexMgr_LODBias_f (cvar_t *var)
+{
+	if (!gl_texture_lod_bias_able)
+		return;
+
+	if (gl_texture_lodbias.value < -4.0f)
+	{
+		Cvar_SetValueQuick (&gl_texture_lodbias, -4.0f);
+		return; // callback will fire again with the clamped value
+	}
+	if (gl_texture_lodbias.value > 4.0f)
+	{
+		Cvar_SetValueQuick (&gl_texture_lodbias, 4.0f);
+		return;
+	}
+
+	// Apply to TMU0. World rendering sets TMU0 to the diffuse texture
+	// before each surface batch, so this bias kicks in at sample time.
+	glTexEnvf (GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT,
+	           gl_texture_lodbias.value);
 }
 
 /*
@@ -721,6 +765,15 @@ void TexMgr_Init (void)
 	Cvar_RegisterVariable (&gl_picmip);
 	Cvar_RegisterVariable (&gl_texture_anisotropy);
 	Cvar_SetCallback (&gl_texture_anisotropy, &TexMgr_Anisotropy_f);
+	Cvar_RegisterVariable (&gl_texture_lodbias);
+	Cvar_SetCallback (&gl_texture_lodbias, &TexMgr_LODBias_f);
+	// Apply the persisted (CVAR_ARCHIVE) initial value once at boot —
+	// callback isn't auto-fired by Cvar_RegisterVariable. Without this
+	// the cvar shows e.g. "-1" but the GL state stays at 0 until the
+	// user re-sets it. Guard on _able so a call on a non-supporting
+	// driver doesn't spam GL_INVALID_ENUM.
+	if (gl_texture_lod_bias_able)
+		TexMgr_LODBias_f (&gl_texture_lodbias);
 	gl_texturemode.string = glmodes[glmode_idx].name;
 	Cvar_RegisterVariable (&gl_texturemode);
 	Cvar_SetCallback (&gl_texturemode, &TexMgr_TextureMode_f);

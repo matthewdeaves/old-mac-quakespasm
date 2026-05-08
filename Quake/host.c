@@ -892,6 +892,21 @@ void Host_Init (void)
 	// johnfitz -- in case the vid mode was locked during vid_init, we can unlock it now.
 		// note: two leading newlines because the command buffer swallows one of them.
 		Cbuf_AddText ("\n\nvid_unlock\n");
+
+		// PPC port (round v4 §14.5): per-arch autoexec layered on top of
+		// quake.rc → autoexec.cfg. The `exec quake.rc` above prepends via
+		// Cbuf_InsertText, so the per-arch exec we *append* here runs LAST
+		// — its cvars win over anything from default.cfg / config.cfg /
+		// autoexec.cfg. Compile-time slice selection: ppc7400 (G4 AltiVec),
+		// ppc750 (G3), or x86_64 (Lion). Missing per-arch file is non-fatal:
+		// `exec` prints "couldn't exec FOO" to console and continues.
+#if defined(__VEC__) || defined(__ALTIVEC__)
+		Cbuf_AddText ("exec autoexec-ppc7400.cfg\n");
+#elif defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
+		Cbuf_AddText ("exec autoexec-ppc750.cfg\n");
+#elif defined(__x86_64__) || defined(__amd64__)
+		Cbuf_AddText ("exec autoexec-x86_64.cfg\n");
+#endif
 	}
 
 	if (cls.state == ca_dedicated)

@@ -176,6 +176,18 @@ extern GLint		gl_max_texture_units; //ericw
 extern	float		gl_max_anisotropy;
 extern	qboolean	gl_anisotropy_able;
 
+// PPC port — EXT_texture_lod_bias / GL 1.4 LOD bias.
+// Constants are identical (0x8500 / 0x8501) between the EXT extension and
+// GL 1.4 core; we use the EXT TexEnv path for portability since R9000 on
+// Tiger reports GL 1.3.
+#ifndef GL_TEXTURE_FILTER_CONTROL_EXT
+#define GL_TEXTURE_FILTER_CONTROL_EXT	0x8500
+#endif
+#ifndef GL_TEXTURE_LOD_BIAS_EXT
+#define GL_TEXTURE_LOD_BIAS_EXT		0x8501
+#endif
+extern	qboolean	gl_texture_lod_bias_able;
+
 //ericw -- VBO
 extern PFNGLBINDBUFFERARBPROC  GL_BindBufferFunc;
 extern PFNGLBUFFERDATAARBPROC  GL_BufferDataFunc;

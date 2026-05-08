@@ -27,3 +27,10 @@ Quake/quakespasm.ppc
 # Claude Code transient state
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+# Round v4 -- screenshot bank fetched back from each host via
+# scripts/screenshot.sh. TGAs at 1024x768 are ~2.3 MB each; with 90 shots
+# per host x 4 hosts that's ~800 MB per round. The host-side originals
+# live in ~/Desktop/quakespasm-screens-<hostname>/ on each machine,
+# which is the canonical store. Local copies are for review only.
+/benchmarks/screenshots/
