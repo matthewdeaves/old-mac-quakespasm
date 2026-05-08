@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4> <demo> <WxH> [runs]}"
+TARGET="${1:?usage: $0 <g3|g4|lion> <demo> <WxH> [runs]}"
 DEMO="${2:?demo name required (demo1|demo2|demo3)}"
 RES="${3:?resolution required (e.g. 1024x768)}"
 RUNS="${4:-3}"
@@ -22,8 +22,9 @@ W="${RES%x*}"
 H="${RES#*x}"
 
 case "$TARGET" in
-  g3) HOST="PowerMacG3"; TIMEOUT=240 ;;
-  g4) HOST="g4";         TIMEOUT=120 ;;
+  g3)   HOST="PowerMacG3"; TIMEOUT=240 ;;
+  g4)   HOST="g4";         TIMEOUT=120 ;;
+  lion) HOST="lion";       TIMEOUT=60  ;;  # 2.33 GHz Core 2 Duo finishes timedemo fast
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 

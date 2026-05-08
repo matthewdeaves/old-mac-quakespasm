@@ -11,12 +11,13 @@ The full build/deploy/bench loop is scripted. Don't write inline ssh+make
 heredocs; invoke the scripts:
 
 ```
-scripts/build.sh <g3|g4>          cross-compile on Lion, fetch binary
-scripts/deploy.sh <g3|g4>         assemble Quakespasm.app, ship to target
-scripts/bench.sh <target> <demo> <WxH>   run timedemo, append to results.csv
-scripts/full-bench.sh [g3|g4|both] [--quick]   full matrix or demo1-only quick
-scripts/parallel-bench.sh [--quick]            same, G3+G4 concurrently
-                                               env: DEMOS, RESES, RUNS for custom
+scripts/build.sh <g3|g4|lion>          cross-compile (g3/g4) or native x86_64 (lion) on Lion
+scripts/deploy.sh <g3|g4|lion>         assemble Quakespasm.app, ship to target
+scripts/bench.sh <target> <demo> <WxH> [runs]   run timedemo, append to results.csv
+scripts/full-bench.sh [g3|g4|lion|both|all] [--quick]   matrix sweep
+                                                        both = g3+g4; all = g3+g4+lion
+scripts/parallel-bench.sh [--quick] [--no-lion]  g3+g4+lion concurrently
+                                                 env: DEMOS, RESES, RUNS for custom
 scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
 ```
@@ -33,20 +34,24 @@ push to a free GitHub remote without git-lfs.
 ## Goal in one line
 
 Optimize QuakeSpasm framerate + visual quality on PowerPC Macs (G3 Panther +
-G4 Tiger), via cross-builds from an Intel Mac mini on Lion.
+G4 Tiger), via cross-builds from an Intel Mac mini on Lion. Lion itself is
+also a runnable bench reference (added 2026-05-08) — third data point that
+helps separate GPU-bound from CPU-bound regressions, since GMA 950 + Core 2
+Duo has a markedly different fillrate-vs-CPU balance than either PPC.
 
 ## Hosts
 
 SSH aliases live in `~/.ssh/config`:
 
-- `lion` — Intel Mac mini, OS X 10.7.5. Cross-build host. PPC toolchain
-  installed (see below). **Sleeps aggressively** (system sleep timer is
+- `lion` — Intel Mac mini Macmini2,1, 2.33 GHz Core 2 Duo, GMA 950, 10.7.5
+  Lion. **Dual role:** the cross-build host for G3 + G4, and a bench target
+  in its own right. Native x86_64 build via `/usr/bin/clang` (no `-isysroot`,
+  default Lion toolchain). **Sleeps aggressively** (system sleep timer is
   short); if `build.sh` fails with `ssh: connect to host ... No route to
   host`, Lion is asleep — wake it (Wake-on-LAN, key press, or
   `caffeinate` if you've configured one) and retry.
-- `PowerMacG3` — Blue & White, 450 MHz, 10.3 Panther, Rage 128 16 MB.
-- G4 — not yet wired in `~/.ssh/config`; Quicksilver-class 867 MHz, 10.4 Tiger,
-  AltiVec.
+- `PowerMacG3` — Blue & White, 450 MHz, 10.3.9 Panther, Rage 128 16 MB.
+- `g4` — Quicksilver-class 867 MHz, 10.4.11 Tiger, Radeon 9000, AltiVec.
 
 Old-Mac SSH (Lion + PPC) needs legacy crypto. The config entries already
 include `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
@@ -81,7 +86,9 @@ makefile. We use `Quake/Makefile.darwin` with `MACH_TYPE=ppc` and inject SDK +
 ## Toolchain on Lion (installed)
 
 ```
-/usr/bin/gcc-4.0                              Apple gcc 4.0.1 (build 5494)
+/usr/bin/gcc-4.0                              Apple gcc 4.0.1 (build 5494) — PPC cross
+/usr/bin/clang                                Apple clang (Lion default) — Intel native
+/usr/bin/gcc-4.2                              llvm-gcc-4.2.1 — Intel fallback
 /Developer/SDKs/MacOSX10.3.9.sdk              G3 (Panther) target
 /Developer/SDKs/MacOSX10.4u.sdk               G4 (Tiger) target
 /Developer/SDKs/MacOSX10.5.sdk                bonus, unused
@@ -89,11 +96,24 @@ makefile. We use `Quake/Makefile.darwin` with `MACH_TYPE=ppc` and inject SDK +
 
 Per-target flags (full set, including the `-isysroot` and version-min):
 
-- G3: `-isysroot /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3.9 -arch ppc -mcpu=750 -O3`
-- G4: `-isysroot /Developer/SDKs/MacOSX10.4u.sdk  -mmacosx-version-min=10.4   -arch ppc -mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450`
+- G3:   `-isysroot /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3.9 -arch ppc -mcpu=750 -O3`
+- G4:   `-isysroot /Developer/SDKs/MacOSX10.4u.sdk  -mmacosx-version-min=10.4   -arch ppc -mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450`
+- Lion: `-arch x86_64 -mmacosx-version-min=10.7 -O3` (no `-isysroot`; uses
+  Lion's default toolchain SDK). Lion's kernel is `RELEASE_I386` on
+  Macmini2,1, but Core 2 Duo + 10.7's user-space happily run x86_64 binaries.
 
 Cosmetic linker warnings about `-mlong-branch` from Apple's `crt1.o`/`crt2.o`
-are harmless. Suppress with `-Wl,-w` if noisy.
+are harmless on PPC builds. Suppress with `-Wl,-w` if noisy.
+
+## Bundle is fat-aware — same layout serves all three targets
+
+`MacOSX/SDL.framework` and `MacOSX/codecs/lib/*.dylib` are all built fat
+(ppc + i386 + x86_64), so deploy.sh assembles the SAME bundle structure for
+G3, G4, and Lion. The only target-specific divergence is:
+1. The `quakespasm` binary itself (per-arch).
+2. G3 swaps in `MacOSX/SDL-panther.dylib` (PPC-only, 10.3-built) over the
+   framework's `Versions/A/SDL` slot — the bundled fat slice's PPC build was
+   linked against 10.6 SDK and crashes on Panther.
 
 ## SDL.framework on Panther needs a custom build
 
@@ -360,13 +380,22 @@ inline shell loop in PPC_PLAN.md.
 ```
 Ubuntu (edit, git, orchestrate)
    │
-   ├── rsync sources ──▶ Lion (cross-build PPC slice)
+   ├── rsync sources ──▶ Lion (cross-build PPC + native x86_64)
    │                          │
-   │◀────── scp binary ───────┘
+   │◀────── scp binary ───────┘     (per-target binary fetched back)
    │
-   └── scp binary ──▶ G4/G3 (run timedemo, write qconsole.log)
-                         │
-   ◀────── scp log ────┘
+   ├── deploy bundle ──▶ G4 / G3 / Lion (run timedemo, write qconsole.log)
+   │                                       │
+   │◀────────── scp qconsole.log ─────────┘
+   │
+   └── append CSV row to benchmarks/results.csv
 ```
 
-Lion never ssh's anywhere outbound. Ubuntu does both legs.
+Lion has dual role: it's the build host for G3+G4 cross-compiles, AND its
+own bench target via native x86_64 builds. Ubuntu still orchestrates all
+three legs (Lion never ssh's anywhere outbound).
+
+Game data layout on Lion mirrors the PPC machines: `~/Desktop/quake/{id1,
+legacy,quakespasm.pak,Quakespasm.app}`. Game data was rsync'd from G4 → Ubuntu →
+Lion when the Lion target was added (Lion's own build tree is at
+`~/quakespasm/`, kept separate from the runtime layout).

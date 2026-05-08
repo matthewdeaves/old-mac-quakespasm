@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Assemble a Quakespasm.app bundle and deploy it to the target PPC machine.
+# Assemble a Quakespasm.app bundle and deploy it to the target machine.
 # Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <g3|g4>
+# usage: scripts/deploy.sh <g3|g4|lion>
 # pre:   build/quakespasm-<target> must exist (run scripts/build.sh first)
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4>}"
+TARGET="${1:?usage: $0 <g3|g4|lion>}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$TARGET" in
@@ -20,6 +20,12 @@ case "$TARGET" in
     HOST="g4"
     RSYNC_EXTRA=""
     SDL_BIN_OVERRIDE=""  # Tiger uses the bundled SDL.framework's SDL binary as-is
+    ;;
+  lion)
+    HOST="lion"
+    RSYNC_EXTRA=""
+    SDL_BIN_OVERRIDE=""  # Lion uses the bundled SDL.framework's SDL binary
+                         # (fat: x86_64 + i386 + ppc) as-is
     ;;
   *)
     echo "unknown target: $TARGET" >&2

@@ -41,7 +41,17 @@
 | Phase 6 — Runtime AltiVec dispatch / fat binary | 🪦 deferred | n/a | Current two-binary setup (`quakespasm-g3` + `quakespasm-g4`, built via `scripts/build.sh`, deployed via slash commands) is working cleanly with explicit per-target `__ALTIVEC__` gating. Phase 6 would unify them into a single binary that detects AltiVec at runtime via `sysctlbyname("hw.optional.altivec")`. Plan flags expected fps impact as 0/0 — this is a packaging convenience, not a perf phase. Round goal is fps + visuals; deferred to a future packaging round if a single-binary distribution is ever wanted. |
 
 **Architectural state we're building on:**
-- Two binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`. No runtime dispatch yet.
+- Three binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`:
+  `quakespasm-g3` (PPC 750), `quakespasm-g4` (PPC 7400 + AltiVec), and
+  `quakespasm-lion` (x86_64). The Lion target is a *bench reference*, added
+  2026-05-08 — same source builds clean on Lion's clang. Useful as a third
+  data point because GMA 950 + Core 2 Duo has a markedly different fillrate-
+  vs-CPU balance from either PPC: at 1024×768 Lion is GPU-bound (Lion ≈ G3,
+  way slower than G4); at 640×480 Lion crushes both (CPU-bound regime,
+  2.33 GHz Core 2 Duo > any PPC). This split helps separate GPU-bound from
+  CPU-bound effects when reading regression patterns. Lion gets the same
+  shipping config (`r_oldwater 1`, etc.) and the same code path (no
+  AltiVec since `__ALTIVEC__` isn't defined on Intel). No runtime dispatch yet.
 - `gl_cva_able` exists, with R128 explicitly excluded from the CVA Lock hint due to in-game color corruption (`gl_vidsdl.c:1049-1050`). Arrays still flow on R128; only the lock is skipped.
 - All hot vertex submission paths now use `glDrawArrays`/`glDrawElements` against client memory (alias models, particles, sky cloud layers, lightmaps, water, brush surfaces) **except** `R_DrawTextureChains_Multitexture` — that one was reverted in 1.1 because the array form cost G4 −3 to −4% on brush-heavy demos. The Apple/ATI driver's small-poly `glBegin` path is faster than `glDrawArrays` on Radeon 9000. Phase 3 below revisits this — but only via a path that gives the driver something it can VRAM-cache, not just a different submission API.
 
