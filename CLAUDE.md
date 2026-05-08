@@ -31,6 +31,10 @@ scripts/parallel-bench.sh [--quick] [--no-lion] [--no-g4mini] [--no-g4] [--no-g3
                                        env: DEMOS, RESES, RUNS for custom
 scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
+scripts/build-fat.sh              build a 3-arch (ppc750+ppc7400+x86_64) universal
+                                  binary by composing g3/g4/lion sub-builds with
+                                  lipo. Output: build/quakespasm-fat. See §14.5
+                                  in PPC_PLAN.md for the deploy story (deferred).
 ```
 
 There's also a `ppc-ops` skill (`.claude/skills/ppc-ops/SKILL.md`) and
@@ -415,6 +419,21 @@ whether to revert before continuing. Don't discard the data.
 **`--reset` is a fresh-epoch action only.** `parallel-bench.sh --reset`
 wipes `results.csv` (after backing it up to `results.csv.bak.<ts>`).
 Reserved for starting a brand-new optimization round.
+
+**Manual-commit override when bench-and-commit refuses on a transient
+flake.** `parallel-bench.sh` is strict: if any single run returns NA fps
+(SIGTERM-before-qconsole-write, ssh hiccup, etc.) the leg returns
+non-zero and `bench-and-commit.sh` refuses to commit anything. That's
+the right default for "real" failures (binary crash, regression on
+every run) but too harsh when you've got 23/24 cells clean and one
+transient. **Recovery pattern (used 2026-05-08 for v3 round wrap):**
+verify the failure is transient (other runs of the same cell hit
+sane fps, or re-running the cell standalone via `scripts/bench.sh
+<host> <demo> <res> 3` succeeds), then `git add benchmarks/results.csv
+benchmarks/raw/<commit>_*.log` and craft a manual `bench: <phase>
+(HEAD <commit>) — N.5/N cells` commit naming the partial cell in the
+body. Don't hide the NA; do commit the rest. The data is signal even
+when one row has fewer-than-three valid runs.
 
 ## Runtime packaging on Tiger (G4) — required structure
 

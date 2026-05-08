@@ -1372,24 +1372,31 @@ the cumulative trajectory.
 After §14.4. Per `docs/research/fat-binary-feasibility.md`
 recommendation:
 
-1. Add `scripts/build-fat.sh` that drives g3 + g4 + lion
-   sub-builds sequentially under the existing flock, then
-   `lipo -create` into `build/quakespasm-fat`.
-2. One-time `lipo -replace ppc` of
-   `MacOSX/SDL.framework/Versions/A/SDL` with
-   `MacOSX/SDL-panther.dylib`, committed as the new bundled framework.
-3. `scripts/deploy.sh` becomes target-agnostic — same bundle ships to
-   G3/G4/Lion verbatim, dyld picks each host's slice.
-4. Verify on each target: `Quakespasm.app` from the same bundle runs
-   on G3 + G4 + Lion. Bench numbers should match the per-target
-   binaries within noise.
+1. ✅ **Done (Round v3 Task #12, 2026-05-08).** `scripts/build-fat.sh`
+   drives g3 + g4 + lion sub-builds sequentially through the existing
+   per-target flock, then `lipo -create`s on the Lion build host (lipo
+   isn't available on Ubuntu) and ships back a 3-arch fat as
+   `build/quakespasm-fat`. Three slices: `ppc750`, `ppc7400`, `x86_64`.
+2. **Deferred to round v4.** One-time `lipo -replace ppc` of the
+   bundled `SDL.framework/Versions/A/SDL` with `MacOSX/SDL-panther.dylib`
+   needs the SDL question below resolved before committing the
+   framework swap. Until then `deploy.sh` keeps the per-target
+   PPC-only swap on G3.
+3. **Deferred to round v4.** Target-agnostic `deploy.sh` that ships
+   the same bundle to every host depends on item 2.
+4. **Round v3 partial verification.** Sanity post-build is
+   `lipo -info build/quakespasm-fat` showing the three slices. Full
+   "deploy fat to each host and run timedemo" verification is part of
+   item 3, deferred.
 
-Open prerequisite question (from research §8 open questions): does
-`SDL-panther.dylib` run cleanly on G4/Tiger? If yes, single PPC SDL
-slice serves both. If no, the framework needs dual PPC slices too
-(matching the engine's dual-PPC layout). Test: deploy a fat bundle to
-G4 with the panther-slice SDL, run timedemo, verify no
-`SDL_VideoInit` crash and visual output is correct.
+Open prerequisite question (from research §8 open questions, still
+open): does `SDL-panther.dylib` run cleanly on G4/Tiger? If yes,
+single PPC SDL slice serves both. If no, the framework needs dual PPC
+slices too (matching the engine's dual-PPC layout). Test: deploy a
+fat bundle to G4 with the panther-slice SDL, run timedemo, verify no
+`SDL_VideoInit` crash and visual output is correct. Punted because
+the user is out of session and the test is destructive (modifies G4's
+SDL.framework slot); pick up in round v4.
 
 ### 14.6 Won't-do (carried forward)
 
