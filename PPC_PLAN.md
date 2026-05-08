@@ -854,6 +854,21 @@ config edits don't get phase numbers.
 > with a vectorised AddDynamicLights so the dlight cells get the
 > compounded win. None of these are obviously net positive without
 > a working profiler — gate behind Phase 7 first.
+>
+> **Retuning measurement (2026-05-08, HEAD a1cd13c2, round v3 Task #9):**
+> Retested both `-altivec-lm` and `-altivec-dlights` together at demo3
+> 1024×768 (dlight-heavy + dirty-lightmap-heaviest cell). Result: g4
+> baseline **81.90 fps → altivec-on 81.60 fps (-0.4%, within
+> run-to-run noise)**; g4mini baseline **67.00 → altivec-on 67.00**
+> (Mac mini's Radeon 9200 32MB is fillrate-bound at 1024 — CPU-side
+> wins can't surface here). Both blocks correctly preserved as opt-in;
+> default-disabled is the shipping shape. Paths (a)/(b)/(c) above
+> deferred — without a working profiler the next incremental cost
+> (memcpy-to-aligned-scratch or sweep threshold to 32/64) has no
+> obviously net-positive evidence to point at, and Pass A's +1-3%
+> prediction for `R_AddDynamicLights` did not materialise on either
+> G4 host. Raw qconsole logs at `/tmp/altivec_g4_*.log` and
+> `/tmp/altivec_g4mini_*.log` (not committed; ephemeral measurement).
 
 **Why this was the headline:** the v2 epilogue's residual demo3 G4
 −10.6% was attributed to "Phase 2.x's per-sample cost shift on lit
