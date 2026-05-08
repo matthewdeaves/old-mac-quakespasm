@@ -63,6 +63,7 @@ a complete map.
 | `-noaltivec-snd` | 4.2    | enabled     | 16-bit sound mixer (`SND_PaintChannelFrom16`)  | `snd_dma.c` `S_Init` |
 | `-altivec-lm`    | 4.4    | **disabled** (opt-in) | Lightmap compose loop (`R_BuildLightMap`) — regressed -0.5..-2.3% in smoke; preserved in tree for future tuning. See PPC_PLAN.md §13.2 status. | `gl_rmisc.c` `R_Init` |
 | `-noaltivec-mip` | 4.5    | enabled     | Mipmap chain build (`TexMgr_MipMap{W,H}`) — load-time only | `gl_texmgr.c` `TexMgr_Init` |
+| `-altivec-dlights` | §14.3 item 4 | **disabled** (opt-in) | Per-texel attenuation in `R_AddDynamicLights` — neutral in smoke (gate restricts AltiVec to ~30% of pixels; stack-spill erodes FP-mul win). Preserved in tree. | `gl_rmisc.c` `R_Init` |
 
 **Diagnostics (cmdline + cvar, both targets):**
 
@@ -90,6 +91,12 @@ these are foundational and bisected at landing time; not worth a
 runtime toggle unless a regression is suspected. Add a
 `-noaltivec-lerp` (Phase 4.1 + 4.6) follow-up if end-of-round review
 wants to A/B alias-side AltiVec specifically.
+
+**§14.3 hygiene flag added:** `-nowarpedarrays` falls the
+`R_UpdateWarpTextures` water-warp procedural-update loop back to its
+pre-§14.3 glBegin/glEnd path. Default is the new client-array path
+(submission-overhead reduction; smoke neutral on standard demos
+because they barely exercise warp updates).
 
 **Why this matters:** project goal is best-looking Quake at
 playable fps; the only way to navigate that trade-space honestly is
