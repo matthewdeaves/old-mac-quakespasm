@@ -827,8 +827,8 @@ config edits don't get phase numbers.
 | 4.5 | AltiVec `TexMgr_MipMapW` / `TexMgr_MipMapH`        | G4 only | load-time only  | small  | very low| 30-50% off mipchain build phase per map  | none   |
 | 4.6 | Fuse alias `s*lightcolor` mul into 4.1 lerp        | G4 only | fps             | trivial| trivial | demo3 1024 +0.5-1% (the +0.9% cell)      | none   |
 | —   | G3 `gl_subdivide_size 256` autoexec edit           | G3 only | fps             | trivial| trivial | speculative +1-3% G3                     | none   |
-| —   | G4 `r_shadows 1` autoexec edit                     | G4 only | visual upgrade  | trivial| low     | -1 to -2% demo3, drop-shadows on alias   | **+**  |
-| —   | G4 `gl_texturemode GL_LINEAR_MIPMAP_LINEAR`        | G4 only | visual upgrade  | trivial| low     | -1 to -3% fillrate, smoother mip transitions | **+** |
+| —   | G4 `r_shadows 1` autoexec edit                     | G4 only | visual upgrade  | trivial| low     | -1 to -2% demo3, drop-shadows on alias — **TRIED 2026-05-08, regressed -11pct ALL cells, REVERTED; see §13.6 status** | ~~+~~ |
+| —   | G4 `gl_texturemode GL_LINEAR_MIPMAP_LINEAR`        | G4 only | visual upgrade  | trivial| low     | -1 to -3% fillrate, smoother mip transitions — **paired with r_shadows above; reverted together. Standalone cost ≤0.5% if revisited.** | ~~+~~ |
 | 13.7| **G3 `gl_picmip 1`** — quality-trade decision      | G3 only | fps             | trivial| **visual cost** | speculative on the 1024 fillrate cell; needs user accept on softer textures | **−** (gated) |
 | 7   | `gl_perfprint` diagnostic cvar                     | both    | infra           | small  | none    | 0 fps direct; enables every future round | none   |
 | 8   | QuakeC VM threading (computed-goto dispatch)       | both    | gameplay CPU    | medium | medium  | 10-15% gameplay-side CPU on QC-heavy maps; **timedemo doesn't measure it** | none |
@@ -1028,24 +1028,51 @@ ROI for the test cost.
 
 ### 13.6 G4 visual upgrades (no code)
 
-Two autoexec edits in `scripts/bundle/autoexec-g4.cfg`:
+> **Status (2026-05-08): both REVERTED.** Smoke at parent commit
+> `87f64413` (Phase 7 + bench commit) showed `r_shadows 1` plus
+> trilinear together costing **-11.2% to -12.5% across all four G4
+> cells** (demo1 1024 120.80→105.65, demo1 640 146.00→128.75,
+> demo3 1024 91.75→81.45, demo3 640 107.25→94.15). Bisect: dropping
+> trilinear and keeping `r_shadows 1` alone showed essentially the
+> same cost (demo1 1024 106.40, demo3 1024 80.90), so r_shadows is
+> the cost driver — trilinear was a rounding-error contributor on
+> top. **The plan's predicted -1..-3% was off by 4-10×.** Likely
+> reason: `r_shadows` is implemented as an extra alias-model pass
+> per visible alias entity, and demo1/demo2/demo3 all have many
+> alias entities visible (start.bsp's other monsters, end's zombies,
+> demo3's combat). The per-entity shadow pass dominates the per-
+> frame alias work, not just the alias-heavy demo3.
+>
+> Both visuals reverted in `scripts/bundle/autoexec-g4.cfg` with
+> defensive `r_shadows 0` (because CVAR_ARCHIVE sticks the value in
+> `config.cfg` once set, so a future build needs an explicit clear
+> in autoexec to remove it). Verified post-revert: demo1 1024
+> 122.05, demo3 1024 89.90 — back within noise of pre-§13.6.
+>
+> Future re-attempts gated on Phase 7 data: now that `gl_perfprint`
+> is in tree, a future run can confirm whether the cost is in
+> R_DrawShadows specifically (the second alias pass) or elsewhere.
+> If the per-entity shadow pass is the bottleneck, a possible
+> recovery is to gate `r_shadows` on entity distance / size — only
+> shadow the closest few entities. Out of scope for round v3.
+
+Two autoexec edits in `scripts/bundle/autoexec-g4.cfg` were
+attempted:
 
 1. **`r_shadows 1`** — alias model planar drop-shadow. Currently
-   default 0. Costs ~1-2% on demo3 (alias-heavy), 0% elsewhere.
-   Visual: monsters and weapon viewmodel cast a soft dark blob on
-   the floor. Affordable now.
+   default 0. Plan said ~1-2% on demo3, 0% elsewhere; **actual
+   result was -11% across ALL four cells.**
 
 2. **`gl_texturemode "GL_LINEAR_MIPMAP_LINEAR"`** — trilinear
    filtering. Currently `GL_LINEAR_MIPMAP_NEAREST` (bilinear at
-   chosen mip, no inter-mip blend). Bumping to trilinear smooths
-   the seam where mip levels transition with distance. ~1-3%
-   fillrate cost on Radeon 9000. Pairs with the existing
-   `gl_texture_anisotropy 8`.
+   chosen mip, no inter-mip blend). Plan said ~1-3% fillrate cost;
+   actual cost on top of r_shadows was ≤0.5% (the bisect showed
+   shadows-alone matched shadows-and-trilinear), so trilinear by
+   itself probably is in-band — but we never ship it standalone
+   because the visual pairing was the original ask.
 
-Both ship as autoexec-only changes, no rebuild. Bench after each.
-**If demo3 G4 is already tight after 4.4 lands, drop the trilinear
-and keep just `r_shadows`** — `r_shadows` is the bigger
-visual-per-fps trade.
+Both shipped as autoexec-only changes, no rebuild. Result: both
+out, neither shipping in round v3.
 
 ### 13.7 G3 `gl_picmip 1` — **explicit user-decision required**
 
