@@ -72,13 +72,24 @@ case "$TARGET" in
     # the Makefile.darwin pipeline routes to clang anyway. Cosmetic
     # only; lets real lion warnings stand out instead of being lost
     # in the noise.
+    #
+    # LTO (Round v5 B3) -- Lion's clang is Apple LLVM 2.9-based, too old
+    # for `-fprofile-instr-generate` PGO (silently accepted, no
+    # instrumentation actually emitted). `-flto` does work and produces
+    # a valid binary. Opt-in via LTO=1; see CLAUDE.md "Toggleable
+    # knobs" for what's runtime-flippable vs. built-in.
     MACH_TYPE=x86_64
     CC=/usr/bin/clang
     SDK=""
     VMIN=10.7
     CPUFLAGS='-arch x86_64 -mmacosx-version-min=10.7 -O3 -Qunused-arguments'
+    if [ "${LTO:-0}" = "1" ]; then
+      CPUFLAGS="$CPUFLAGS -flto"
+      EXTRA_LDFLAGS='-flto'
+    else
+      EXTRA_LDFLAGS=''
+    fi
     SYSROOT=""
-    EXTRA_LDFLAGS=''
     ;;
   *)
     echo "unknown target: $TARGET (expected: g3|g4|lion)" >&2

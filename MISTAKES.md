@@ -10,6 +10,53 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-09 — Round v5 B3: Lion PGO/LTO (mostly skipped; LTO kept opt-in but neutral)
+
+**What we tried.** Round v5 plan B3 was "Lion PGO + LTO build" expecting
++5–12% on Intel. Two-phase build via `-fprofile-instr-generate` →
+timedemo → `llvm-profdata merge` → `-fprofile-instr-use=… -flto`
+rebuild.
+
+**What went wrong.** Lion's `/usr/bin/clang` is **Apple clang 1.7
+(LLVM 2.9-based)** — much older than the planning estimate of "Apple
+LLVM 3.0–3.1 era". Two consequences:
+
+1. `-fprofile-instr-generate` is *silently accepted* (no compile error)
+   but produces no instrumentation in the binary — it ran a test
+   binary and no `*.profraw` ever appeared. Modern instrumentation
+   profile (IR-PGO) landed in LLVM 3.4+; Lion's clang predates it.
+   `-fprofile-generate` (gcc-style PGO) is also accepted but Lion's
+   `gcc-4.2.1` produced .gcda files normally so it works there — but
+   switching the Lion build from clang to gcc-4.2 is a much bigger
+   change than a single flag and not justified for an experimental
+   PGO try.
+
+2. `-flto` does work and produces a valid binary. Smoke bench at Lion
+   demo1 1024×768 × 3 runs:
+   * **without LTO:** 96.65 fps (median run 2,3)
+   * **with LTO:**    96.85 fps (median run 2,3)
+   * **delta:** +0.2 fps, within run-to-run noise (within-run spread
+     was 0.8 fps).
+
+   LLVM 2.9-era LTO can't do much that `-O3` isn't already doing.
+   Modern LTO (LLVM 7+) typically nets 3–8%; this vintage doesn't.
+
+**Disposition.** Kept `-flto` as a `LTO=1` opt-in env var on
+`scripts/build.sh lion` (default off, neutral when on, easy to remove,
+useful template if a future Mac target gets a newer toolchain). PGO
+not wired — no path that produces real instrumentation on this
+toolchain. **B3 closed; B-track perf gains for Intel must come from
+algorithmic phases (B4, B5, B6, B7) rather than compiler-driven
+optimisation.**
+
+**If we revisit.** Don't redo this on Lion's clang. If a future Lion
+replacement has a newer clang (LLVM 3.4+ for IR-PGO, LLVM 7+ for
+worthwhile LTO), reopen — the infrastructure (`-flto` opt-in, the
+build.sh comment block) is in place to retry quickly. Until then,
+Intel perf wins come from source-level changes, not compiler flags.
+
+---
+
 ## 2026-05-08 — Pass A item 5: BGRA static-texture upload (reverted)
 
 **What we tried.** Per `docs/research/pass-a-fps-visual-review.md` §1a,
