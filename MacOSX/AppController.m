@@ -121,19 +121,45 @@ NSString *FQPrefScreenModeKey = @"ScreenMode";
             [fullscreenCheckBox setState:NSControlStateValueOff];
     } else {
 		NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        [paramTextField setStringValue:[defaults stringForKey:FQPrefCommandLineKey]];
-        
-        BOOL fullscreen = [defaults boolForKey:FQPrefFullscreenKey];
-        [fullscreenCheckBox setState:fullscreen ? NSControlStateValueOn : NSControlStateValueOff];
-        
-        int screenModeIndex = [defaults integerForKey:FQPrefScreenModeKey];
-        [screenModePopUp selectItemAtIndex:screenModeIndex];
+
+		// PPC port (round v4 §14.6): if NSUserDefaults are unset on
+		// fresh install (no FQPrefCommandLineKey), fall back to project
+		// defaults instead of empty/zero. The empty-string + zero index
+		// + NO fullscreen combination yields a windowed 800x600 launch
+		// which doesn't match the per-arch autoexec's 1024x768
+		// fullscreen target. Better default: empty cmdline (so autoexec
+		// fully controls cvars), fullscreen ON, screen mode = "Default
+		// or command line arguments" (index 0) so -width/-height from
+		// autoexec aren't overridden by the launcher dropdown.
+		NSString *savedCmdLine = [defaults stringForKey:FQPrefCommandLineKey];
+		BOOL hasSavedDefaults = (savedCmdLine != nil);
+
+		[paramTextField setStringValue:hasSavedDefaults ? savedCmdLine : @""];
+
+		BOOL fullscreen = hasSavedDefaults
+		    ? [defaults boolForKey:FQPrefFullscreenKey]
+		    : YES;  // first-launch default: fullscreen ON
+		[fullscreenCheckBox setState:fullscreen ? NSControlStateValueOn : NSControlStateValueOff];
+
+		int screenModeIndex = hasSavedDefaults
+		    ? [defaults integerForKey:FQPrefScreenModeKey]
+		    : 0;  // "Default or command line arguments" -- lets autoexec drive vid_*
+		[screenModePopUp selectItemAtIndex:screenModeIndex];
     }
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
 	if ([arguments argument:@"-nolauncher"] != nil) {
 		[arguments removeArgument:@"-nolauncher"];
+		// PPC port (round v4 §14.6): mark this as a headless launch so
+		// launchQuake skips the NSUserDefaults save. Otherwise bench.sh
+		// and screenshot.sh would overwrite the user's saved launcher
+		// command line with their own (`-noarchautoexec +timedemo demo1
+		// -nosound -width 640 -height 480` etc.), and the user's NEXT
+		// manual double-click would inherit that as the launcher's
+		// default -- giving them no autoexec, no sound, sped-up demo,
+		// and 640x480 fullscreen. Found 2026-05-08 across all 3 hosts.
+		bypassedLauncher = YES;
 		[self launchQuake:self];
 	} else {
         [launcherWindow center];
@@ -191,12 +217,18 @@ NSString *FQPrefScreenModeKey = @"ScreenMode";
 
     [launcherWindow close];
 
-    // update the defaults
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setObject:[paramTextField stringValue] forKey:FQPrefCommandLineKey];
-    [defaults setObject:[NSNumber numberWithBool:[fullscreenCheckBox state] == NSControlStateValueOn] forKey:FQPrefFullscreenKey];
-    [defaults setObject:[NSNumber numberWithInt:index] forKey:FQPrefScreenModeKey];
-    [defaults synchronize];
+    // update the defaults — but ONLY when the user actually drove the
+    // launcher GUI. Bench/screenshot scripts pass -nolauncher and would
+    // otherwise overwrite the user's saved cmdline with their own
+    // (-noarchautoexec +timedemo demo1 -nosound -width 640 -height 480
+    // etc.), poisoning the next manual double-click.
+    if (!bypassedLauncher) {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        [defaults setObject:[paramTextField stringValue] forKey:FQPrefCommandLineKey];
+        [defaults setObject:[NSNumber numberWithBool:[fullscreenCheckBox state] == NSControlStateValueOn] forKey:FQPrefFullscreenKey];
+        [defaults setObject:[NSNumber numberWithInt:index] forKey:FQPrefScreenModeKey];
+        [defaults synchronize];
+    }
 
     int status = SDL_main (argc, argv);
     exit(status);

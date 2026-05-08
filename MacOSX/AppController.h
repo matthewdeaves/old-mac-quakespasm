@@ -34,6 +34,9 @@ extern NSString *FQPrefScreenModeKey;
     
     NSMutableArray *screenModes;
     QuakeArguments *arguments;
+    BOOL bypassedLauncher;  // YES when -nolauncher skipped the GUI -- don't
+                            // overwrite the user's saved launcher defaults
+                            // with bench/screenshot script command lines.
 }
 
 - (IBAction)changeScreenMode:(id)sender;
