@@ -420,6 +420,20 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	const vector float vblend  = (vector float){blend,  blend,  blend,  blend};
 	const vector float viblend = (vector float){iblend, iblend, iblend, iblend};
 	const vector float vzero   = (vector float){0.0f, 0.0f, 0.0f, 0.0f};
+
+	// PPC port -- Phase 4.6: fuse the per-vertex `s * lightcolor[*]`
+	// scalar muls into one vec_madd. Layout is (R, G, B, alpha):
+	//   color_v[k] = s * lightcolor[k] + entalpha_addend[k]
+	// where entalpha_addend = (0, 0, 0, entalpha) puts entalpha into
+	// the 4th lane while preserving s*lightcolor[0..2] in the first
+	// three. Replaces 3 fmul + 4 fp store with 1 vec_madd + 1 vec_st
+	// (and a vec_splat-style splat of `s` per iteration).
+	const vector float vlightcolor   = (vector float){
+		lightcolor[0], lightcolor[1], lightcolor[2], 0.0f
+	};
+	const vector float ventalpha_lane = (vector float){
+		0.0f, 0.0f, 0.0f, entalpha
+	};
 #endif
 	if (want_color)
 	{
@@ -449,16 +463,29 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 				alias_pos_scratch[i*4+1] = verts1[idx].v[1]*iblend + verts2[idx].v[1]*blend;
 				alias_pos_scratch[i*4+2] = verts1[idx].v[2]*iblend + verts2[idx].v[2]*blend;
 #endif
+#ifdef __ALTIVEC__
+				// PPC port -- Phase 4.6: fused color = s * lightcolor + entalpha-lane.
+				{
+					vector float vs = (vector float){s, s, s, s};
+					vec_st(vec_madd(vs, vlightcolor, ventalpha_lane),
+					       0, &alias_color_scratch[i*4]);
+				}
+#else
 				alias_color_scratch[i*4+0] = s * lightcolor[0];
 				alias_color_scratch[i*4+1] = s * lightcolor[1];
 				alias_color_scratch[i*4+2] = s * lightcolor[2];
 				alias_color_scratch[i*4+3] = entalpha;
+#endif
 			}
 		}
 		else
 		{
-			// Non-lerping: just copy verts1, no AltiVec gain (single
-			// byte→float per element, no math to fuse).
+			// Non-lerping: byte→float position copy can't usefully be
+			// AltiVec'd (single byte per element, no math). The color
+			// computation IS Phase 4.6-fusable (same shape as the
+			// lerping branch), so we apply it here too. Demo3 alias
+			// models always lerp, so this branch is a vanity case —
+			// included for consistency.
 			for (i = 0; i < n; i++)
 			{
 				int idx = desc[i].vertindex;
@@ -466,10 +493,18 @@ static void GL_AliasFrame_Begin (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 				alias_pos_scratch[i*4+0] = verts1[idx].v[0];
 				alias_pos_scratch[i*4+1] = verts1[idx].v[1];
 				alias_pos_scratch[i*4+2] = verts1[idx].v[2];
+#ifdef __ALTIVEC__
+				{
+					vector float vs = (vector float){s, s, s, s};
+					vec_st(vec_madd(vs, vlightcolor, ventalpha_lane),
+					       0, &alias_color_scratch[i*4]);
+				}
+#else
 				alias_color_scratch[i*4+0] = s * lightcolor[0];
 				alias_color_scratch[i*4+1] = s * lightcolor[1];
 				alias_color_scratch[i*4+2] = s * lightcolor[2];
 				alias_color_scratch[i*4+3] = entalpha;
+#endif
 			}
 		}
 	}
