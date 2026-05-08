@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_main.c
 
 #include "quakedef.h"
+#include "gl_perfprint.h"
 
 vec3_t		modelorg, r_entorigin;
 entity_t	*currententity;
@@ -111,6 +112,125 @@ float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha;
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
 cvar_t	r_scale = {"r_scale", "1", CVAR_ARCHIVE};
+
+//==============================================================================
+//
+// PERFPRINT — Phase 7 in-engine per-region timing
+//
+//==============================================================================
+
+#ifdef __APPLE__
+// PPC port -- Phase 7. Tiger has no working OpenGL Profiler (system nub
+// version mismatch with the only available standalone profiler binary)
+// and Panther has no profiler at all. /usr/bin/sample is our usual
+// fallback but it can't tell us "this fps loss is in the brush draw"
+// vs "this fps loss is in alias models" because sample groups by
+// function name, not renderer region. This block carries the lightest
+// possible always-on instrumentation: a counter array indexed by
+// region, fed by mach_absolute_time() deltas through the PERF_BEGIN /
+// PERF_END macros in gl_perfprint.h. Cost when gl_perfprint=0 is one
+// branch per region per frame.
+
+cvar_t gl_perfprint = {"gl_perfprint", "0", CVAR_NONE};
+
+// Mirror of gl_perfprint.value. Updated when the cvar fires its
+// callback. Faster to test than the cvar struct on every region
+// boundary.
+qboolean gl_perfprint_active = false;
+uint64_t gl_perf_accum[PERF_REGION_COUNT];
+static uint64_t  gl_perf_frame_count;
+
+// Time conversion: mach_absolute_time() ticks are CPU-frequency-relative
+// on PPC, so we cache the timebase ratio once and apply it at print
+// time. On x86_64 ticks are nanoseconds and the ratio is 1:1.
+static mach_timebase_info_data_t gl_perf_timebase;
+static qboolean gl_perf_timebase_init = false;
+
+#define PERF_PRINT_INTERVAL 60   // print summary every 60 frames (~1 sec on G4 demo3)
+
+static const char *const gl_perf_region_names[PERF_REGION_COUNT] = {
+	"frame", "warp", "sky", "world", "water",
+	"alias", "alpha", "part", "vmodel", "swap"
+};
+
+static void Gl_Perfprint_Callback (cvar_t *var)
+{
+	gl_perfprint_active = (var->value > 0.0f);
+	// Reset on toggle so the printed window starts fresh.
+	memset (gl_perf_accum, 0, sizeof (gl_perf_accum));
+	gl_perf_frame_count = 0;
+}
+
+void R_PerfPrint_FrameEnd (void)
+{
+	int i;
+	double total_ms;
+	uint64_t ticks_to_ns_num, ticks_to_ns_den;
+	char line[512];
+	int n;
+
+	if (!gl_perfprint_active)
+		return;
+
+	gl_perf_frame_count++;
+	if (gl_perf_frame_count < PERF_PRINT_INTERVAL)
+		return;
+
+	if (!gl_perf_timebase_init)
+	{
+		mach_timebase_info (&gl_perf_timebase);
+		gl_perf_timebase_init = true;
+	}
+	ticks_to_ns_num = gl_perf_timebase.numer;
+	ticks_to_ns_den = gl_perf_timebase.denom ? gl_perf_timebase.denom : 1;
+
+	// Build single-line summary. Show per-region average ms over the
+	// PERF_PRINT_INTERVAL window, plus a synthesised total fps from the
+	// PERF_FRAME accumulator (the only region that wraps the full
+	// frame).
+	n = 0;
+	n += q_snprintf (line + n, sizeof (line) - n, "gl_perfprint:");
+	for (i = 0; i < PERF_REGION_COUNT; i++)
+	{
+		double ms = (double)gl_perf_accum[i] * (double)ticks_to_ns_num
+		          / (double)ticks_to_ns_den
+		          / 1.0e6
+		          / (double)PERF_PRINT_INTERVAL;
+		n += q_snprintf (line + n, sizeof (line) - n,
+		                 " %s=%.2fms", gl_perf_region_names[i], ms);
+		if (n >= (int)sizeof (line) - 32) break;
+	}
+	total_ms = (double)gl_perf_accum[PERF_FRAME] * (double)ticks_to_ns_num
+	         / (double)ticks_to_ns_den
+	         / 1.0e6
+	         / (double)PERF_PRINT_INTERVAL;
+	if (total_ms > 0.0)
+		q_snprintf (line + n, sizeof (line) - n,
+		            " (%.1f fps)", 1000.0 / total_ms);
+
+	Con_Printf ("%s\n", line);
+
+	memset (gl_perf_accum, 0, sizeof (gl_perf_accum));
+	gl_perf_frame_count = 0;
+}
+
+void R_PerfPrint_Init (void)
+{
+	Cvar_RegisterVariable (&gl_perfprint);
+	Cvar_SetCallback (&gl_perfprint, Gl_Perfprint_Callback);
+
+	if (COM_CheckParm ("-perfprint"))
+	{
+		Cvar_Set ("gl_perfprint", "1");
+		Con_Warning ("Phase 7 gl_perfprint enabled at command line\n");
+	}
+}
+
+#else /* !__APPLE__ */
+// Non-Apple build. Stubs so unconditional callers still link.
+void R_PerfPrint_FrameEnd (void) {}
+void R_PerfPrint_Init (void)     {}
+#endif
 
 //==============================================================================
 //
@@ -599,7 +719,9 @@ void R_SetupView (void)
 
 	R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
 
+	PERF_BEGIN(PERF_WARP);
 	R_UpdateWarpTextures (); //johnfitz -- do this before R_Clear
+	PERF_END(PERF_WARP);
 
 	R_Clear ();
 
@@ -926,27 +1048,44 @@ void R_RenderScene (void)
 
 	Fog_EnableGFog (); //johnfitz
 
+	// PPC port -- Phase 7: per-region timing. Macros expand to no-ops
+	// when gl_perfprint cvar is 0 (default), so this is free except for
+	// one branch per region per frame. See gl_perfprint.h.
+	PERF_BEGIN(PERF_SKY);
 	Sky_DrawSky (); //johnfitz
+	PERF_END(PERF_SKY);
 
+	PERF_BEGIN(PERF_WORLD);
 	R_DrawWorld ();
+	PERF_END(PERF_WORLD);
 
 	S_ExtraUpdate (); // don't let sound get messed up if going slow
 
 	R_DrawShadows (); //johnfitz -- render entity shadows
 
+	PERF_BEGIN(PERF_ALIAS);
 	R_DrawEntitiesOnList (false); //johnfitz -- false means this is the pass for nonalpha entities
+	PERF_END(PERF_ALIAS);
 
+	PERF_BEGIN(PERF_WORLD_WATER);
 	R_DrawWorld_Water (); //johnfitz -- drawn here since they might have transparency
+	PERF_END(PERF_WORLD_WATER);
 
+	PERF_BEGIN(PERF_ALIAS_ALPHA);
 	R_DrawEntitiesOnList (true); //johnfitz -- true means this is the pass for alpha entities
+	PERF_END(PERF_ALIAS_ALPHA);
 
 	R_RenderDlights (); //triangle fan dlights -- johnfitz -- moved after water
 
+	PERF_BEGIN(PERF_PARTICLES);
 	R_DrawParticles ();
+	PERF_END(PERF_PARTICLES);
 
 	Fog_DisableGFog (); //johnfitz
 
+	PERF_BEGIN(PERF_VIEWMODEL);
 	R_DrawViewModel (); //johnfitz -- moved here from R_RenderView
+	PERF_END(PERF_VIEWMODEL);
 
 	R_ShowTris (); //johnfitz
 

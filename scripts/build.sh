@@ -38,6 +38,11 @@ case "$TARGET" in
     VMIN=10.3
     CPUFLAGS='-mcpu=750 -O3'
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
+    # `-Wl,-w` silences the cosmetic `-mlong-branch which is no longer
+    # needed` linker warnings emitted by Apple's own crt1.o/crt2.o on
+    # the 10.3.9 SDK. Already documented in CLAUDE.md as harmless;
+    # silencing here so any future real link warning stands out.
+    EXTRA_LDFLAGS='-Wl,-w'
     ;;
   g4)
     MACH_TYPE=ppc
@@ -46,6 +51,7 @@ case "$TARGET" in
     VMIN=10.4
     CPUFLAGS='-mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450'
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
+    EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
     ;;
   lion)
     # Native x86_64 build on Lion. Lion has llvm-gcc-4.2 + clang; we
@@ -54,12 +60,20 @@ case "$TARGET" in
     # Lion's kernel is RELEASE_I386 (Macmini2,1 boots i386) but
     # user-space x86_64 binaries run fine via the kernel's 64-bit
     # compat layer.
+    #
+    # `-Qunused-arguments` silences ~330 lines of "argument unused
+    # during compilation" noise from clang about gcc-only flags
+    # (-fweb / -frename-registers) and version-min duplications that
+    # the Makefile.darwin pipeline routes to clang anyway. Cosmetic
+    # only; lets real lion warnings stand out instead of being lost
+    # in the noise.
     MACH_TYPE=x86_64
     CC=/usr/bin/clang
     SDK=""
     VMIN=10.7
-    CPUFLAGS='-arch x86_64 -mmacosx-version-min=10.7 -O3'
+    CPUFLAGS='-arch x86_64 -mmacosx-version-min=10.7 -O3 -Qunused-arguments'
     SYSROOT=""
+    EXTRA_LDFLAGS=''
     ;;
   *)
     echo "unknown target: $TARGET (expected: g3|g4|lion)" >&2
@@ -83,7 +97,7 @@ ssh "$LION" "cd quakespasm/Quake && \
   make -f Makefile.darwin MACH_TYPE=$MACH_TYPE -j2 \
     CC=$CC \
     CPUFLAGS=\"$SYSROOT $CPUFLAGS\" \
-    LDFLAGS=\"$SYSROOT $CPUFLAGS\" \
+    LDFLAGS=\"$SYSROOT $CPUFLAGS $EXTRA_LDFLAGS\" \
     > /tmp/qs-build-$TARGET.log 2>&1
   RC=\$?
   if [ \$RC -ne 0 ]; then tail -30 /tmp/qs-build-$TARGET.log; exit \$RC; fi

@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cfgfile.h"
 #include "bgmusic.h"
 #include "resource.h"
+#include "gl_perfprint.h"
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
 #if defined(USE_SDL2)
 #include <SDL2/SDL.h>
@@ -1554,8 +1555,21 @@ static void GL_Init (void)
 GL_BeginRendering -- sets values of glx, gly, glwidth, glheight
 =================
 */
+#ifdef __APPLE__
+// PPC port -- Phase 7: stamp frame start so GL_EndRendering can compute
+// the full frame's elapsed time (PERF_FRAME). Static rather than a
+// global because no other unit needs it. Only used when
+// gl_perfprint_active; otherwise the PERF_BEGIN/PERF_END pair compiles
+// to a single guarded conditional.
+static uint64_t gl_perf_frame_t0;
+#endif
+
 void GL_BeginRendering (int *x, int *y, int *width, int *height)
 {
+#ifdef __APPLE__
+	if (gl_perfprint_active)
+		gl_perf_frame_t0 = mach_absolute_time ();
+#endif
 	*x = *y = 0;
 	*width = vid.width;
 	*height = vid.height;
@@ -1570,12 +1584,19 @@ void GL_EndRendering (void)
 {
 	if (!scr_skipupdate)
 	{
+		PERF_BEGIN(PERF_SWAP);
 #if defined(USE_SDL2)
 		SDL_GL_SwapWindow(draw_context);
 #else
 		SDL_GL_SwapBuffers();
 #endif
+		PERF_END(PERF_SWAP);
 	}
+#ifdef __APPLE__
+	if (gl_perfprint_active)
+		gl_perf_accum[PERF_FRAME] += mach_absolute_time () - gl_perf_frame_t0;
+	R_PerfPrint_FrameEnd ();
+#endif
 }
 
 
