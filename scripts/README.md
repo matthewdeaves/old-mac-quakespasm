@@ -3,6 +3,16 @@
 Multi-host workflow: edit on Ubuntu → build on Lion → run on G3/G4/Lion.
 SSH config aliases (`lion`, `g4`, `PowerMacG3`) are expected in `~/.ssh/config`.
 
+> **Project goal** is best-looking Quake on G3/G4/Intel while keeping
+> framerate comfortably playable (≥ 60 fps on G4 + Lion, ≥ 20 fps on G3).
+> Visual upgrades that cost 10-15% fps are in scope when they leave the
+> cell above its playability threshold. **Every shipped per-target
+> visual / perf knob must be runtime-toggleable** (cvar or `-flag`) so
+> end-of-round code review can A/B individual contributions without
+> rebuild. Full toggle inventory lives in `CLAUDE.md` under
+> "Toggleable knobs". Per-target shipping defaults live in
+> `scripts/bundle/autoexec-{g3,g4}.cfg`.
+
 **Targets:**
 - `g3` — PowerMac B&W, 450 MHz PowerPC 750, Rage 128, 10.3.9 (PPC cross-build)
 - `g4` — Quicksilver, 867 MHz PowerPC 7450 + AltiVec, Radeon 9000, 10.4.11 (PPC cross-build)

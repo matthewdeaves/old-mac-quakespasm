@@ -33,11 +33,70 @@ push to a free GitHub remote without git-lfs.
 
 ## Goal in one line
 
-Optimize QuakeSpasm framerate + visual quality on PowerPC Macs (G3 Panther +
-G4 Tiger), via cross-builds from an Intel Mac mini on Lion. Lion itself is
-also a runnable bench reference (added 2026-05-08) — third data point that
-helps separate GPU-bound from CPU-bound regressions, since GMA 950 + Core 2
-Duo has a markedly different fillrate-vs-CPU balance than either PPC.
+Ship the **best-looking** QuakeSpasm port for G3 Panther + G4 Tiger +
+Lion Intel — keeping framerate "comfortably playable" on each (≥ 60 fps
+on G4, ≥ 60 fps on Lion, ≥ 20 fps on G3) but **not** treating raw fps
+as the only optimisation target. Visual upgrades that cost 10-15% fps
+are in scope when they leave the cell above its playability threshold.
+Lion itself is also a runnable bench reference (added 2026-05-08) —
+third data point that helps separate GPU-bound from CPU-bound effects,
+since GMA 950 + Core 2 Duo has a markedly different fillrate-vs-CPU
+balance than either PPC.
+
+**Toggleability is a hard requirement.** Every per-target visual /
+perf knob must be flippable at runtime (cvar) or at launch
+(command-line flag) so end-of-round code review can A/B individual
+contributions without a rebuild. See "Toggleable knobs" below for the
+current inventory.
+
+## Toggleable knobs (current inventory, 2026-05-08)
+
+Every per-target visual / perf decision shipped to date can be flipped
+without rebuild — most via cvars, some via launch-time `-flag` parsed
+in the relevant `*_Init`. Listed by class so end-of-round tuning has
+a complete map.
+
+**AltiVec phase opt-outs (cmdline, G4 only — `-flag` to disable):**
+
+| Flag             | Phase  | Default     | What it gates                                  | File parsed |
+|------------------|--------|-------------|------------------------------------------------|-------------|
+| `-noaltivec-snd` | 4.2    | enabled     | 16-bit sound mixer (`SND_PaintChannelFrom16`)  | `snd_dma.c` `S_Init` |
+| `-altivec-lm`    | 4.4    | **disabled** (opt-in) | Lightmap compose loop (`R_BuildLightMap`) — regressed -0.5..-2.3% in smoke; preserved in tree for future tuning. See PPC_PLAN.md §13.2 status. | `gl_rmisc.c` `R_Init` |
+| `-noaltivec-mip` | 4.5    | enabled     | Mipmap chain build (`TexMgr_MipMap{W,H}`) — load-time only | `gl_texmgr.c` `TexMgr_Init` |
+
+**Diagnostics (cmdline + cvar, both targets):**
+
+| Flag/cvar      | Phase | Default | What it does |
+|----------------|-------|---------|--------------|
+| `-perfprint` (cmdline) / `gl_perfprint` (cvar) | 7 | 0 (silent) | Per-region renderer timing every 60 frames — see Quake/gl_perfprint.h for region list |
+
+**Visual cvars (runtime, set in `scripts/bundle/autoexec-{g3,g4}.cfg`):**
+
+| Cvar                    | G3 default | G4 default | Lion default | Notes |
+|-------------------------|------------|------------|--------------|-------|
+| `r_oldwater`            | 1 (classic warp) | 0 (new shader) | (engine default) | G3 set 1 because Rage 128 R128 has a refraction bug at 640 with new shader; G4 has the headroom. Phase 0 + Round v2 epilogue. |
+| `r_particles`           | 2          | (default 1) | (default)    | G3 reduced particle quality. Phase 0. |
+| `gl_texture_anisotropy` | (default 1) | 8           | (default)    | G4 anisotropic filtering. Phase 0. |
+| `r_shadows`             | (default 0) | 1           | (default)    | G4 alias drop-shadow. §13.6, costs -11% but stays > 60 fps. Defensively re-cleared in autoexec because CVAR_ARCHIVE makes a stale `1` from any past session sticky. |
+| `gl_texturemode`        | (default GL_LINEAR_MIPMAP_NEAREST) | `GL_LINEAR_MIPMAP_LINEAR` (trilinear) | (default) | G4 trilinear pairs with anisotropy 8. §13.6. |
+
+**Hard-coded (no runtime toggle yet) — flag if a future round wants
+to A/B these:** Phase 1 `frsqrte` mathlib, Phase 1.1 client vertex
+arrays + CVA, Phase 2.1 BGRA `8_8_8_8_REV` lightmap upload, Phase 2.2
+APPLE_client_storage, Phase 2.3 STORAGE_CACHED_APPLE per-texture hint,
+Phase 3.1/3.2/3.3 APPLE_vertex_array_range pool + multitex array
+conversion, Phase 4.1 + 4.6 alias lerp + color fuse AltiVec. Most of
+these are foundational and bisected at landing time; not worth a
+runtime toggle unless a regression is suspected. Add a
+`-noaltivec-lerp` (Phase 4.1 + 4.6) follow-up if end-of-round review
+wants to A/B alias-side AltiVec specifically.
+
+**Why this matters:** project goal is best-looking Quake at
+playable fps; the only way to navigate that trade-space honestly is
+to be able to flip individual contributions at runtime and watch
+fps + visuals together. Gate any new perf or visual phase behind a
+named knob unless you have a strong reason not to (e.g. a code-size
+win that's only realised by removing the scalar fallback).
 
 ## Hosts
 
