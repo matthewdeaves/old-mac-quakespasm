@@ -170,6 +170,28 @@ re-run after every Track B phase to catch regressions early.
 
 ---
 
+## PPC gcc-4.0 sweep (G4 build)
+
+`scripts/build.sh g4` with default `-O3 -Wall` reports **3 warnings**, all
+"may be used uninitialized" false positives where gcc-4.0's analysis
+fails to trace through pointer-out parameters:
+
+* `gl_draw.c:228 'y' may be used uninitialized` — `Scrap_AllocBlock(p->w, p->h, &x, &y)` on the prior line initialises x/y by reference.
+* `gl_draw.c:228 'x' may be used uninitialized` — same call.
+* `pr_edict.c:765 'new_p' may be used uninitialized` — `PR_AllocString(l, &new_p)` initialises `new_p` by reference.
+
+All three are gcc-4.0 conservative-analysis artifacts; gcc 15 on the
+Linux build doesn't surface them. Disposition: ignore. If they ever
+become noise, suppress with `__attribute__((unused))` or a no-op init.
+
+Extended warnings (`-Wcast-align`, `-Wshadow`, `-Wmissing-prototypes`,
+etc.) on PPC produce findings that overlap with the Linux sweep (mainly
+the 322 `-Wmissing-prototypes` items — TU-private functions that should
+be `static`). No additional real bugs surface. The Linux build with full
+warnings is the canonical bug-finding view; PPC sweep is redundant.
+
+---
+
 ## UBSan findings (runtime)
 
 `scripts/build-linux.sh ubsan` + `+map start +waitN +quit` against the
