@@ -128,4 +128,21 @@ if [ "$MODE" = "fat" ]; then
 fi
 
 ssh "$HOST" 'chmod +x ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null
+
+# Round v4 §14.7: scrub any custom-icon overlay left from a previous
+# Get-Info-paste icon edit. The canonical icon now lives at
+# Contents/Resources/QuakeSpasm.icns (sourced from MacOSX/QuakeSpasm.icns
+# in the repo). Without this scrub Finder would keep showing the old
+# pasted overlay because kHasCustomIcon makes the Icon\r resource fork
+# win over CFBundleIconFile.
+APP=~/Desktop/quake/Quakespasm.app
+[ -e "$APP/Icon"$'"'"'\r'"'"'" ] && rm -f "$APP/Icon"$'"'"'\r'"'"'"
+# SetFile is in /Developer/Tools on Tiger and at /usr/bin on Lion. -a c
+# clears the kHasCustomIcon flag (lowercase = clear, capital = set).
+if command -v SetFile >/dev/null 2>&1; then
+  SetFile -a c "$APP" 2>/dev/null || true
+elif [ -x /Developer/Tools/SetFile ]; then
+  /Developer/Tools/SetFile -a c "$APP" 2>/dev/null || true
+fi
+
 echo "[deploy] OK on $(hostname -s)"'
