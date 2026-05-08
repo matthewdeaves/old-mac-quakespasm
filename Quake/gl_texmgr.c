@@ -24,6 +24,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+// PPC port -- Phase 4.5: AltiVec byte-pair averaging in TexMgr_MipMapW
+// and TexMgr_MipMapH. G3 (no -maltivec) compiles cleanly via the
+// __ALTIVEC__ guard.
+#ifdef __ALTIVEC__
+#include <altivec.h>
+
+// Runtime opt-out (parsed in TexMgr_Init): pass -noaltivec-mip on the
+// command line to fall back to the scalar mipmap chain build. Useful
+// if a visual regression (mip-banding, off-by-one rounding artefact)
+// looks like it could be the AltiVec path.
+qboolean mip_altivec_disabled = false;
+#endif
+
 static const int	gl_solid_format = 3;
 static const int	gl_alpha_format = 4;
 
@@ -704,6 +717,18 @@ void TexMgr_Init (void)
 	// poll max size from hardware
 	glGetIntegerv (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
 
+#ifdef __ALTIVEC__
+	// PPC port -- Phase 4.5: -noaltivec-mip disables the AltiVec
+	// vec_avg byte-pair averaging in TexMgr_MipMapW/H. Pure load-time
+	// path (mipchain build during atlas upload), so this won't move
+	// timedemo fps; the opt-out exists for visual-bug debugging only.
+	if (COM_CheckParm ("-noaltivec-mip"))
+	{
+		mip_altivec_disabled = true;
+		Con_Warning ("Phase 4.5 AltiVec mipmap chain build disabled at command line\n");
+	}
+#endif
+
 	// load notexture images
 	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (src_offset_t)notexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
 	nulltexture = TexMgr_LoadImage (NULL, "nulltexture", 2, 2, SRC_RGBA, nulltexture_data, "", (src_offset_t)nulltexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
@@ -781,6 +806,88 @@ static unsigned *TexMgr_MipMapW (unsigned *data, int width, int height)
 	out = in = (byte *)data;
 	size = (width*height)>>1;
 
+#ifdef __ALTIVEC__
+	// PPC port -- Phase 4.5: 4-pixel-per-iteration AltiVec horizontal
+	// mipmap downscale. Each output 4-byte pixel is the average of two
+	// horizontally adjacent input pixels, so 4 output pixels need 32
+	// input bytes (8 input pixels).
+	//
+	// Layout: load v0 = bytes 0..15 (input pixels A0,B0,A1,B1) and
+	// v1 = bytes 16..31 (A2,B2,A3,B3). We need:
+	//   a = (A0,A1,A2,A3) — bytes 0..3 + 8..11 of v0, then 0..3 + 8..11 of v1
+	//   b = (B0,B1,B2,B3) — bytes 4..7 + 12..15 of v0, then 4..7 + 12..15 of v1
+	// then `out_4pixels = vec_avg(a, b)`, 16-byte store.
+	//
+	// vec_avg is u8 (a + b + 1) >> 1 — adds +1 rounding the scalar
+	// reference omits. Difference is at most 1 LSB per byte, invisible
+	// in mipmap chain construction (rounded average is arguably more
+	// correct anyway). Documented as visual sign-off V9 in PPC_PLAN.md.
+	//
+	// in/out alias the same buffer (read/modify in place); we read
+	// 32 bytes ahead before writing 16, so the in-place aliasing is
+	// safe — the loop never reads bytes it has already overwritten.
+	if (!mip_altivec_disabled && size >= 4)
+	{
+		// Permute masks to extract even (A) and odd (B) 4-byte pixel
+		// chunks from the 32-byte (v0||v1) concatenation.
+		const vector unsigned char perm_a = (vector unsigned char){
+			 0,  1,  2,  3,    8,  9, 10, 11,
+			16, 17, 18, 19,   24, 25, 26, 27
+		};
+		const vector unsigned char perm_b = (vector unsigned char){
+			 4,  5,  6,  7,   12, 13, 14, 15,
+			20, 21, 22, 23,   28, 29, 30, 31
+		};
+		int vec_iters = size / 4;   // 4 output pixels per AltiVec iter
+		int v;
+
+		for (v = 0; v < vec_iters; v++, out += 16, in += 32)
+		{
+			// Unaligned-safe load of 32 bytes via lvsl + double-load.
+			vector unsigned char shift = vec_lvsl (0, in);
+			vector unsigned char raw0_lo = vec_ld ( 0, in);
+			vector unsigned char raw0_hi = vec_ld (15, in);
+			vector unsigned char raw1_lo = raw0_hi;
+			vector unsigned char raw1_hi = vec_ld (31, in);
+			vector unsigned char v0 = vec_perm (raw0_lo, raw0_hi, shift);
+			vector unsigned char v1 = vec_perm (raw1_lo, raw1_hi, shift);
+
+			vector unsigned char a = vec_perm (v0, v1, perm_a);
+			vector unsigned char b = vec_perm (v0, v1, perm_b);
+			vector unsigned char avg = vec_avg (a, b);
+
+			// Aligned store if out happens to be 16-aligned, lvsr+perm
+			// dance otherwise. Since input was unaligned-loaded above,
+			// out has the same alignment as in (in/out alias). Use the
+			// safe vec_lvsr + double-load + perm + double-store pattern.
+			vector unsigned char store_perm = vec_lvsr (0, out);
+			vector unsigned char store_lo = vec_ld ( 0, out);
+			vector unsigned char store_hi = vec_ld (15, out);
+			vector unsigned char store_mask =
+				vec_perm ((vector unsigned char)vec_splat_u8 (0),
+				          (vector unsigned char)vec_splat_u8 (-1),
+				          store_perm);
+			vector unsigned char shifted = vec_perm (avg, avg, store_perm);
+			store_lo = vec_sel (store_lo, shifted, store_mask);
+			store_hi = vec_sel (shifted, store_hi, store_mask);
+			vec_st (store_lo,  0, out);
+			vec_st (store_hi, 15, out);
+		}
+
+		i = vec_iters * 4;
+	}
+	else
+		i = 0;
+
+	// Scalar tail (and full-loop fallback when AltiVec is off).
+	for (; i < size; i++, out += 4, in += 8)
+	{
+		out[0] = (in[0] + in[4])>>1;
+		out[1] = (in[1] + in[5])>>1;
+		out[2] = (in[2] + in[6])>>1;
+		out[3] = (in[3] + in[7])>>1;
+	}
+#else
 	for (i = 0; i < size; i++, out += 4, in += 8)
 	{
 		out[0] = (in[0] + in[4])>>1;
@@ -788,6 +895,7 @@ static unsigned *TexMgr_MipMapW (unsigned *data, int width, int height)
 		out[2] = (in[2] + in[6])>>1;
 		out[3] = (in[3] + in[7])>>1;
 	}
+#endif
 
 	return data;
 }
@@ -808,6 +916,55 @@ static unsigned *TexMgr_MipMapH (unsigned *data, int width, int height)
 
 	for (i = 0; i < height; i++, in += width)
 	{
+#ifdef __ALTIVEC__
+		// PPC port -- Phase 4.5: AltiVec vertical mipmap row-pair
+		// average. 16 bytes per iter; each output byte is the average
+		// of input row N's byte and input row N+1's byte at the same
+		// column. Pure 16-byte vec_avg, no shuffle needed (rows are
+		// contiguous in memory, just a `width` byte stride apart).
+		if (!mip_altivec_disabled && width >= 16)
+		{
+			int vec_bytes = width & ~15;   // largest multiple of 16 ≤ width
+			j = 0;
+			for (; j < vec_bytes; j += 16, out += 16, in += 16)
+			{
+				// Two unaligned-safe 16-byte loads.
+				vector unsigned char shift_a = vec_lvsl (0, in);
+				vector unsigned char a_lo = vec_ld ( 0, in);
+				vector unsigned char a_hi = vec_ld (15, in);
+				vector unsigned char a    = vec_perm (a_lo, a_hi, shift_a);
+
+				vector unsigned char shift_b = vec_lvsl (0, in + width);
+				vector unsigned char b_lo = vec_ld ( 0, in + width);
+				vector unsigned char b_hi = vec_ld (15, in + width);
+				vector unsigned char b    = vec_perm (b_lo, b_hi, shift_b);
+
+				vector unsigned char avg = vec_avg (a, b);
+
+				vector unsigned char store_perm = vec_lvsr (0, out);
+				vector unsigned char store_lo  = vec_ld ( 0, out);
+				vector unsigned char store_hi  = vec_ld (15, out);
+				vector unsigned char store_mask =
+					vec_perm ((vector unsigned char)vec_splat_u8 (0),
+					          (vector unsigned char)vec_splat_u8 (-1),
+					          store_perm);
+				vector unsigned char shifted = vec_perm (avg, avg, store_perm);
+				store_lo = vec_sel (store_lo, shifted, store_mask);
+				store_hi = vec_sel (shifted, store_hi, store_mask);
+				vec_st (store_lo,  0, out);
+				vec_st (store_hi, 15, out);
+			}
+			// Scalar tail for remaining bytes in this row.
+			for (; j < width; j += 4, out += 4, in += 4)
+			{
+				out[0] = (in[0] + in[width+0])>>1;
+				out[1] = (in[1] + in[width+1])>>1;
+				out[2] = (in[2] + in[width+2])>>1;
+				out[3] = (in[3] + in[width+3])>>1;
+			}
+			continue;
+		}
+#endif
 		for (j = 0; j < width; j += 4, out += 4, in += 4)
 		{
 			out[0] = (in[0] + in[width+0])>>1;
