@@ -243,6 +243,24 @@ R_UpdateWarpTextures -- johnfitz -- each frame, update warping textures
 #ifdef __WATCOMC__ /* OW1.9 doesn't have floorf() */
 #define floorf(_val)		(float)floor((_val))
 #endif
+
+// PPC port -- §14.3 item 3 (Pass A §6a). `R_UpdateWarpTextures`
+// previously used a glBegin/glEnd block per warp strip. Per-strip
+// driver overhead × ~8 strips per warp texture × ~10 warp textures
+// per typical map = ~80 glBegin/glEnd round-trips per frame on a
+// water-heavy map. Converting to client-array submission (precompute
+// strip verts into stack-local buffers, single glDrawArrays per strip)
+// follows the Phase 1.1 + Sky_DrawFaceQuad pattern.
+//
+// Predicted impact: +0.5-1% on cells with visible water (per Pass A).
+// Lion most likely beneficiary because GMA 950 driver overhead
+// dominates per-call. G3 + G4 should be flat-to-slightly-positive.
+//
+// Worst-case strip vertex count: warptess can drop to 128/64 = 2.0,
+// giving 128/2 = 64 y-steps × 2 verts = 128 verts/strip. Allocate
+// 130 to stay safe of the rounding-error guard `y<128.01`.
+qboolean warpedarrays_disabled = false;   // -nowarpedarrays opt-out
+
 void R_UpdateWarpTextures (void)
 {
 	texture_t *tx;
@@ -265,6 +283,44 @@ void R_UpdateWarpTextures (void)
 		//render warp
 		GL_SetCanvas (CANVAS_WARPIMAGE);
 		GL_Bind (tx->gltexture);
+		if (!warpedarrays_disabled)
+		{
+			// Client-array path: precompute per-strip positions +
+			// texcoords into stack scratch, then single glDrawArrays.
+			// Vertex format is (px, py, s, t) — 4 floats per vert,
+			// interleaved so we can serve both pointers off the same
+			// buffer with a non-zero stride.
+			float strip[130 * 4];
+
+			glVertexPointer  (2, GL_FLOAT, 4*sizeof(float), strip);
+			glTexCoordPointer(2, GL_FLOAT, 4*sizeof(float), strip + 2);
+			glEnableClientState (GL_VERTEX_ARRAY);
+			glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+
+			for (x=0.0; x<128.0; x=x2)
+			{
+				int n = 0;
+				x2 = x + warptess;
+				for (y=0.0; y<128.01 && n < 130; y+=warptess) // .01 for rounding errors
+				{
+					strip[n*4+0] = x;
+					strip[n*4+1] = y;
+					strip[n*4+2] = WARPCALC(x,y);
+					strip[n*4+3] = WARPCALC(y,x);
+					n++;
+					strip[n*4+0] = x2;
+					strip[n*4+1] = y;
+					strip[n*4+2] = WARPCALC(x2,y);
+					strip[n*4+3] = WARPCALC(y,x2);
+					n++;
+				}
+				glDrawArrays (GL_TRIANGLE_STRIP, 0, n);
+			}
+
+			glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+			glDisableClientState (GL_VERTEX_ARRAY);
+		}
+		else
 		for (x=0.0; x<128.0; x=x2)
 		{
 			x2 = x + warptess;

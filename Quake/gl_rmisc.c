@@ -240,6 +240,18 @@ void R_Init (void)
 
 	R_PerfPrint_Init ();   // PPC port -- Phase 7: register gl_perfprint cvar + parse -perfprint
 
+	// PPC port -- §14.3 item 3: -nowarpedarrays falls back to the
+	// pre-§14.3 glBegin/glEnd warp tess loop. Default-on (client-array
+	// path is the new shipping default).
+	{
+		extern qboolean warpedarrays_disabled;
+		if (COM_CheckParm("-nowarpedarrays"))
+		{
+			warpedarrays_disabled = true;
+			Con_Warning ("Warp-tess client-array path disabled at command line\n");
+		}
+	}
+
 #ifdef __ALTIVEC__
 	// PPC port -- Phase 4.4: AltiVec lightmap compose loop in
 	// R_BuildLightMap. Default-DISABLED (regressed -0.5..-2.3% on G4
