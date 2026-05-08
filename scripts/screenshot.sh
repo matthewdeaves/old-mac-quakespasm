@@ -209,6 +209,7 @@ rm -f "\$LOGFILE"
 ./Quakespasm.app/Contents/MacOS/quakespasm \\
   -nolauncher -basedir "\$HOME/Desktop/quake" \\
   -fullscreen -width $WIDTH -height $HEIGHT \\
+  -noarchautoexec \\
   +exec screenshot.cfg \\
   > "\$LOGFILE" 2>&1 &
 PID=\$!

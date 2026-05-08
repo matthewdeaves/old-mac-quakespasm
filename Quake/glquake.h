@@ -187,6 +187,8 @@ extern	qboolean	gl_anisotropy_able;
 #define GL_TEXTURE_LOD_BIAS_EXT		0x8501
 #endif
 extern	qboolean	gl_texture_lod_bias_able;
+extern	cvar_t		gl_texture_lodbias;
+void	TexMgr_LODBias_f (cvar_t *var);
 
 //ericw -- VBO
 extern PFNGLBINDBUFFERARBPROC  GL_BindBufferFunc;

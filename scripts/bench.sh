@@ -61,6 +61,7 @@ for i in $(seq 1 $RUNS); do
     rm -f qconsole.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
       -fullscreen -width $W -height $H \\
+      -noarchautoexec \\
       +vid_wait 0 \\
       +timedemo $DEMO > /dev/null 2>&1 &
     PID=\$!

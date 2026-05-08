@@ -900,13 +900,22 @@ void Host_Init (void)
 		// autoexec.cfg. Compile-time slice selection: ppc7400 (G4 AltiVec),
 		// ppc750 (G3), or x86_64 (Lion). Missing per-arch file is non-fatal:
 		// `exec` prints "couldn't exec FOO" to console and continues.
+		//
+		// `-noarchautoexec` cmdline flag suppresses the hook entirely —
+		// used by bench/screenshot scripts whose own cmdline `-width N`
+		// would otherwise be clobbered by the autoexec setting vid_width
+		// to 1024 (production launch default). With the flag, those tools
+		// keep full control over the cvar set.
+		if (!COM_CheckParm("-noarchautoexec"))
+		{
 #if defined(__VEC__) || defined(__ALTIVEC__)
-		Cbuf_AddText ("exec autoexec-ppc7400.cfg\n");
+			Cbuf_AddText ("exec autoexec-ppc7400.cfg\n");
 #elif defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
-		Cbuf_AddText ("exec autoexec-ppc750.cfg\n");
+			Cbuf_AddText ("exec autoexec-ppc750.cfg\n");
 #elif defined(__x86_64__) || defined(__amd64__)
-		Cbuf_AddText ("exec autoexec-x86_64.cfg\n");
+			Cbuf_AddText ("exec autoexec-x86_64.cfg\n");
 #endif
+		}
 	}
 
 	if (cls.state == ca_dedicated)

@@ -841,6 +841,14 @@ static void VID_Restart (void)
 	GL_SetupState ();
 	Fog_SetupState ();
 
+	// PPC port (round v4): re-apply gl_texture_lodbias. The bias lives in
+	// per-TMU TexEnv state, not per-texture, so TexMgr_ReloadImages
+	// doesn't carry it across the context rebuild. Without this, a
+	// `vid_restart` (manual or autoexec-driven during boot) would silently
+	// reset bias to 0 on TMU0 even though the cvar still says e.g. -1.5.
+	if (gl_texture_lod_bias_able)
+		TexMgr_LODBias_f (&gl_texture_lodbias);
+
 	//warpimages needs to be recalculated
 	TexMgr_RecalcWarpImageSize ();
 

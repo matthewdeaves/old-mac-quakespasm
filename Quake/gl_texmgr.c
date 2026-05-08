@@ -65,7 +65,11 @@ static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_NONE};
 // G4 / Radeon 9000 mipmap-blur reported on distant brick surfaces.
 // Engine default 0 preserves upstream behaviour. CVAR_ARCHIVE so user
 // console adjustments stick across launches.
-static cvar_t	gl_texture_lodbias = {"gl_texture_lodbias", "0", CVAR_ARCHIVE};
+//
+// Non-static because gl_vidsdl.c calls TexMgr_LODBias_f after vid_restart
+// to re-apply the bias to the rebuilt GL context (TMU0 TexEnv state is
+// reset by the GL re-init).
+cvar_t	gl_texture_lodbias = {"gl_texture_lodbias", "0", CVAR_ARCHIVE};
 static GLint	gl_hardware_maxsize;
 
 #define	MAX_GLTEXTURES	4096
@@ -211,7 +215,7 @@ Clamp to a sane range: -4..4. Most drivers cap at 8 anyway, but going
 beyond -2 is already crunchy aliasing on Quake's small textures.
 ===============
 */
-static void TexMgr_LODBias_f (cvar_t *var)
+void TexMgr_LODBias_f (cvar_t *var)
 {
 	if (!gl_texture_lod_bias_able)
 		return;
