@@ -1,0 +1,85 @@
+LOG started on: 05/08/2026 14:45:04 
+Playing registered version.
+Console initialized.
+UDP Initialized
+Exe: 13:56:06 May  8 2026
+256.0 megabyte heap
+Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: ATI Technologies Inc.
+GL_RENDERER: ATI Radeon 9000 OpenGL Engine
+GL_VERSION: 1.3 ATI-1.4.18
+Warning: OpenGL version < 1.5, skipping ARB_vertex_buffer_object check
+FOUND: EXT_compiled_vertex_array
+FOUND: APPLE_client_storage
+FOUND: APPLE_texture_range
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 6
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SWAP_CONTROL
+FOUND: EXT_texture_filter_anisotropic
+Warning: texture_non_power_of_two not supported
+Warning: OpenGL version < 2, GLSL not available
+Warning: GLSL gamma not available, using hardware gamma
+Warning: GLSL alias model rendering not available, using Fitz renderer
+Warning: EXT_packed_pixels disabled on big endian systemsWarning: glGenerateMipmap not available, liquids won't have mipmaps
+Warning: Phase 7 gl_perfprint enabled at command line
+SDL detected 1 CD-ROM drive 
+CDAudio initialized (SDL, using Mac OS X CD-ROM Device)
+CDAudio_Init: No CD in drive
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '.'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Unknown command "vid_wait"
+Playing demo from demo3.dem.
+3 demo(s) in loop
+
+
+
+The Door To Chthon
+Using protocol 15
+You got the shells
+You got the rockets
+gl_perfprint: frame=16.24ms warp=0.44ms sky=0.20ms world=2.08ms water=0.05ms alias=4.25ms alpha=0.00ms part=0.13ms vmodel=0.37ms swap=0.13ms (61.6 fps)
+gl_perfprint: frame=12.56ms warp=0.22ms sky=0.05ms world=2.59ms water=0.10ms alias=5.64ms alpha=0.00ms part=0.30ms vmodel=0.37ms swap=0.12ms (79.6 fps)
+You get 2 rockets  
+gl_perfprint: frame=12.41ms warp=0.13ms sky=0.08ms world=2.51ms water=0.06ms alias=4.92ms alpha=0.01ms part=0.57ms vmodel=0.45ms swap=0.10ms (80.6 fps)
+You receive 25 health
+You got the Rocket Launcher
+gl_perfprint: frame=14.90ms warp=0.19ms sky=0.36ms world=2.16ms water=0.07ms alias=6.15ms alpha=0.00ms part=0.43ms vmodel=0.62ms swap=0.77ms (67.1 fps)
+You receive 25 health
+You get 2 rockets  
+gl_perfprint: frame=11.08ms warp=0.19ms sky=0.03ms world=1.68ms water=0.06ms alias=3.92ms alpha=0.00ms part=0.76ms vmodel=0.38ms swap=1.12ms (90.3 fps)
+gl_perfprint: frame=17.38ms warp=0.22ms sky=0.37ms world=2.88ms water=0.10ms alias=8.04ms alpha=0.00ms part=0.93ms vmodel=0.52ms swap=0.14ms (57.5 fps)
+You got armor
+gl_perfprint: frame=7.03ms warp=0.04ms sky=0.04ms world=1.09ms water=0.01ms alias=1.62ms alpha=0.00ms part=0.53ms vmodel=0.85ms swap=0.52ms (142.3 fps)
+gl_perfprint: frame=10.46ms warp=0.06ms sky=0.42ms world=1.65ms water=0.02ms alias=3.74ms alpha=0.00ms part=0.57ms vmodel=0.56ms swap=0.23ms (95.6 fps)
+gl_perfprint: frame=13.34ms warp=0.03ms sky=0.05ms world=1.44ms water=0.02ms alias=5.76ms alpha=0.00ms part=1.58ms vmodel=0.49ms swap=0.12ms (75.0 fps)
+gl_perfprint: frame=16.05ms warp=0.22ms sky=0.06ms world=2.40ms water=0.09ms alias=7.54ms alpha=0.01ms part=1.29ms vmodel=0.62ms swap=0.22ms (62.3 fps)
+gl_perfprint: frame=13.65ms warp=0.21ms sky=0.06ms world=1.89ms water=0.10ms alias=6.34ms alpha=0.00ms part=0.57ms vmodel=0.65ms swap=0.18ms (73.3 fps)
+gl_perfprint: frame=12.74ms warp=0.18ms sky=0.06ms world=1.75ms water=0.07ms alias=4.75ms alpha=0.01ms part=1.01ms vmodel=0.60ms swap=0.13ms (78.5 fps)
+You got the rockets
+gl_perfprint: frame=17.08ms warp=0.17ms sky=0.06ms world=1.84ms water=0.09ms alias=8.37ms alpha=0.00ms part=1.61ms vmodel=0.51ms swap=0.25ms (58.6 fps)
+gl_perfprint: frame=6.81ms warp=0.11ms sky=0.04ms world=0.63ms water=0.04ms alias=2.14ms alpha=0.00ms part=0.31ms vmodel=0.35ms swap=1.22ms (146.9 fps)
+gl_perfprint: frame=8.36ms warp=0.12ms sky=0.04ms world=0.90ms water=0.03ms alias=3.66ms alpha=0.00ms part=0.50ms vmodel=0.36ms swap=0.61ms (119.6 fps)
+You receive 100 health
+gl_perfprint: frame=8.35ms warp=0.14ms sky=0.04ms world=0.91ms water=0.04ms alias=2.93ms alpha=0.00ms part=0.33ms vmodel=0.31ms swap=1.12ms (119.7 fps)
+gl_perfprint: frame=8.74ms warp=0.14ms sky=0.05ms world=1.30ms water=0.05ms alias=3.52ms alpha=0.00ms part=0.16ms vmodel=0.43ms swap=0.37ms (114.4 fps)
+You get 2 rockets  
+You got the nails
+You got the silver runekey
+
+        Your way has been lit...
+
+gl_perfprint: frame=8.30ms warp=0.18ms sky=0.05ms world=1.36ms water=0.06ms alias=2.13ms alpha=0.00ms part=0.69ms vmodel=0.43ms swap=0.68ms (120.5 fps)
+1090 frames  13.8 seconds  78.9 fps
+gl_perfprint: frame=9.35ms warp=0.15ms sky=0.02ms world=0.80ms water=0.05ms alias=0.48ms alpha=0.00ms part=0.25ms vmodel=0.25ms swap=1.45ms (107.0 fps)
+gl_perfprint: frame=9.51ms warp=0.15ms sky=0.02ms world=0.80ms water=0.05ms alias=0.48ms alpha=0.00ms part=0.25ms vmodel=0.25ms swap=1.45ms (105.1 fps)

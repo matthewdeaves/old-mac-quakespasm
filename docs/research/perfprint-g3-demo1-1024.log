@@ -1,0 +1,84 @@
+LOG started on: 05/08/2026 14:50:44 
+Playing registered version.
+Console initialized.
+UDP Initialized
+Exe: 13:56:28 May  8 2026
+256.0 megabyte heap
+Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: ATI Technologies Inc.
+GL_RENDERER: ATI Rage 128 OpenGL Engine
+GL_VERSION: 1.1 ATI-1.3.28
+Warning: OpenGL version < 1.5, skipping ARB_vertex_buffer_object check
+Warning: EXT_compiled_vertex_array Lock skipped on Rage 128 (in-game corruption; arrays unaffected)
+FOUND: APPLE_client_storage
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 2
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SWAP_CONTROL
+Warning: texture_filter_anisotropic not supported
+Warning: texture_non_power_of_two not supported
+Warning: OpenGL version < 2, GLSL not available
+Warning: GLSL gamma not available, using hardware gamma
+Warning: GLSL alias model rendering not available, using Fitz renderer
+Warning: EXT_packed_pixels disabled on big endian systemsWarning: glGenerateMipmap not available, liquids won't have mipmaps
+Warning: Phase 7 gl_perfprint enabled at command line
+Couldn't init SDL cdrom: SDL not built with cdrom support
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '.'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Unknown command "on"
+Unknown command "vid_wait"
+Playing demo from demo1.dem.
+3 demo(s) in loop
+
+
+
+the Necropolis
+Using protocol 15
+You got the shells
+gl_perfprint: frame=34.90ms warp=0.00ms sky=0.02ms world=0.89ms water=0.01ms alias=0.99ms alpha=0.00ms part=0.00ms vmodel=0.40ms swap=22.68ms (28.7 fps)
+You got the Grenade Launcher
+gl_perfprint: frame=45.47ms warp=0.00ms sky=0.04ms world=3.88ms water=0.01ms alias=10.57ms alpha=0.00ms part=0.95ms vmodel=0.49ms swap=21.97ms (22.0 fps)
+You receive 25 health
+You get 2 rockets  
+gl_perfprint: frame=50.86ms warp=0.00ms sky=0.05ms world=7.82ms water=0.01ms alias=14.31ms alpha=0.01ms part=3.33ms vmodel=0.33ms swap=20.34ms (19.7 fps)
+gl_perfprint: frame=47.47ms warp=0.00ms sky=0.06ms world=6.73ms water=0.01ms alias=18.15ms alpha=0.01ms part=2.78ms vmodel=0.33ms swap=16.26ms (21.1 fps)
+You got the rockets
+You got the nailgun
+gl_perfprint: frame=41.13ms warp=0.00ms sky=0.04ms world=1.59ms water=0.01ms alias=1.63ms alpha=0.00ms part=0.37ms vmodel=0.69ms swap=35.09ms (24.3 fps)
+gl_perfprint: frame=38.93ms warp=0.00ms sky=0.04ms world=2.24ms water=0.00ms alias=0.88ms alpha=0.00ms part=0.00ms vmodel=0.57ms swap=33.91ms (25.7 fps)
+You got the nails
+gl_perfprint: frame=45.10ms warp=0.00ms sky=0.05ms world=2.41ms water=0.03ms alias=6.19ms alpha=0.00ms part=0.02ms vmodel=0.56ms swap=33.35ms (22.2 fps)
+You got the nails
+You receive 15 health
+You receive 15 health
+gl_perfprint: frame=40.84ms warp=0.00ms sky=0.03ms world=1.01ms water=0.17ms alias=2.70ms alpha=0.00ms part=0.00ms vmodel=0.54ms swap=28.56ms (24.5 fps)
+You got the rockets
+gl_perfprint: frame=44.24ms warp=0.00ms sky=0.04ms world=5.61ms water=0.10ms alias=2.89ms alpha=0.00ms part=0.43ms vmodel=0.57ms swap=31.48ms (22.6 fps)
+gl_perfprint: frame=41.74ms warp=0.00ms sky=0.03ms world=3.64ms water=0.19ms alias=1.84ms alpha=0.00ms part=0.38ms vmodel=0.56ms swap=30.17ms (24.0 fps)
+You get 2 rockets  
+gl_perfprint: frame=42.91ms warp=0.00ms sky=0.03ms world=4.24ms water=0.11ms alias=2.08ms alpha=0.00ms part=0.51ms vmodel=0.55ms swap=32.52ms (23.3 fps)
+You got the nails
+You got the nails
+You receive 25 health
+gl_perfprint: frame=49.97ms warp=0.00ms sky=0.04ms world=5.68ms water=0.21ms alias=3.28ms alpha=0.00ms part=0.17ms vmodel=0.57ms swap=37.38ms (20.0 fps)
+gl_perfprint: frame=40.77ms warp=0.00ms sky=0.03ms world=6.14ms water=0.10ms alias=1.16ms alpha=0.00ms part=0.26ms vmodel=0.56ms swap=30.32ms (24.5 fps)
+
+         You need the gold key
+
+gl_perfprint: frame=42.86ms warp=0.00ms sky=0.03ms world=3.23ms water=0.02ms alias=2.66ms alpha=0.00ms part=0.10ms vmodel=0.54ms swap=34.17ms (23.3 fps)
+gl_perfprint: frame=41.57ms warp=0.00ms sky=0.03ms world=1.97ms water=0.42ms alias=1.99ms alpha=0.00ms part=0.00ms vmodel=0.53ms swap=33.99ms (24.1 fps)
+You got the gold key
+gl_perfprint: frame=37.44ms warp=0.00ms sky=0.03ms world=2.11ms water=0.46ms alias=2.54ms alpha=0.00ms part=0.19ms vmodel=0.45ms swap=28.73ms (26.7 fps)
+969 frames  42.2 seconds  23.0 fps
+gl_perfprint: frame=24.36ms warp=0.00ms sky=0.01ms world=1.39ms water=0.18ms alias=1.14ms alpha=0.00ms part=0.51ms vmodel=0.11ms swap=10.84ms (41.1 fps)
+gl_perfprint: frame=24.60ms warp=0.00ms sky=0.01ms world=1.39ms water=0.18ms alias=1.14ms alpha=0.00ms part=0.51ms vmodel=0.11ms swap=10.85ms (40.7 fps)
