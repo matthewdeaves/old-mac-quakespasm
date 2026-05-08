@@ -1,20 +1,25 @@
 ---
 name: ppc-ops
-description: Build, deploy, and benchmark QuakeSpasm on the PowerMac G3/G4 from this Ubuntu workstation via the Lion build host. Use this skill any time the user asks to compile, ship, or measure a build on the PPC machines.
+description: Build, deploy, and benchmark QuakeSpasm on the PowerMac G3, PowerMac G4 (Quicksilver + Mac mini G4), and Intel Lion mini from this Ubuntu workstation via the Lion build host. Use this skill any time the user asks to compile, ship, or measure a build on any of the 4 bench machines.
 ---
 
 # PPC operations skill
 
-The PPC QuakeSpasm project has a stable build/deploy/bench pipeline.
-Don't reinvent it inline — invoke the scripts.
+The QuakeSpasm port has 4 bench targets — `g3`, `g4` (Quicksilver), `g4mini`
+(Mac mini G4), and `lion` (Intel x86_64) — all driven through a stable
+build/deploy/bench pipeline. Don't reinvent it inline — invoke the scripts.
 
 ## When to use
 
-- "build for g4" / "build for g3" → `scripts/build.sh <target>`
-- "deploy" / "ship to g4" → `scripts/deploy.sh <target>` (build first if
-  `build/quakespasm-<target>` doesn't exist or isn't from current HEAD)
+- "build for g4" / "build for g3" / "build for lion" → `scripts/build.sh <target>`
+  (no `g4mini` build target — Mac mini G4 reuses `build/quakespasm-g4`)
+- "deploy" / "ship to <target>" → `scripts/deploy.sh <g3|g4|g4mini|lion>`
+  (build first if `build/quakespasm-<target>` doesn't exist or isn't from current HEAD)
 - "run a bench" / "timedemo" → `scripts/bench.sh <target> <demo> <WxH>`
-- "full benchmark sweep" → `scripts/full-bench.sh both`
+- "full benchmark sweep" → `scripts/full-bench.sh all`   (g3 + g4 + g4mini + lion)
+- "parallel sweep" / "smoke" → `scripts/parallel-bench.sh [--quick]`
+  (default runs all 4 legs concurrently; `--no-{lion,g4mini,g4,g3}` to skip a leg)
+- "bench + commit" (post-phase canonical) → `scripts/bench-and-commit.sh "<phase desc>"`
 - "set up a fresh Lion box" → `scripts/setup-lion.sh`
 
 All scripts live in `scripts/` at the repo root. Read `scripts/README.md`
@@ -23,18 +28,19 @@ once to know the contract.
 ## Inputs and outputs
 
 - Sources: working tree of this repo (rsynced to Lion automatically)
-- Build artifacts: `build/quakespasm-{g3,g4}` (gitignored)
+- Build artifacts: `build/quakespasm-{g3,g4,lion}` (gitignored). g4mini reuses `quakespasm-g4`.
 - Deploy targets: `<host>:~/Desktop/quake/Quakespasm.app`
 - Bench results: appended to `benchmarks/results.csv`
 - Raw bench logs: `benchmarks/raw/<commit>_<target>_<demo>_<res>_run<N>.log`
 
 ## SSH aliases used
 
-- `lion` → Intel Mac mini build host (10.7)
-- `g4` → PowerMac G4 (10.4 Tiger)
-- `PowerMacG3` → PowerMac G3 B&W (10.3 Panther)
+- `lion` → Intel Mac mini Macmini2,1 build host + bench target (10.7 Lion, x86_64)
+- `g4` → PowerMac G4 Quicksilver, 867 MHz 7450 + AltiVec, Radeon 9000 (10.4 Tiger)
+- `g4mini` → Mac mini G4, 1.42 GHz 7447A + AltiVec, Radeon 9200 32 MB (10.4 Tiger)
+- `PowerMacG3` → PowerMac G3 B&W, 450 MHz 750, Rage 128 (10.3 Panther)
 
-All three configured in `~/.ssh/config` with legacy crypto algorithms
+All four configured in `~/.ssh/config` with legacy crypto algorithms
 (ssh-rsa, dh-group1-sha1, aes128-cbc on Panther) and `id_rsa_tiger` as
 the keypair.
 
@@ -88,5 +94,9 @@ See `PPC_PLAN.md` for the prioritized list. Short version:
 3. Multitexture lightmaps (universal)
 4. AltiVec mathlib batch ops (G4 only)
 
-Always benchmark each change on **both** G3 and G4. AltiVec wins can
-be no-ops or regressions on G3 if the dispatch is wrong.
+Always benchmark each change on **all 4 machines** (g3, g4, g4mini, lion).
+AltiVec wins can be no-ops or regressions on G3 if the dispatch is wrong;
+the Mac mini G4 (different GPU than the Quicksilver) helps disambiguate
+fillrate-bound vs CPU-bound effects within the G4 family; Lion is the
+Intel reference. `scripts/parallel-bench.sh` runs all four legs
+concurrently and is the default canonical sweep.

@@ -1,7 +1,7 @@
 # scripts/ — build, deploy, bench tooling for QuakeSpasm
 
-Multi-host workflow: edit on Ubuntu → build on Lion → run on G3/G4/Lion.
-SSH config aliases (`lion`, `g4`, `PowerMacG3`) are expected in `~/.ssh/config`.
+Multi-host workflow: edit on Ubuntu → build on Lion → run on G3/G4/G4mini/Lion.
+SSH config aliases (`lion`, `g4`, `g4mini`, `PowerMacG3`) are expected in `~/.ssh/config`.
 
 > **Project goal** is best-looking Quake on G3/G4/Intel while keeping
 > framerate comfortably playable (≥ 60 fps on G4 + Lion, ≥ 20 fps on G3).
@@ -13,15 +13,20 @@ SSH config aliases (`lion`, `g4`, `PowerMacG3`) are expected in `~/.ssh/config`.
 > "Toggleable knobs". Per-target shipping defaults live in
 > `scripts/bundle/autoexec-{g3,g4}.cfg`.
 
-**Targets:**
-- `g3` — PowerMac B&W, 450 MHz PowerPC 750, Rage 128, 10.3.9 (PPC cross-build)
-- `g4` — Quicksilver, 867 MHz PowerPC 7450 + AltiVec, Radeon 9000, 10.4.11 (PPC cross-build)
-- `lion` — Mac mini Macmini2,1, 2.33 GHz Core 2 Duo, GMA 950, 10.7.5 (Intel native build, x86_64)
+**Targets (4 bench machines, 3 distinct binaries):**
+- `g3` — PowerMac B&W, 450 MHz PowerPC 750, Rage 128, 10.3.9 (PPC cross-build → `quakespasm-g3`)
+- `g4` — Quicksilver, 867 MHz PowerPC 7450 + AltiVec, Radeon 9000, 10.4.11 (PPC cross-build → `quakespasm-g4`)
+- `g4mini` — Mac mini G4, 1.42 GHz 7447A + AltiVec, ATI Radeon 9200 32 MB, 10.4.11 (reuses `quakespasm-g4`; second G4-class data point added 2026-05-08)
+- `lion` — Mac mini Macmini2,1, 2.33 GHz Core 2 Duo, GMA 950, 10.7.5 (Intel native build, x86_64 → `quakespasm-lion`)
 
 Lion is both the PPC cross-build host AND a runnable bench reference of its own.
-The Intel target was added 2026-05-08 to give a third data point — useful because
-the GMA 950 / Core 2 Duo profile has a markedly different fillrate-vs-CPU balance
-from either PPC machine, which helps separate GPU-bound from CPU-bound effects.
+The Intel target was added 2026-05-08 to give a third architectural data point —
+useful because the GMA 950 / Core 2 Duo profile has a markedly different
+fillrate-vs-CPU balance from either PPC machine, which helps separate GPU-bound
+from CPU-bound effects. The Mac mini G4 was added the same day as a second
+G4-class machine (different GPU than the Quicksilver — Radeon 9200 32 MB vs
+Radeon 9000 64 MB) so we can disambiguate fillrate-bound vs CPU-bound results
+within the G4 family.
 
 ## Quick start
 
@@ -31,26 +36,30 @@ scripts/build.sh g3
 scripts/build.sh g4
 scripts/build.sh lion
 
-# Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host)
+# Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host).
+# g4mini reuses build/quakespasm-g4 — no separate build step required.
 scripts/deploy.sh g3
 scripts/deploy.sh g4
+scripts/deploy.sh g4mini
 scripts/deploy.sh lion
 
 # Run a single bench
-scripts/bench.sh g4   demo1 1024x768
-scripts/bench.sh lion demo1 1024x768
+scripts/bench.sh g4     demo1 1024x768
+scripts/bench.sh g4mini demo1 1024x768
+scripts/bench.sh lion   demo1 1024x768
 
 # Run the full baseline matrix (3 demos × 2 res × 3 runs each)
-scripts/full-bench.sh both    # G3 + G4 (the historical default)
-scripts/full-bench.sh all     # G3 + G4 + Lion (adds the Intel reference)
-scripts/full-bench.sh lion    # Lion only
+scripts/full-bench.sh both    # G3 + G4 Quicksilver only (historical default)
+scripts/full-bench.sh all     # G3 + G4 + G4mini + Lion (full 4-machine sweep)
+scripts/full-bench.sh g4mini  # Mac mini G4 only
 
-# Same matrix in parallel (≈ wall time of the slowest leg = G3)
-# Default includes all three machines; --no-lion to skip if Lion is unavailable.
+# Same matrix in parallel (≈ wall time of the slowest leg = G3).
+# Default runs all 4 machines; --no-{lion,g4mini,g4,g3} skips a leg if it's offline.
 scripts/parallel-bench.sh
 scripts/parallel-bench.sh --no-lion
+scripts/parallel-bench.sh --no-g4mini
 
-# Quick iteration loop: demo1 only at both res, all machines in parallel (~3-4 min)
+# Quick iteration loop: demo1 only at both res, all 4 machines in parallel (~3-4 min)
 scripts/parallel-bench.sh --quick
 
 # Bench HEAD and commit the resulting CSV rows + raw logs in one shot.
@@ -72,29 +81,29 @@ Raw `qconsole.log`s live in `benchmarks/raw/<commit>_<target>_<demo>_<res>_runN.
 
 | script | purpose |
 |---|---|
-| `build.sh <g3\|g4\|lion>` | rsync sources to Lion, compile (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<target>` |
-| `deploy.sh <g3\|g4\|lion>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<HOST>:~/Desktop/quake/` |
-| `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. Lion uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4 120 s; G3 240 s. |
-| `full-bench.sh [g3\|g4\|lion\|both\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one target); `--quick` = demo1 only. `both` = g4+g3, `all` = g4+g3+lion. |
-| `parallel-bench.sh [--reset] [--quick] [--no-lion]` | same sweep on G3 + G4 + Lion concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-lion` skips the Lion leg if Lion is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg, which is G3. |
+| `build.sh <g3\|g4\|lion>` | rsync sources to Lion, compile (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<target>`. No `g4mini` here — same arch as `g4`, deploy.sh reuses `build/quakespasm-g4`. |
+| `deploy.sh <g3\|g4\|g4mini\|lion>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<HOST>:~/Desktop/quake/`. `g4mini` deploys the g4 binary to the Mac mini G4 host. |
+| `bench.sh <target> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. Lion uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4 + G4mini 120 s; G3 240 s. Targets: `g3 \| g4 \| g4mini \| lion`. |
+| `full-bench.sh [g3\|g4\|g4mini\|lion\|both\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one target); `--quick` = demo1 only. `both` = g4+g3 (PPC pair, historical default), `all` = lion+g4+g4mini+g3 (full 4-machine sweep). |
+| `parallel-bench.sh [--reset] [--quick] [--no-lion] [--no-g4mini] [--no-g4] [--no-g3]` | same sweep on G3 + G4 + G4mini + Lion concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<leg>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg, which is G3. |
 | `bench-and-commit.sh "<phase>"` | bench HEAD + commit the data in one shot. Refuses dirty trees, pins HEAD, then `parallel-bench.sh "$@"`, stages CSV + new raw logs, lands `bench: <phase> (HEAD <hash>)` commit with median fps summary. The canonical second-of-two commits per phase. |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
 
 ## Parallel-safety notes
 
-`parallel-bench.sh` runs up to three `bench.sh` instances concurrently
-(g3, g4, lion). Two races to know about:
+`parallel-bench.sh` runs up to four `bench.sh` instances concurrently
+(g3, g4, g4mini, lion). Two races to know about:
 
 - **CSV header init.** `bench.sh` creates the CSV with a header on first use.
-  Three parallel procs racing on a missing CSV could each write a header.
+  Four parallel procs racing on a missing CSV could each write a header.
   Worked around with bash `noclobber` (`set -C`, atomic `O_CREAT|O_EXCL`).
 - **CSV row appends.** `>>` is atomic on Linux/macOS for writes ≤ PIPE_BUF
-  (4 KB). Our rows are ~80 bytes, well under, so rows from the three machines
+  (4 KB). Our rows are ~80 bytes, well under, so rows from the four machines
   never interleave inside a line.
 
 Raw log filenames include the machine name
-(`<commit>_<g3|g4|lion>_<demo>_<res>_runN.log`) so they never collide. SSH
-connections to the three hosts are independent.
+(`<commit>_<g3|g4|g4mini|lion>_<demo>_<res>_runN.log`) so they never collide.
+SSH connections to the four hosts are independent.
 
 ## Bundle layout (what `deploy.sh` builds)
 

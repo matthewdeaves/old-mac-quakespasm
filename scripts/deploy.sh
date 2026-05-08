@@ -2,12 +2,14 @@
 # Assemble a Quakespasm.app bundle and deploy it to the target machine.
 # Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <g3|g4|lion>
-# pre:   build/quakespasm-<target> must exist (run scripts/build.sh first)
+# usage: scripts/deploy.sh <g3|g4|g4mini|lion>
+# pre:   build/quakespasm-<target> must exist (run scripts/build.sh first).
+#        g4mini reuses build/quakespasm-g4 (same arch + SDK as Quicksilver),
+#        so a separate build step is not required for it.
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4|lion>}"
+TARGET="${1:?usage: $0 <g3|g4|g4mini|lion>}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$TARGET" in

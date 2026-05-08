@@ -4,6 +4,11 @@
 # - lion : native x86_64 build for Lion itself (Macmini2,1, Core 2 Duo
 #          @ 2.33 GHz, 10.7.5). Third reference point alongside G3 + G4.
 #
+# Note: there is no `g4mini` target here — the Mac mini G4 (added 2026-05-08
+# as a 4th bench machine) shares the Quicksilver's arch + SDK, so deploy.sh
+# g4mini reuses build/quakespasm-g4 directly. Build with `g4` and deploy to
+# both g4 hosts.
+#
 # usage: scripts/build.sh <g3|g4|lion>
 # output: build/quakespasm-<target>
 # env:    LION (ssh alias for the build host, default 'lion')

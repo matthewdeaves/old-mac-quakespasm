@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run timedemo benchmarks on a target PPC machine and append results to the CSV.
+# Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <g3|g4> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <g3|g4|g4mini|lion> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4|lion> <demo> <WxH> [runs]}"
+TARGET="${1:?usage: $0 <g3|g4|g4mini|lion> <demo> <WxH> [runs]}"
 DEMO="${2:?demo name required (demo1|demo2|demo3)}"
 RES="${3:?resolution required (e.g. 1024x768)}"
 RUNS="${4:-3}"

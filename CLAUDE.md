@@ -19,12 +19,16 @@ heredocs; invoke the scripts:
 
 ```
 scripts/build.sh <g3|g4|lion>          cross-compile (g3/g4) or native x86_64 (lion) on Lion
-scripts/deploy.sh <g3|g4|lion>         assemble Quakespasm.app, ship to target
+                                       (no g4mini target — reuses the g4 binary)
+scripts/deploy.sh <g3|g4|g4mini|lion>  assemble Quakespasm.app, ship to target
 scripts/bench.sh <target> <demo> <WxH> [runs]   run timedemo, append to results.csv
-scripts/full-bench.sh [g3|g4|lion|both|all] [--quick]   matrix sweep
-                                                        both = g3+g4; all = g3+g4+lion
-scripts/parallel-bench.sh [--quick] [--no-lion]  g3+g4+lion concurrently
-                                                 env: DEMOS, RESES, RUNS for custom
+                                                target ∈ {g3,g4,g4mini,lion}
+scripts/full-bench.sh [g3|g4|g4mini|lion|both|all] [--quick]   matrix sweep
+                                                        both = g3+g4 (historical PPC pair)
+                                                        all  = g3+g4+g4mini+lion (4-machine)
+scripts/parallel-bench.sh [--quick] [--no-lion] [--no-g4mini] [--no-g4] [--no-g3]
+                                       all 4 legs concurrently by default
+                                       env: DEMOS, RESES, RUNS for custom
 scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
 ```
