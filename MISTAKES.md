@@ -10,6 +10,51 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-09 — Round v5 B5: scalar dlight cast hoist (reverted)
+
+**What we tried.** Round v5 plan B5: replace the scalar fallback's
+per-texel `(int)(brightness_f * cred_f)` (3 fmul + 3 fctiw) with
+integer-only math (`br * icred` on precomputed scaled-int color
+constants and integer-typed local[X], rad, minlight). Cycle estimate
+~62% reduction in the inner loop on G3.
+
+Built clean on G3, G4, G4mini, Lion + Linux; visual math difference
+is < 1 unit per channel = sub-palette-resolution.
+
+**What went wrong.** Bench result split across the four targets:
+
+* G4 (Quicksilver): demo3 1024 +2.3%, demo3 640 +3.8% — solid win.
+* G3: neutral (GPU-bound; CPU savings don't move framerate).
+* Lion: neutral (Intel is fast enough that fmul vs imul doesn't
+  show).
+* **G4mini: demo3 1024 -2.6% reproducibly** (warm runs 66.4 fps vs
+  pre-B5 68.15). Outside noise band.
+
+The G4 vs G4mini divergence is the surprise. Both are ppc7400-class
+AltiVec, both run the same scalar fallback (`-altivec-dlights` is
+opt-in, default off, so neither uses the AltiVec dlight path). Yet
+G4 wins and G4mini loses on the same code change. Likely
+microarchitectural — G4 Quicksilver is MPC7450, G4 mini is MPC7447A
+generation. Cache subsystem and integer/FP scheduling differ
+subtly. Without a real hardware profiler we can't pin it exactly.
+
+**Disposition.** Revert. Project rule is no fps regression on any
+target. Ship-or-skip — and "ship with G4mini regression" violates
+the rule.
+
+**If we revisit.** A flag-gated opt-in (`-scalardlight-int`) would
+let G4 pick up the +2-4% without hurting G4mini. But two reasons
+to not bother: (1) G3 doesn't benefit (the bigger goal), so the
+juice is only G4-Quicksilver-specific. (2) AltiVec dlights
+(`-altivec-dlights` opt-in path) is a better future direction for
+the AltiVec targets if we ever make it default-on, since it
+addresses the same hot loop with the right tool.
+
+Numbers retained in benchmarks/results.csv tagged `2e8f7861`
+(pre-revert). The revert lands as a clean revert commit.
+
+---
+
 ## 2026-05-09 — Round v5 B3: Lion PGO/LTO (mostly skipped; LTO kept opt-in but neutral)
 
 **What we tried.** Round v5 plan B3 was "Lion PGO + LTO build" expecting
