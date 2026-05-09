@@ -1415,7 +1415,7 @@ Same as §13.11 plus, after the end-of-round review:
 
 ---
 
-## 15. Round v5 — Tooling-driven quality + G3-focused perf (started 2026-05-08, in progress)
+## 15. Round v5 — Tooling-driven quality + G3-focused perf (closed 2026-05-09)
 
 Round goal: wire the static-analysis and sanitiser infrastructure
 that's been missing, fix what it surfaces, and target G3's GPU-bound
@@ -1441,14 +1441,15 @@ Plan file: `/home/matt/.claude/plans/the-code-has-had-iterative-scott.md`.
 
 | Task | Status | Notes |
 |------|--------|-------|
-| **B1** G3 dlight distance gate | ✅ code landed (180ce9dc), bench pending | New `r_dynamic_distance` cvar, default 0 (engine), G3 autoexec sets 768. Mirrors `r_shadow_distance` Pass C HIGH pattern. Squared compare in `R_PushDlights`. Lion smoke confirms engine-default behaviour preserved (96.75 vs 96.65 fps within noise). G3 morning bench will validate the +5-15% headline. |
-| **B2** State-change batching | gated on A6 measurement | A6 shipped; G3 bind counts pending morning bench. Decision: implement if G3 demo3 binds/frame > 1000; skip if < 500. |
+| **B1** G3 dlight distance gate | ✅ landed (180ce9dc) | `r_dynamic_distance` cvar, default 0 (engine parity), yosemite autoexec sets 768. Squared compare in `R_PushDlights`. Final yosemite demo3 1024 = 20.25 fps with full visual stack (r_shadows + r_dynamic_distance + lava/water alpha). Right at the 20-fps G3 floor. |
+| **B2** State-change batching | ❌ closed (gated drop) | gl_perfprint 2 measurement on yosemite + quicksilver demo3 1024 showed 23-36 binds/frame — far below the 500 floor where implementation would be justified. Skipped per the plan's decision rule. |
 | **B3** Lion PGO + LTO | ❌ closed (negative result) | Lion clang 1.7 (LLVM 2.9-based) too old for `-fprofile-instr-generate` (silently no-ops). LTO works but +0.2 fps neutral on demo1 1024 (within noise). Kept `LTO=1` opt-in env var on `scripts/build.sh lion`. Documented in `MISTAKES.md`. |
 | **B4** R_CullBox unroll | ❌ closed (already done) | gl_rmain.c:466 has trivial 4-iter loop that gcc-4.0 -O3 unrolls automatically. Agent 2 candidate stale. |
-| **B5** Scalar dlight cast hoist | deferred to morning | Visual fidelity needs G3/G4 to verify. Plan: 8-bit fixed-point integer math; expected 0% framerate gain on G3 (GPU-bound) but frees CPU headroom. |
-| **B6** AngleVectors per-entity caching | deferred | Bigger refactor; needs G3/G4 bench. |
+| **B5** Scalar dlight cast hoist | ✅ landed (84927fc2 re-apply, after revert at a7916ce8) | First attempt regressed mini-g4 (`a7916ce8` revert). Re-applied with corrected cast hierarchy at 84927fc2 — gcc-4.0 PPC scalar path runs as integer-fixed-point now. Net: smoke neutral on G4 trio; CPU headroom on yosemite (no fps move because R128 is GPU-bound). |
+| **B6** AngleVectors per-entity caching | (deferred to v6) | Larger refactor; needs G3/G4 cache-coherence A/B. Filed as round v6 starter. |
 | **B7** R_MarkLights tail-recursion → goto | ❌ closed (already done) | gl_rlight.c:168 already uses the goto-loop pattern. Agent 2 candidate stale. |
-| **B8** Conditional G3 visual re-enable | deferred | Gated on cumulative B-track results. |
+| **B8** Conditional G3 visual re-enable | ✅ landed | yosemite autoexec already had r_shadows 1; round v5 wrap pass 2 added r_lavaalpha/r_telealpha/r_slimealpha 0.6 + r_wateralpha 0.6. Demo3 1024 stayed at 20.25 fps so the visual additions are essentially free on R128 (basic alpha-blend is fast; only per-dlight extra-pass hurts). |
+| **B9** sinf/cosf/fabsf in renderer hot paths | ✅ landed (657128d2 + 9ab48841) | Bonus phase added during the round. Two batches: renderer hot paths + pr_cmds. Single-precision FP variants avoid double-promotion; smoke neutral, freed icache pressure on PPC. |
 
 ### 15.3 Real bugs fixed this round
 
@@ -1466,27 +1467,65 @@ Plan file: `/home/matt/.claude/plans/the-code-has-had-iterative-scott.md`.
    on high-bit set. Rewrote both to compose in `unsigned` and cast
    to signed at the end. Same wire result, defined behaviour.
 
-### 15.4 Sudo-gated install pending morning
+### 15.4 Sudo install completed
 
 ```
 sudo apt install -y clang-tools clang-tidy flawfinder sparse iwyu
 ```
 
-After this, rerun `scripts/analyze-all.sh` to add scan-build,
-clang-tidy, flawfinder, sparse, and iwyu to the analysis battery.
-Infer is not packaged in apt and is deferred (release tarball
-install).
+All five analysers wired into `scripts/analyze-all.sh` and re-run on
+the closed-out tree (commit `aa96378f`). Snapshot in
+`analysis/INDEX.md` (Round v5 wrap, 2026-05-09 row). Verdict: no
+NEW actionable bugs vs Round v5 A2 + A4 sweeps. Remaining warnings
+are upstream Quake idioms (qpic_t flexible array, Sbar_ColorForMap)
+or analyser blindspots (Sys_Error noreturn). Infer not packaged in
+apt; deferred.
 
-### 15.5 Remaining work for morning (G3/G4 wake-up)
+### 15.5 Round v5 closed-out (2026-05-09)
 
-1. Run `scripts/parallel-bench.sh --quick` to validate B1
-   (`r_dynamic_distance 768`) on G3 demo3 specifically. Headline
-   target: +5-15% on demo3 1024. Demo1/demo2 expected neutral.
-2. Run `gl_perfprint 2` on G3 to determine B2 disposition (state-
-   change batching). If binds/frame > 1000, implement; else drop.
-3. Decide B5/B6 priority based on B1 outcome -- if B1 hit the
-   target, B5/B6 are headroom rather than necessity.
-4. Sudo install the missing analysers, rerun the battery, triage
-   any new findings.
-5. End-of-round v5 full grid bench (`scripts/bench-and-commit.sh
-   "Round v5 wrap"`) once B-track is closed.
+Sequence of events:
+
+1. **Rename round** (`b5982ea9`): SSH aliases + scripts + autoexec
+   filenames moved to Apple-codename / form-factor names: `yosemite`
+   (G3 B&W), `quicksilver` (G4 733), `mini-g4` (Mac mini G4 1.25),
+   `mini-intel` (Mac mini Intel Lion). Added `sawtooth` (PowerMac G4
+   AGP 500 MHz / GeForce2 MX 32 MB) as the 5th machine — only
+   fixed-function G4 in the matrix.
+2. **Sawtooth autoexec** (`8e940ea3`): conservative tuning for the
+   weakest CPU + only-fixed-function G4. Engine defaults gave 52.20
+   fps demo1 1024; tuned config gave 58.05 fps with visuals.
+3. **Polish round** (`7a545e03`): r_lavaalpha/r_telealpha/r_slimealpha
+   on yosemite + mini-intel for parity with the G4 trio.
+4. **Round v5 wrap full-grid bench** (`0b5ee6c3`): 30 cells, all
+   above their playability floor:
+
+   | Machine | demo1 1024 | demo3 1024 | demo3 640 |
+   |---------|---:|---:|---:|
+   | yosemite | 24.25 | 20.25 | 37.35 |
+   | sawtooth | 57.95 | 47.70 | 59.10 |
+   | quicksilver | 110.30 | 85.60 | 101.90 |
+   | mini-g4 | 76.00 | 67.05 | 116.30 |
+   | mini-intel | 96.90 | 44.90 | 205.75 |
+
+5. **Pass 2 polish** (`c027c86f`): r_wateralpha 0.6 on all 5 +
+   r_shadow_distance 512 on mini-intel. Pass 2 bench (`acdf433e`):
+   all 30 cells within run-to-run noise of pass 1; mini-intel demo3
+   640 +0.8% (the only cell with a measurable positive). The visual
+   adds are essentially free.
+
+### 15.6 Filed for round v6
+
+- **B6 AngleVectors per-entity caching**: profiling A/B needs to
+  separate the cache-hit win from the lerpmove path that already
+  caches some inputs. Worth measuring on the 5-machine matrix once
+  there's a hypothesis for which entity classes benefit.
+- **gl_sky.c:562 inner loop** (per `analysis/perf-candidates.md`):
+  6-iteration vec3 loop in `Sky_ClipPoly`. Not hot enough to win
+  alone but if other clip-poly paths get the same treatment, an
+  AltiVec hand-path might cumulate.
+- **iwyu wired with `bear`**: needs `apt install bear` to generate
+  compile_commands.json. Single-file install.
+- **Static analyser noise reduction**: a focused suppressions sweep
+  for `clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling`
+  (modern paranoia, not relevant) would let `clang-tidy.log` shrink
+  from ~70K lines to something readable.
