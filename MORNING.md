@@ -37,29 +37,33 @@ This unlocks scan-build, clang-tidy, flawfinder, sparse, iwyu — five
 more analysers that need root. After that, `scripts/analyze-all.sh`
 runs the full battery and any further bugs surface there.
 
-### 2. Power on G3 + G4 + G4mini, then bench
+### 2. Power on yosemite + quicksilver + mini-g4, then bench
+
+NOTE 2026-05-09: Machine names renamed. `g3`→`yosemite`, `g4`→`quicksilver`,
+`g4mini`→`mini-g4`, `lion`→`mini-intel`. New machine `sawtooth` (PowerMac
+G4 AGP, 500 MHz 7400 + GeForce2 MX) added as the third G4-class data
+point. See CLAUDE.md "Hosts" for the full table.
 
 ```
 scripts/parallel-bench.sh --quick
 ```
 
 Expected outcomes:
-- **G3 demo3 1024×768: +5–15% over baseline.** This is B1's headline
+- **yosemite demo3 1024×768: +5–15% over baseline.** This is B1's headline
   test (dlight-heavy demo on the GPU-bound target).
-- **G3 demo1 / demo2: neutral.** Sparse dlights, distance gate has
+- **yosemite demo1 / demo2: neutral.** Sparse dlights, distance gate has
   nothing to elide.
-- **G4 / G4mini: neutral.** Engine default 0 = same as before.
-- **Lion: neutral.** Already confirmed (96.75 vs 96.65 fps within
-  noise).
+- **quicksilver / mini-g4 / sawtooth: neutral.** Engine default 0 = same as before.
+- **mini-intel: neutral.** Already confirmed (96.75 vs 96.65 fps within noise).
 
 If demo3 doesn't move, the gate is firing on too few dlights — try
-`r_dynamic_distance 512` on G3 (more aggressive) before declaring B1
-a flop.
+`r_dynamic_distance 512` on yosemite (more aggressive) before declaring
+B1 a flop.
 
-### 3. Run gl_perfprint 2 on G3 to gate B2 decision
+### 3. Run gl_perfprint 2 on yosemite to gate B2 decision
 
 ```
-ssh PowerMacG3 "..." # with +gl_perfprint 2 +timedemo demo3
+ssh yosemite "..." # with +gl_perfprint 2 +timedemo demo3
 ```
 
 Look for the `gl_perfprint: binds=… draws=… dlights=… surfs=… atris=…`

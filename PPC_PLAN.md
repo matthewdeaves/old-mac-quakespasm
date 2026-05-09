@@ -1,5 +1,13 @@
 # PPC Plan v2 — Apple-fast-path performance round
 
+> **Machine-naming note (2026-05-09):** the bench machines were renamed
+> mid-round to nicer names. Historical references below use the OLD
+> names (`g3`, `g4`, `g4mini`, `lion`); these now map to `yosemite`,
+> `quicksilver`, `mini-g4`, `mini-intel` respectively. A new fifth
+> machine `sawtooth` (PowerMac G4 AGP, 500 MHz 7400 + GeForce2 MX 32 MB,
+> Tiger 10.4.11) joined as the third G4-class data point. See
+> CLAUDE.md "Hosts" for the full hardware table.
+
 > 2026-05-07. Supersedes the optimization plan in the previous
 > `PPC_PLAN.md`; sub-plans `PPC_PLAN_1_1.md` and `PPC_PLAN_1_3.md` are
 > historical (1.1 implemented, 1.3 archived). Hardware inventory,

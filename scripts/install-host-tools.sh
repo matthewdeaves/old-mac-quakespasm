@@ -12,7 +12,7 @@
 # kernel even if Finder/display state is borked.
 #
 # usage: scripts/install-host-tools.sh [host [host...]]
-#   default hosts: PowerMacG3 g4 g4mini lion
+#   default hosts: yosemite sawtooth quicksilver mini-g4 mini-intel
 # env:
 #   HOSTS=...   override host list
 
@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO_ROOT/scripts/host-bin"
 
 HOSTS=("$@")
-[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-PowerMacG3 g4 g4mini lion})
+[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite sawtooth quicksilver mini-g4 mini-intel})
 
 for host in "${HOSTS[@]}"; do
     echo "=== $host ==="

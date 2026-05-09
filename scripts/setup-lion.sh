@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-LION="${LION:-lion}"
+LION="${BUILD_HOST:-${LION:-mini-intel}}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKIP_XCODE=0
 SKIP_SDL=0

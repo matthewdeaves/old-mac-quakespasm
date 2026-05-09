@@ -54,8 +54,8 @@ done
 # is also in /usr/bin/ on macOS only — Linux Ubuntu doesn't ship it by
 # default. Doing the merge on Lion keeps the toolchain assumption
 # uniform with build.sh.)
-LION="${LION:-lion}"
-echo "[build-fat] lipo -create on $LION"
+LION="${BUILD_HOST:-${LION:-mini-intel}}"
+echo "[build-fat] lipo -create on $LION (cross-build host)"
 scp -q build/quakespasm-g3 build/quakespasm-g4 build/quakespasm-lion \
   "$LION:/tmp/" >/dev/null
 ssh "$LION" "cd /tmp && \

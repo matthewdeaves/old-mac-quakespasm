@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Run a benchmark matrix sweep on G3 + G4 + G4mini + Lion (or any subset).
+# Run a benchmark matrix sweep on the bench machines (or any subset).
 #
-# usage: scripts/full-bench.sh [g3|g4|g4mini|lion|both|all] [--quick]
-#   both:  g3 + g4 (PPC pair, the historical default — Quicksilver only)
-#   all:   g3 + g4 + g4mini + lion (full 4-target sweep — current default
-#          set as of 2026-05-08 when g4mini was added as a 2nd G4-class
-#          data point)
+# Machines (Apple-codename / form-factor naming):
+#   yosemite     PowerMac G3 B&W 449 MHz, Rage 128, 10.3.9 Panther
+#   sawtooth     PowerMac G4 AGP 500 MHz, GeForce2 MX, 10.4.11 Tiger
+#   quicksilver  PowerMac G4    733 MHz, Radeon 9000, 10.4.11 Tiger
+#   mini-g4      Mac mini G4   1.25 GHz, Radeon 9200, 10.4.11 Tiger
+#   mini-intel   Mac mini Intel 2.33 GHz Core 2 Duo, GMA 950, 10.7.5 Lion
+#
+# usage: scripts/full-bench.sh [<machine>|ppc|all] [--quick]
+#   ppc:  yosemite + sawtooth + quicksilver + mini-g4 (skip Intel)
+#   all:  all 5 machines (default)
 #
 # default matrix: demo1+demo2+demo3 × 1024x768+640x480 × 3 runs
 # --quick:        demo1 only      × 1024x768+640x480 × 3 runs   (~5–10× faster)
@@ -15,29 +20,31 @@
 #   RESES="640x480"       (default: "1024x768 640x480")
 #   RUNS=2                (default: 3)
 #
-# pre: build/quakespasm-{g3,g4,lion} must exist and bundle deployed to
-#      whichever targets you're benching. (g4mini reuses build/quakespasm-g4
-#      — same arch + SDK as the Quicksilver g4.)
+# pre: build/quakespasm-{g3,g4,lion} must exist and the bundle deployed
+#      to each machine being benched. The three G4 machines (sawtooth,
+#      quicksilver, mini-g4) all share build/quakespasm-g4.
 
 set -euo pipefail
 
-TARGETS=both
+TARGETS=all
 QUICK=0
 for arg in "$@"; do
   case "$arg" in
-    g3|g4|g4mini|lion|both|all) TARGETS=$arg ;;
+    yosemite|sawtooth|quicksilver|mini-g4|mini-intel|ppc|all) TARGETS=$arg ;;
     --quick)    QUICK=1 ;;
-    -h|--help)  sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help)  sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Order: fastest → slowest (so the long-pole G3 finishes last when invoked
+# sequentially; parallel-bench.sh launches them concurrently regardless).
 case "$TARGETS" in
-  both) MACHINES="g4 g3" ;;                          # PPC pair; G4 first (finishes faster)
-  all)  MACHINES="lion g4 g4mini g3" ;;              # Fastest → slowest: Lion, G4 Quicksilver, G4 mini, G3
-  g3|g4|g4mini|lion) MACHINES="$TARGETS" ;;
+  ppc) MACHINES="quicksilver mini-g4 sawtooth yosemite" ;;
+  all) MACHINES="mini-intel quicksilver mini-g4 sawtooth yosemite" ;;
+  yosemite|sawtooth|quicksilver|mini-g4|mini-intel) MACHINES="$TARGETS" ;;
 esac
 
 if [ "$QUICK" -eq 1 ]; then

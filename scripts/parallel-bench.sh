@@ -1,62 +1,67 @@
 #!/usr/bin/env bash
-# Run the bench matrix on G3, G4 (Quicksilver), G4 mini, and Lion concurrently.
-# Cuts wall time roughly to the slowest leg vs running them sequentially.
-# Lion finishes fastest, G4/G4mini mid, G3 slowest — so wall time tracks G3.
+# Run the bench matrix on all 5 machines concurrently.
+# Cuts wall time roughly to the slowest leg (G3) vs sequential.
 #
-# usage: scripts/parallel-bench.sh [--reset] [--quick] [--no-lion] [--no-g4mini]
-#                                  [--no-g4] [--no-g3]
-#   default:      runs all 4 legs (g3, g4, g4mini, lion) and appends to the
-#                 rolling benchmarks/results.csv. History grows across phases —
-#                 that's how we see improvement over time.
-#   --reset:      starts fresh epoch — wipes results.csv + raw/ first, but
-#                 backs up results.csv to results.csv.bak.<ts> if non-empty.
-#                 Use only when starting a brand new optimization round.
-#   --keep-csv:   deprecated no-op (kept for backward compat with old muscle memory).
-#   --quick:      demo1 only × both res × 3 runs (forwarded to full-bench.sh).
-#   --no-lion:    skip the Lion leg (useful if Lion is offline or building).
-#   --no-g4mini:  skip the G4 mini leg (useful if it's offline).
-#   --no-g4:      skip the Quicksilver G4 leg.
-#   --no-g3:      skip the G3 leg (rarely wanted — G3 is the playability floor).
+# Machines (Apple-codename / form-factor naming):
+#   yosemite     PowerMac G3 B&W 449 MHz, Rage 128, 10.3.9 Panther
+#   sawtooth     PowerMac G4 AGP 500 MHz, GeForce2 MX, 10.4.11 Tiger
+#   quicksilver  PowerMac G4    733 MHz, Radeon 9000, 10.4.11 Tiger
+#   mini-g4      Mac mini G4   1.25 GHz, Radeon 9200, 10.4.11 Tiger
+#   mini-intel   Mac mini Intel 2.33 GHz Core 2 Duo, GMA 950, 10.7.5 Lion
+#
+# usage: scripts/parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]
+#   default:    runs all 5 machines and appends to rolling benchmarks/results.csv.
+#               History grows across phases — that's how we see improvement.
+#   --reset:    starts fresh epoch — wipes results.csv + raw/ first, but backs
+#               up results.csv to results.csv.bak.<ts> if non-empty.
+#               Use only when starting a brand new optimization round.
+#   --keep-csv: deprecated no-op (kept for backward compat with old muscle memory).
+#   --quick:    demo1 only × both res × 3 runs (forwarded to full-bench.sh).
+#   --no-yosemite     skip the G3 leg (rarely wanted — G3 is the playability floor)
+#   --no-sawtooth     skip the Sawtooth G4 leg
+#   --no-quicksilver  skip the Quicksilver G4 leg
+#   --no-mini-g4      skip the Mac mini G4 leg
+#   --no-mini-intel   skip the Intel Mac mini leg (use if Lion is offline)
 #
 # env vars (DEMOS / RESES / RUNS) are forwarded to full-bench.sh — see that
 # script for the full set of overrides.
 #
 # pre: bundles deployed to every target you're benching (scripts/deploy.sh
-#      g3 && scripts/deploy.sh g4 && scripts/deploy.sh g4mini && scripts/deploy.sh lion).
-#      g4mini reuses build/quakespasm-g4 (same arch/SDK as Quicksilver), so no
-#      separate build step is required for it.
+#      <machine> for each). All three G4 machines share build/quakespasm-g4.
 #
 # Hash stability: HEAD is resolved once at script start and exported as $COMMIT
-# so every cell of the grid tags consistently in results.csv, even if a side
-# commit lands while the bench is running. (Without this, cells that ran after
-# the side commit would tag with the new hash and split the baseline.)
+# so every cell tags consistently in results.csv, even if a side commit lands
+# while the bench is running.
 #
 # Safety:
 #   - CSV header init in bench.sh is atomic (bash noclobber); pre-creating the
 #     CSV here is belt-and-suspenders.
 #   - CSV row appends (>>) are atomic on Linux/macOS for writes < PIPE_BUF (4 KB);
-#     our rows are ~80 B so rows from the four machines won't interleave.
+#     our rows are ~80 B so rows from machines won't interleave.
 #   - Raw log filenames include the machine name, so legs never collide.
-#   - SSH connections to g4, g4mini, PowerMacG3, and lion are independent.
+#   - SSH connections to all 5 hosts are independent.
 
 set -euo pipefail
 
 RESET=0
-NO_LION=0
-NO_G4MINI=0
-NO_G4=0
-NO_G3=0
-PASSTHRU=()  # extra flags forwarded to each full-bench.sh invocation (--quick etc)
+declare -A SKIP
+SKIP[yosemite]=0
+SKIP[sawtooth]=0
+SKIP[quicksilver]=0
+SKIP[mini-g4]=0
+SKIP[mini-intel]=0
+PASSTHRU=()  # extra flags forwarded to full-bench.sh (--quick etc)
 for arg in "$@"; do
   case "$arg" in
-    --reset)      RESET=1 ;;
-    --keep-csv)   ;;  # deprecated no-op; keep accepting it so old commands still work
-    --quick)      PASSTHRU+=("$arg") ;;
-    --no-lion)    NO_LION=1 ;;
-    --no-g4mini)  NO_G4MINI=1 ;;
-    --no-g4)      NO_G4=1 ;;
-    --no-g3)      NO_G3=1 ;;
-    -h|--help)    sed -n '2,25p' "$0"; exit 0 ;;
+    --reset)            RESET=1 ;;
+    --keep-csv)         ;;  # deprecated no-op
+    --quick)            PASSTHRU+=("$arg") ;;
+    --no-yosemite)      SKIP[yosemite]=1 ;;
+    --no-sawtooth)      SKIP[sawtooth]=1 ;;
+    --no-quicksilver)   SKIP[quicksilver]=1 ;;
+    --no-mini-g4)       SKIP[mini-g4]=1 ;;
+    --no-mini-intel)    SKIP[mini-intel]=1 ;;
+    -h|--help)          sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
@@ -84,19 +89,18 @@ if [ "$RESET" -eq 1 ]; then
   echo "[parallel-bench] --reset: wiped raw/ and results.csv (fresh epoch)"
 else
   mkdir -p "$RAW"
-  # Pre-create CSV header (atomic) so neither bench.sh races on init.
   ( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV" ) 2>/dev/null || true
   EXISTING_ROWS=$(($(wc -l < "$CSV") - 1))
   echo "[parallel-bench] appending to rolling results.csv ($EXISTING_ROWS existing rows)"
 fi
 
-# Active-leg map. Skipping all four is silly but legal — the resulting bench is
-# a no-op and bench-and-commit.sh will exit 1 because no rows landed.
+# Active legs — preserve fastest → slowest order so the wall-time tail
+# corresponds to the G3.
+ALL_LEGS=(mini-intel quicksilver mini-g4 sawtooth yosemite)
 ACTIVE_LEGS=()
-[ "$NO_G3"     -eq 0 ] && ACTIVE_LEGS+=(g3)
-[ "$NO_G4"     -eq 0 ] && ACTIVE_LEGS+=(g4)
-[ "$NO_G4MINI" -eq 0 ] && ACTIVE_LEGS+=(g4mini)
-[ "$NO_LION"   -eq 0 ] && ACTIVE_LEGS+=(lion)
+for LEG in "${ALL_LEGS[@]}"; do
+  [ "${SKIP[$LEG]}" -eq 0 ] && ACTIVE_LEGS+=("$LEG")
+done
 
 if [ "${#ACTIVE_LEGS[@]}" -eq 0 ]; then
   echo "[parallel-bench] all legs skipped — nothing to do" >&2
@@ -104,20 +108,11 @@ if [ "${#ACTIVE_LEGS[@]}" -eq 0 ]; then
 fi
 
 # Pre-flight: kill any stale quakespasm on every active machine.
-# Each leg's host alias is identical to its tag, except g3 maps to PowerMacG3.
-host_for_leg() {
-  case "$1" in
-    g3)     echo PowerMacG3 ;;
-    g4)     echo g4 ;;
-    g4mini) echo g4mini ;;
-    lion)   echo lion ;;
-  esac
-}
-
-echo "[parallel-bench] pre-flight: clearing stale quakespasm processes"
+# Each leg's machine name == its SSH alias after the rename round.
+echo "[parallel-bench] pre-flight: clearing stale quakespasm processes (TERM-grace-KILL — Rage 128 LUT fix)"
 for LEG in "${ACTIVE_LEGS[@]}"; do
-  HOST=$(host_for_leg "$LEG")
-  ssh -o ConnectTimeout=5 "$HOST" 'killall -KILL quakespasm 2>/dev/null || true' &
+  ssh -o ConnectTimeout=5 "$LEG" 'if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
+    killall -KILL quakespasm 2>/dev/null || true' &
 done
 wait
 
@@ -130,7 +125,7 @@ done
 echo "[parallel-bench] start: $(date)"
 echo "[parallel-bench] active legs: ${ACTIVE_LEGS[*]}"
 for LEG in "${ACTIVE_LEGS[@]}"; do
-  printf "[parallel-bench] %-7s log: %s\n" "$LEG" "${LEG_LOG[$LEG]}"
+  printf "[parallel-bench] %-12s log: %s\n" "$LEG" "${LEG_LOG[$LEG]}"
 done
 
 # Launch each active leg in the background; full-bench.sh handles the per-target
@@ -139,7 +134,7 @@ done
 for LEG in "${ACTIVE_LEGS[@]}"; do
   "$REPO_ROOT/scripts/full-bench.sh" "$LEG" "${PASSTHRU[@]}" > "${LEG_LOG[$LEG]}" 2>&1 &
   LEG_PID[$LEG]=$!
-  printf "[parallel-bench] %-7s pid=%s\n" "$LEG" "${LEG_PID[$LEG]}"
+  printf "[parallel-bench] %-12s pid=%s\n" "$LEG" "${LEG_PID[$LEG]}"
 done
 
 # Wait for all legs regardless of failure — we want the partial CSV either way.
@@ -150,7 +145,7 @@ for LEG in "${ACTIVE_LEGS[@]}"; do
 done
 
 EXIT_LINE="[parallel-bench]"
-for LEG in g3 g4 g4mini lion; do
+for LEG in "${ALL_LEGS[@]}"; do
   if [[ -n "${LEG_PID[$LEG]:-}" ]]; then
     EXIT_LINE+=" $LEG=${LEG_RC[$LEG]}"
   else

@@ -4,7 +4,7 @@
 # machine's Desktop and (optionally) fetches copies back to the
 # orchestrator for blog/post-mortem use.
 #
-# usage: scripts/screenshot.sh <g3|g4|g4mini|lion> [--width WxH] [--no-fetch]
+# usage: scripts/screenshot.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel> [--width WxH] [--no-fetch]
 #
 # pre:   Deploy a fat bundle first via `scripts/deploy.sh fat <host>`.
 #        Host must reach login (ssh works).
@@ -37,7 +37,7 @@
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
-  echo "usage: $0 <g3|g4|g4mini|lion> [--width WIDTHxHEIGHT] [--no-fetch]" >&2
+  echo "usage: $0 <yosemite|sawtooth|quicksilver|mini-g4|mini-intel> [--width WIDTHxHEIGHT] [--no-fetch]" >&2
   exit 2
 fi
 
@@ -54,11 +54,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# TARGET == SSH alias after the rename round.
 case "$TARGET" in
-  g3)     HOST="PowerMacG3" ;;
-  g4)     HOST="g4"          ;;
-  g4mini) HOST="g4mini"      ;;
-  lion)   HOST="lion"        ;;
+  yosemite|sawtooth|quicksilver|mini-g4|mini-intel) HOST="$TARGET" ;;
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 

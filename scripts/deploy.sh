@@ -2,10 +2,18 @@
 # Assemble a Quakespasm.app bundle and deploy it to the target machine.
 # Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <g3|g4|g4mini|lion>          # per-target single-arch
-#        scripts/deploy.sh fat <g3|g4|g4mini|lion>      # universal fat binary
+# usage: scripts/deploy.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>          # per-target
+#        scripts/deploy.sh fat <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>      # fat binary
 #
-# pre:   per-target form: build/quakespasm-<target> must exist
+# Machine identity → binary mapping (machine names use Apple codenames /
+# form-factor; binary names use chip family):
+#   yosemite    → quakespasm-g3      (PPC 750, 10.3.9 SDK)
+#   sawtooth    → quakespasm-g4      (PPC 7400 baseline, 10.4u SDK)
+#   quicksilver → quakespasm-g4      (PPC 7450, 10.4u SDK; same binary)
+#   mini-g4     → quakespasm-g4      (PPC 7447A, 10.4u SDK; same binary)
+#   mini-intel  → quakespasm-lion    (x86_64, native Lion toolchain)
+#
+# pre:   per-target form: build/quakespasm-<chip> must exist
 #        fat form:        build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
 # The fat form ships ONE Mach-O (3 slices: ppc750 + ppc7400 + x86_64) plus
@@ -24,33 +32,48 @@ if [ "${1:-}" = "fat" ]; then
   MODE="fat"
   shift
 fi
-TARGET="${1:?usage: $0 [fat] <g3|g4|g4mini|lion>}"
+TARGET="${1:?usage: $0 [fat] <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>}"
 
 # MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
 # ppc slice is the Panther-compatible build. One framework serves all
-# four targets — no per-host SDL swap. See "How the fat SDL was built"
+# five targets — no per-host SDL swap. See "How the fat SDL was built"
 # in CLAUDE.md if it ever needs regenerating from MacOSX/SDL-panther.dylib.
 case "$TARGET" in
-  g3)
-    HOST="PowerMacG3"
-    RSYNC_EXTRA="--protocol=29"  # Panther's rsync 2.5.x is older than Ubuntu's
+  yosemite)
+    # PowerMac1,1 — only G3 / Panther target. Needs --protocol=29 because
+    # Panther ships rsync 2.5.x, older than Ubuntu's.
+    HOST="yosemite"
+    RSYNC_EXTRA="--protocol=29"
+    BIN_TARGET="g3"
     ;;
-  g4)
-    HOST="g4"
+  sawtooth)
+    # PowerMac3,1 — G4 AGP "Sawtooth" tower, 500 MHz 7400 + GeForce2 MX.
+    # Only fixed-function G4 in the matrix. Reuses the g4 binary (-mcpu=7400
+    # is the native ISA — actually a closer match than Quicksilver's 7450).
+    HOST="sawtooth"
     RSYNC_EXTRA=""
+    BIN_TARGET="g4"
     ;;
-  g4mini)
-    # Mac mini G4 — second G4-class bench target, added 2026-05-08.
-    # Same arch as g4 (Quicksilver) so reuses build/quakespasm-g4. Tiger
-    # 10.4 like the Quicksilver. Different GPU class (Radeon 9200 / 32 MB)
+  quicksilver)
+    # PowerMac3,5 — Quicksilver G4 tower, 733 MHz 7450 + Radeon 9000 Pro.
+    HOST="quicksilver"
+    RSYNC_EXTRA=""
+    BIN_TARGET="g4"
+    ;;
+  mini-g4)
+    # PowerMac10,1 — Mac mini G4 first-gen, 1.25 GHz 7447A + Radeon 9200 32MB.
+    # Different GPU class (Radeon 9200 / 32 MB) from the Quicksilver
     # — separate data point for CPU-bound vs fillrate-bound diagnosis.
-    HOST="g4mini"
+    HOST="mini-g4"
     RSYNC_EXTRA=""
-    BIN_TARGET="g4"  # reuse the g4 binary
+    BIN_TARGET="g4"
     ;;
-  lion)
-    HOST="lion"
+  mini-intel)
+    # Macmini2,1 — Mac mini Intel C2D 2.33 GHz + GMA 950, Lion 10.7.5.
+    # Dual-role: this is also the cross-build host for all PPC binaries.
+    HOST="mini-intel"
     RSYNC_EXTRA=""
+    BIN_TARGET="lion"
     ;;
   *)
     echo "unknown target: $TARGET" >&2

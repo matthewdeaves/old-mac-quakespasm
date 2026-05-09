@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
-# Build a QuakeSpasm binary on the Lion build host.
+# Build a QuakeSpasm binary on the cross-build host (mini-intel, the Lion box).
 # - g3/g4: cross-compile PPC via gcc-4.0 + 10.3.9/10.4u SDKs
-# - lion : native x86_64 build for Lion itself (Macmini2,1, Core 2 Duo
-#          @ 2.33 GHz, 10.7.5). Third reference point alongside G3 + G4.
+# - lion : native x86_64 build for the Lion box itself (Macmini2,1, Core 2 Duo
+#          @ 2.33 GHz, 10.7.5).
 #
-# Note: there is no `g4mini` target here — the Mac mini G4 (added 2026-05-08
-# as a 4th bench machine) shares the Quicksilver's arch + SDK, so deploy.sh
-# g4mini reuses build/quakespasm-g4 directly. Build with `g4` and deploy to
-# both g4 hosts.
+# The build TARGET names (g3/g4/lion) refer to chip family + SDK, NOT machine
+# identity. The single g4 binary serves three machines (sawtooth, quicksilver,
+# mini-g4) — they all run -mcpu=7400 -maltivec code on Tiger 10.4. Machine
+# identity → binary mapping lives in scripts/deploy.sh.
 #
 # usage: scripts/build.sh <g3|g4|lion>
 # output: build/quakespasm-<target>
-# env:    LION (ssh alias for the build host, default 'lion')
+# env:    BUILD_HOST (ssh alias for the cross-build host, default 'mini-intel')
 
 set -euo pipefail
 
 TARGET="${1:?usage: $0 <g3|g4|lion>}"
-LION="${LION:-lion}"
+# The cross-build host is the Intel Mac mini (mini-intel). Variable name
+# kept as BUILD_HOST for clarity; LION still accepted for backward compat.
+BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
+LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines below
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Serialize concurrent invocations. Both targets rsync to the same

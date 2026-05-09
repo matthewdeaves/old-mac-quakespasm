@@ -8,6 +8,12 @@ incomplete information.
 Format: date, what we tried, what went wrong, what the fix was, what
 we learned. Newest at the top.
 
+> **Naming note (2026-05-09):** historical entries below reference the
+> old machine names (`g3`, `g4`, `g4mini`, `lion`). After the rename
+> round those map to `yosemite`, `quicksilver`, `mini-g4`, `mini-intel`
+> respectively (and the new `sawtooth` G4 AGP tower joined the matrix).
+> Same hardware, just renamed. See CLAUDE.md "Hosts" for the full table.
+
 ---
 
 ## 2026-05-09 — Round v5 B5: scalar dlight cast hoist — REVERT WAS WRONG, RE-APPLIED

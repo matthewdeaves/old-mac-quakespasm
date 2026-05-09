@@ -2,17 +2,24 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <g3|g4|g4mini|lion> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
+#
+# Machines (Apple-codename / form-factor naming):
+#   yosemite     PowerMac1,1   B&W G3 449 MHz / Rage 128 / 10.3.9 Panther
+#   sawtooth     PowerMac3,1   G4 AGP 500 MHz / GeForce2 MX / 10.4.11 Tiger
+#   quicksilver  PowerMac3,5   G4 QS  733 MHz / Radeon 9000 / 10.4.11 Tiger
+#   mini-g4      PowerMac10,1  Mac mini G4 1.25 GHz / Radeon 9200 / 10.4.11
+#   mini-intel   Macmini2,1    C2D 2.33 GHz / GMA 950 / 10.7.5 Lion
 #
 # output: appends row to benchmarks/results.csv,
 #         saves raw qconsole.log to benchmarks/raw/
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4|g4mini|lion> <demo> <WxH> [runs]}"
+TARGET="${1:?usage: $0 <yosemite|sawtooth|quicksilver|mini-g4|mini-intel> <demo> <WxH> [runs]}"
 DEMO="${2:?demo name required (demo1|demo2|demo3)}"
 RES="${3:?resolution required (e.g. 1024x768)}"
 RUNS="${4:-3}"
@@ -21,11 +28,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 W="${RES%x*}"
 H="${RES#*x}"
 
+# TARGET == SSH alias after the rename round; TIMEOUT scales with CPU class
+# (Lion finishes timedemo in seconds; the G3 needs minutes).
 case "$TARGET" in
-  g3)     HOST="PowerMacG3"; TIMEOUT=240 ;;
-  g4)     HOST="g4";         TIMEOUT=120 ;;
-  g4mini) HOST="g4mini";     TIMEOUT=120 ;;  # G4 mini, 1.25-1.5 GHz Tiger
-  lion)   HOST="lion";       TIMEOUT=60  ;;  # 2.33 GHz Core 2 Duo finishes timedemo fast
+  yosemite)    HOST="yosemite";    TIMEOUT=240 ;;
+  sawtooth)    HOST="sawtooth";    TIMEOUT=180 ;;  # 500 MHz G4 AGP — slower than other G4s
+  quicksilver) HOST="quicksilver"; TIMEOUT=120 ;;
+  mini-g4)     HOST="mini-g4";     TIMEOUT=120 ;;
+  mini-intel)  HOST="mini-intel";  TIMEOUT=60  ;;
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 

@@ -18,30 +18,40 @@ The full build/deploy/bench loop is scripted. Don't write inline ssh+make
 heredocs; invoke the scripts:
 
 ```
-scripts/build.sh <g3|g4|lion>          cross-compile (g3/g4) or native x86_64 (lion) on Lion
-                                       (no g4mini target — reuses the g4 binary)
-scripts/deploy.sh <g3|g4|g4mini|lion>  assemble Quakespasm.app, ship to target
-scripts/bench.sh <target> <demo> <WxH> [runs]   run timedemo, append to results.csv
-                                                target ∈ {g3,g4,g4mini,lion}
-scripts/full-bench.sh [g3|g4|g4mini|lion|both|all] [--quick]   matrix sweep
-                                                        both = g3+g4 (historical PPC pair)
-                                                        all  = g3+g4+g4mini+lion (4-machine)
-scripts/parallel-bench.sh [--quick] [--no-lion] [--no-g4mini] [--no-g4] [--no-g3]
-                                       all 4 legs concurrently by default
+# Naming: build TARGET names (g3/g4/lion) refer to chip family + SDK,
+# NOT a machine. Machine names (yosemite/sawtooth/quicksilver/mini-g4/
+# mini-intel) refer to specific bench Macs. The single g4 binary serves
+# three machines (sawtooth, quicksilver, mini-g4); see deploy.sh for
+# the machine→binary map.
+
+scripts/build.sh <g3|g4|lion>          cross-compile (g3/g4) or native x86_64 (lion)
+                                       on the cross-build host (mini-intel)
+scripts/deploy.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>
+                                       assemble Quakespasm.app, ship to <machine>
+scripts/bench.sh <machine> <demo> <WxH> [runs]
+                                       run timedemo, append to results.csv
+                                       machine ∈ {yosemite,sawtooth,quicksilver,mini-g4,mini-intel}
+scripts/full-bench.sh [<machine>|ppc|all] [--quick]   matrix sweep
+                                                      ppc = 4 PPC machines
+                                                      all = all 5 machines
+scripts/parallel-bench.sh [--quick] [--no-yosemite] [--no-sawtooth]
+                                    [--no-quicksilver] [--no-mini-g4] [--no-mini-intel]
+                                       all 5 legs concurrently by default
                                        env: DEMOS, RESES, RUNS for custom
-scripts/setup-lion.sh             bootstrap fresh Lion box from prereqs/
+scripts/setup-lion.sh             bootstrap fresh cross-build host from prereqs/
+                                  (env BUILD_HOST=mini-intel by default)
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
 scripts/build-fat.sh              build a 3-arch (ppc750+ppc7400+x86_64) universal
                                   binary by composing g3/g4/lion sub-builds with
                                   lipo. Output: build/quakespasm-fat.
-scripts/deploy.sh fat <host>      ship build/quakespasm-fat to <host> with all
+scripts/deploy.sh fat <machine>   ship build/quakespasm-fat to <machine> with all
                                   three per-arch autoexec files in id1/. Engine
                                   hook in host.c:891 picks the right slice's
                                   autoexec at boot via __VEC__ / __ppc__ /
-                                  __x86_64__ macros. (Per-target form
-                                  scripts/deploy.sh <host> still works for
+                                  __x86_64__ macros. (Per-machine form
+                                  scripts/deploy.sh <machine> still works for
                                   pure single-arch builds.)
-scripts/screenshot.sh <host>      drive the deployed Quakespasm fat (or per-target)
+scripts/screenshot.sh <machine>   drive the deployed Quakespasm fat (or per-target)
                                   through demo1/demo2/demo3 with `screenshot tga`
                                   inserted at intervals. Saves into
                                   ~/Desktop/quakespasm-screens-<hostname>/ on the
@@ -115,7 +125,7 @@ a complete map.
 | Flag             | Phase  | Default     | What it gates                                  | File parsed |
 |------------------|--------|-------------|------------------------------------------------|-------------|
 | `-noaltivec-snd` | 4.2    | enabled     | 16-bit sound mixer (`SND_PaintChannelFrom16`)  | `snd_dma.c` `S_Init` |
-| `-altivec-lm`    | 4.4    | **disabled** (opt-in) | Lightmap compose loop (`R_BuildLightMap`) — regressed -0.5..-2.3% in smoke; round v3 retest 2026-05-08 (Task #9) confirmed net-zero on demo3 1024 (g4 -0.4% noise, g4mini fillrate-bound). Preserved in tree. See PPC_PLAN.md §13.2 status. | `gl_rmisc.c` `R_Init` |
+| `-altivec-lm`    | 4.4    | **disabled** (opt-in) | Lightmap compose loop (`R_BuildLightMap`) — regressed -0.5..-2.3% in smoke; round v3 retest 2026-05-08 (Task #9) confirmed net-zero on demo3 1024 (quicksilver -0.4% noise, mini-g4 fillrate-bound). Preserved in tree. See PPC_PLAN.md §13.2 status. | `gl_rmisc.c` `R_Init` |
 | `-noaltivec-mip` | 4.5    | enabled     | Mipmap chain build (`TexMgr_MipMap{W,H}`) — load-time only | `gl_texmgr.c` `TexMgr_Init` |
 | `-altivec-dlights` | §14.3 item 4 | **disabled** (opt-in) | Per-texel attenuation in `R_AddDynamicLights` — neutral in smoke (gate restricts AltiVec to ~30% of pixels; stack-spill erodes FP-mul win). Round v3 retest 2026-05-08 confirmed neutral alongside `-altivec-lm`. Preserved in tree. | `gl_rmisc.c` `R_Init` |
 
@@ -125,7 +135,8 @@ a complete map.
 |----------------|-------|---------|--------------|
 | `-perfprint` (cmdline) / `gl_perfprint` (cvar) | 7 | 0 (silent) | Per-region renderer timing every 60 frames — see Quake/gl_perfprint.h for region list |
 
-**Visual cvars (runtime, set in `scripts/bundle/autoexec-{g3,g4}.cfg`):**
+**Visual cvars (runtime, set in `scripts/bundle/autoexec-<machine>.cfg`):**
+Per-machine configs live at `scripts/bundle/autoexec-{yosemite,sawtooth,quicksilver,mini-g4,mini-intel}.cfg`.
 
 | Cvar                    | G3 default | G4 default | Lion default | Notes |
 |-------------------------|------------|------------|--------------|-------|
@@ -169,25 +180,50 @@ fps + visuals together. Gate any new perf or visual phase behind a
 named knob unless you have a strong reason not to (e.g. a code-size
 win that's only realised by removing the scalar fallback).
 
-## Hosts
+## Hosts (5 bench machines, named by Apple codename / form-factor)
 
-SSH aliases live in `~/.ssh/config`:
+SSH aliases live in `~/.ssh/config`. Renamed 2026-05-09 to nicer names —
+the rename round added the new G4 (sawtooth) at the same time. Historical
+CSV rows tagged with the OLD names (`g3`, `g4`, `g4mini`, `lion`) refer
+to the same hardware as `yosemite`, `quicksilver`, `mini-g4`, `mini-intel`
+respectively.
 
-- `lion` — Intel Mac mini Macmini2,1, 2.33 GHz Core 2 Duo, GMA 950, 10.7.5
-  Lion. **Dual role:** the cross-build host for G3 + G4, and a bench target
-  in its own right. Native x86_64 build via `/usr/bin/clang` (no `-isysroot`,
-  default Lion toolchain). **Sleeps aggressively** (system sleep timer is
-  short); if `build.sh` fails with `ssh: connect to host ... No route to
-  host`, Lion is asleep — wake it (Wake-on-LAN, key press, or
-  `caffeinate` if you've configured one) and retry.
-- `PowerMacG3` — Blue & White, 450 MHz, 10.3.9 Panther, Rage 128 16 MB.
-- `g4` — Quicksilver-class 867 MHz, 10.4.11 Tiger, Radeon 9000, AltiVec.
-- `g4mini` — Mac mini G4, 1.42 GHz 7447A, 10.4.11 Tiger, ATI Radeon 9200
-  / 32 MB AGP, AltiVec. Added 2026-05-08 as a second G4-class data point
-  alongside the Quicksilver. Same arch / SDK as `g4` so `deploy.sh g4mini`
-  reuses `build/quakespasm-g4`. Different GPU (Radeon 9200 32MB vs
-  Quicksilver's Radeon 9000 64MB) — useful for separating CPU-bound from
-  fillrate-bound effects on the G4 side.
+- `yosemite` — PowerMac1,1 Blue & White G3, 449 MHz PPC 750, Rage 128
+  16 MB AGP, 10.3.9 Panther. Apple codename "Yosemite".
+- `sawtooth` — PowerMac3,1 G4 AGP tower (1999), 500 MHz PPC 7400, NVIDIA
+  GeForce2 MX 32 MB AGP, 10.4.11 Tiger. AltiVec. **Only fixed-function G4
+  in the matrix** (GeForce2 MX has no fragment shaders). Added 2026-05-09
+  as the third G4 data point. Apple codename "Sawtooth".
+- `quicksilver` — PowerMac3,5 Quicksilver G4 tower (2001-2002), 733 MHz
+  PPC 7450, ATI Radeon 9000 Pro 64 MB AGP, 10.4.11 Tiger. AltiVec.
+  Apple codename "Quicksilver".
+- `mini-g4` — PowerMac10,1 Mac mini G4 first-gen (2005), 1.25 GHz PPC
+  7447A, ATI Radeon 9200 32 MB AGP, 10.4.11 Tiger. AltiVec. Different
+  GPU class from Quicksilver (Radeon 9200 32MB vs 9000 Pro 64MB) — useful
+  for separating CPU-bound from fillrate-bound effects within the G4 family.
+- `mini-intel` — Macmini2,1 Mac mini Intel (mid-2007), 2.33 GHz Core 2 Duo
+  T7600, Intel GMA 950 64 MB shared, 10.7.5 Lion. **Dual role:** the
+  cross-build host for G3 + G4 PPC binaries (gcc-4.0 + 10.3.9/10.4u SDKs),
+  and a bench target in its own right via native x86_64 build (`/usr/bin/clang`,
+  no `-isysroot`). **Sleeps aggressively** (system sleep timer is short);
+  if `build.sh` fails with `ssh: connect to host ... No route to host`,
+  the box is asleep — wake it (Wake-on-LAN, key press, or `caffeinate`
+  if you've configured one) and retry.
+
+The three G4 machines (`sawtooth`, `quicksilver`, `mini-g4`) all share
+the same `build/quakespasm-g4` binary — `-mcpu=7400 -maltivec` is
+correct for all three. The 7450 and 7447A run 7400 baseline code happily;
+`-mtune=7450` is just scheduling hints.
+
+Hardware lineup spans the GPU axis:
+- yosemite (Rage 128) and sawtooth (GeForce2 MX): fixed-function GPUs,
+  no fragment shaders. Each dlight = full extra blending pass.
+- quicksilver (Radeon 9000 Pro 64MB) and mini-g4 (Radeon 9200 32MB):
+  programmable-pipeline GPUs but pre-shader-model-2.0; shaders work
+  but engine doesn't use them on PPC.
+- mini-intel (GMA 950): GL 1.4 only, no GLSL.
+
+So GLSL paths are inert across the entire matrix.
 
 Old-Mac SSH (Lion + PPC) needs legacy crypto. The config entries already
 include `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
@@ -197,10 +233,10 @@ ed25519). Ad-hoc `ssh user@ip` without these flags will fail.
 
 ## Don't run `scripts/bench.sh` legs in parallel from one shell
 
-A `bench.sh g3 ... &` plus `bench.sh g4 ... &` from the same workstation
-shell stresses the local network/ssh stack and can produce a wrong
-G3 fps reading — observed 14.7 fps when run concurrent with a G4 cell,
-vs 23.1 fps the same binary delivers run alone. Both runs completed
+A `bench.sh yosemite ... &` plus `bench.sh quicksilver ... &` from the
+same workstation shell stresses the local network/ssh stack and can
+produce a wrong G3 fps reading — observed 14.7 fps when run concurrent
+with a G4 cell, vs 23.1 fps the same binary delivers run alone. Both runs completed
 successfully (no crash, no timeout); the G3 just churned through
 demo1 in ~3× the wall time. Use `parallel-bench.sh` for the proper
 concurrent matrix — it has its own log redirection and process
@@ -208,8 +244,8 @@ management — or run cells serially with `bench.sh`.
 
 ## Don't run `scripts/build.sh g3` and `g4` in parallel
 
-Both invocations rsync to the same `lion:quakespasm/` path and `make -j2`
-in `lion:quakespasm/Quake/`. Concurrent builds race on the `.o` files and
+Both invocations rsync to the same `mini-intel:quakespasm/` path and `make -j2`
+in `mini-intel:quakespasm/Quake/`. Concurrent builds race on the `.o` files and
 the resulting binary gets stamped with the *other* target's CPU subtype.
 Specific failure mode: G3 binary ends up `ppc7400`, Panther loads it
 anyway, then crashes during AppKit NIB init (`-[NSCustomObject

@@ -1,31 +1,39 @@
 ---
-description: Build binary on Lion and deploy Quakespasm.app to g3, g4, g4mini, or lion
-argument-hint: [g3|g4|g4mini|lion|all]
+description: Build binary on the cross-build host and deploy Quakespasm.app to a bench machine
+argument-hint: [yosemite|sawtooth|quicksilver|mini-g4|mini-intel|all]
 ---
 
-Build and deploy QuakeSpasm to a target. Arguments: $ARGUMENTS
+Build and deploy QuakeSpasm to a bench machine. Arguments: $ARGUMENTS
+
+Machine identity → binary mapping (machine names use Apple codenames /
+form-factor; binary names use chip family — one G4 binary serves three
+machines):
+
+| machine     | binary              | builder |
+|-------------|---------------------|---------|
+| yosemite    | `quakespasm-g3`     | `scripts/build.sh g3`   (PPC 750, 10.3.9 SDK) |
+| sawtooth    | `quakespasm-g4`     | `scripts/build.sh g4`   (PPC 7400, 10.4u SDK) |
+| quicksilver | `quakespasm-g4`     | `scripts/build.sh g4`   (same binary) |
+| mini-g4     | `quakespasm-g4`     | `scripts/build.sh g4`   (same binary) |
+| mini-intel  | `quakespasm-lion`   | `scripts/build.sh lion` (native x86_64 on Lion) |
 
 Behavior:
-- `/deploy g4`     → `scripts/build.sh g4 && scripts/deploy.sh g4`
-- `/deploy g3`     → `scripts/build.sh g3 && scripts/deploy.sh g3`
-- `/deploy g4mini` → `scripts/deploy.sh g4mini` (no build step — reuses
-                     `build/quakespasm-g4`; build it first with `/deploy g4`
-                     if it doesn't exist yet)
-- `/deploy lion`   → `scripts/build.sh lion && scripts/deploy.sh lion`
-- `/deploy all` (or no arg) → build g3, g4, lion sequentially, then deploy
-  all 4 targets (g3, g4, g4mini, lion). g4mini reuses the g4 binary.
+- `/deploy yosemite`    → `scripts/build.sh g3 && scripts/deploy.sh yosemite`
+- `/deploy sawtooth`    → build g4 (if not present) and `scripts/deploy.sh sawtooth`
+- `/deploy quicksilver` → build g4 (if not present) and `scripts/deploy.sh quicksilver`
+- `/deploy mini-g4`     → build g4 (if not present) and `scripts/deploy.sh mini-g4`
+- `/deploy mini-intel`  → `scripts/build.sh lion && scripts/deploy.sh mini-intel`
+- `/deploy all` (or no arg) → build g3 + g4 + lion sequentially, then deploy
+  all 5 machines.
 
-`build.sh` syncs sources to Lion, cross-compiles with the right SDK +
-`-mcpu` for the target (or native x86_64 via clang for `lion`), applies
-`install_name_tool` SDL fixup, and fetches `build/quakespasm-<target>`
-to Ubuntu.
+`build.sh` syncs sources to the cross-build host (mini-intel / Lion box),
+cross-compiles with the right SDK + `-mcpu` for the target (or native x86_64
+via clang for `lion`), applies `install_name_tool` SDL fixup, and fetches
+`build/quakespasm-<chip>` to Ubuntu.
 
 `deploy.sh` assembles the `Quakespasm.app` bundle on Ubuntu and rsyncs
-to `<target>:~/Desktop/quake/`. For G3 it swaps in the
-`MacOSX/SDL-panther.dylib` (10.3-targeted SDL build) — necessary
-because the bundled multi-arch `MacOSX/SDL.framework` was built against
-the 10.6 SDK and crashes on Panther in `SDL_VideoInit`. Tiger (g4 +
-g4mini) and Lion use the bundled SDL.framework as-is.
+to `<machine>:~/Desktop/quake/`. The bundled `MacOSX/SDL.framework` ships
+a Panther-compatible PPC slice in-place (no per-host SDL swap).
 
 After deploy, the bundle is ready to launch: each machine has
 `~/Desktop/quake/Quakespasm.app` plus `id1/`, `quakespasm.pak`, etc.
