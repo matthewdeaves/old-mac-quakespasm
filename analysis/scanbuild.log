@@ -2,8 +2,8 @@ r_part.c:216:3: warning: Value stored to 'angle' is never read [deadcode.DeadSto
   216 |                 angle = cl.time * avelocities[i][2];
       |                 ^       ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 1 warning generated.
-gl_warp.c:116:11: warning: Assigned value is garbage or undefined [core.uninitialized.Assign]
-  116 |                 dist[j] = dist[0];
+gl_warp.c:119:11: warning: Assigned value is garbage or undefined [core.uninitialized.Assign]
+  119 |                 dist[j] = dist[0];
       |                         ^ ~~~~~~~
 1 warning generated.
 gl_draw.c:182:31: warning: The left operand of '+' is a garbage value [core.UndefinedBinaryOperatorResult]
@@ -13,13 +13,19 @@ gl_draw.c:242:12: warning: The left operand of '/' is a garbage value [core.Unde
   242 |                 gl.sl = x/(float)BLOCK_WIDTH;
       |                         ~^
 2 warnings generated.
-gl_texmgr.c:1100:30: warning: Division by zero [core.DivideZero]
- 1100 |         xfrac = ((inwidth-1) << 16) / (outwidth-1);
-      |                 ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
-gl_texmgr.c:1101:31: warning: Division by zero [core.DivideZero]
- 1101 |         yfrac = ((inheight-1) << 16) / (outheight-1);
-      |                 ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
-2 warnings generated.
+r_brush.c: In function ‘R_AddDynamicLights’:
+r_brush.c:1003:46: warning: unused variable ‘brightness’ [-Wunused-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                                              ^~~~~~~~~~
+r_brush.c:1003:39: warning: variable ‘cblue’ set but not used [-Wunused-but-set-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                                       ^~~~~
+r_brush.c:1003:31: warning: variable ‘cgreen’ set but not used [-Wunused-but-set-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                               ^~~~~~
+r_brush.c:1003:25: warning: variable ‘cred’ set but not used [-Wunused-but-set-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                         ^~~~
 In file included from image.c:35:
 ./lodepng.c:123:45: warning: Assigned value is garbage or undefined [core.uninitialized.Assign]
   123 |   for(i = 0; i < size; i++) ((char*)dst)[i] = ((const char*)src)[i];
@@ -47,10 +53,19 @@ bgmusic.c:418:4: warning: Value stored to 'fileBytes' is never read [deadcode.De
   418 |                         fileBytes = res;
       |                         ^           ~~~
 1 warning generated.
-r_brush.c:1173:5: warning: Value stored to 'i' is never read [deadcode.DeadStores]
- 1173 |                                 i = 0;
+r_brush.c:1041:3: warning: Value stored to 'cred' is never read [deadcode.DeadStores]
+ 1041 |                 cred = cl_dlights[lnum].color[0] * 256.0f;
+      |                 ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+r_brush.c:1042:3: warning: Value stored to 'cgreen' is never read [deadcode.DeadStores]
+ 1042 |                 cgreen = cl_dlights[lnum].color[1] * 256.0f;
+      |                 ^        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+r_brush.c:1043:3: warning: Value stored to 'cblue' is never read [deadcode.DeadStores]
+ 1043 |                 cblue = cl_dlights[lnum].color[2] * 256.0f;
+      |                 ^       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+r_brush.c:1218:5: warning: Value stored to 'i' is never read [deadcode.DeadStores]
+ 1218 |                                 i = 0;
       |                                 ^   ~
-1 warning generated.
+4 warnings generated.
 gl_model.c:982:3: warning: Value stored to 'altmax' is never read [deadcode.DeadStores]
   982 |                 altmax = 0;
       |                 ^        ~
@@ -66,13 +81,10 @@ cl_demo.c:134:3: warning: Value stored to 'r' is never read [deadcode.DeadStores
   134 |                 r = fread (&f, 4, 1, cls.demofile);
       |                 ^   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 1 warning generated.
-console.c:951:16: warning: Array access (from variable 'c') results in a null pointer dereference [core.NullDereference]
-  951 |                 partial[i] = c[i];
-      |                              ^~~~
-console.c:1143:3: warning: Value stored to 'v' is never read [deadcode.DeadStores]
- 1143 |                 v += 8;
+console.c:1149:3: warning: Value stored to 'v' is never read [deadcode.DeadStores]
+ 1149 |                 v += 8;
       |                 ^    ~
-2 warnings generated.
+1 warning generated.
 menu.c:1890:3: warning: Value stored to 'l' is never read [deadcode.DeadStores]
  1890 |                 l = lanConfig_port;
       |                 ^   ~~~~~~~~~~~~~~

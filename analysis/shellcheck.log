@@ -1,41 +1,81 @@
-In scripts/bench.sh line 48:
+
+In scripts/analyze-all.sh line 17:
+cd "$REPO_ROOT"
+^-------------^ SC2164 (warning): Use 'cd ... || exit' or 'cd ... || return' in case cd fails.
+
+Did you mean: 
+cd "$REPO_ROOT" || exit
+
+
+In scripts/bench.sh line 58:
 for i in $(seq 1 $RUNS); do
                  ^---^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
 Did you mean: 
 for i in $(seq 1 "$RUNS"); do
-In scripts/bench.sh line 63:
+
+
+In scripts/bench.sh line 81:
       -fullscreen -width $W -height $H \\
                          ^-- SC2029 (info): Note that, unescaped, this expands on the client side.
-In scripts/build.sh line 102:
+
+
+In scripts/build.sh line 116:
   make -f Makefile.darwin MACH_TYPE=$MACH_TYPE -j2 \
                                     ^--------^ SC2029 (info): Note that, unescaped, this expands on the client side.
-In scripts/deploy.sh line 78:
+
+
+In scripts/deploy.sh line 101:
 trap "rm -rf '$STAGE'" EXIT
               ^----^ SC2064 (warning): Use single quotes, otherwise this expands now rather than when signalled.
-In scripts/screenshot.sh line 92:
+
+
+In scripts/install-host-tools.sh line 25:
+[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite sawtooth quicksilver mini-g4 mini-intel})
+                                 ^-- SC2206 (warning): Quote to prevent word splitting/globbing, or split robustly with mapfile or read -a.
+
+
+In scripts/install-host-tools.sh line 34:
+        ssh "$host" "chmod +x ~/bin/$script"
+                                    ^-----^ SC2029 (info): Note that, unescaped, this expands on the client side.
+
+
+In scripts/screenshot.sh line 90:
 REMOTE_QUAKE="\$HOME/Desktop/quake"
 ^----------^ SC2034 (warning): REMOTE_QUAKE appears unused. Verify use (or export if used externally).
-In scripts/screenshot.sh line 100:
+
+
+In scripts/screenshot.sh line 98:
 SETTLE_WAITS=30     # ~1.2s on G3, ~0.15s on Lion — frames-of-render budget
 ^----------^ SC2034 (warning): SETTLE_WAITS appears unused. Verify use (or export if used externally).
-In scripts/screenshot.sh line 101:
+
+
+In scripts/screenshot.sh line 99:
 SHOT_WAITS=30       # let TGA writer flush — TGA is fast (no zlib)
 ^--------^ SC2034 (warning): SHOT_WAITS appears unused. Verify use (or export if used externally).
-In scripts/screenshot.sh line 115:
+
+
+In scripts/screenshot.sh line 113:
   echo "// 4 shots per demo across $(echo $DEMOS | wc -w) demos. TGA dump."
                                           ^----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
 Did you mean: 
   echo "// 4 shots per demo across $(echo "$DEMOS" | wc -w) demos. TGA dump."
-In scripts/screenshot.sh line 146:
+
+
+In scripts/screenshot.sh line 144:
 TOTAL_SHOTS=$(($(echo $DEMOS | wc -w) * SHOTS_PER_DEMO))
                       ^----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
 Did you mean: 
 TOTAL_SHOTS=$(($(echo "$DEMOS" | wc -w) * SHOTS_PER_DEMO))
-In scripts/screenshot.sh line 177:
+
+
+In scripts/screenshot.sh line 175:
 ssh "$HOST" bash <<EOF
                    ^-^ SC2087 (warning): Quote 'EOF' to make here document expansions happen on the server side rather than on the client.
+
 For more information:
   https://www.shellcheck.net/wiki/SC2034 -- REMOTE_QUAKE appears unused. Veri...
   https://www.shellcheck.net/wiki/SC2064 -- Use single quotes, otherwise this...
   https://www.shellcheck.net/wiki/SC2087 -- Quote 'EOF' to make here document...
-[full output: ~/.local/share/rtk/tee/1778280481_shellcheck_scripts_bench-and-commit_sh_s.log]

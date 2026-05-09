@@ -3377,25 +3377,6 @@ gl_model.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//in
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fintrin.h:16565:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fintrin.h:16599:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fintrin.h:16607:3: warning: mixing declarations and code
-in_sdl.c: note: in included file (through /usr/include/stdio.h, q_stdinc.h, quakedef.h):
-/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:75:17: warning: dubious bitfield without explicit `signed' or `unsigned'
-in_sdl.c: note: in included file (through q_stdinc.h, quakedef.h):
-/usr/include/stdio.h:655:12: warning: unknown attribute '__access__'
-/usr/include/stdio.h:902:3: warning: unknown attribute '__access__'
-in_sdl.c: note: in included file (through q_stdinc.h, quakedef.h):
-/usr/include/stdlib.h:1081:5: warning: unknown attribute '__access__'
-/usr/include/stdlib.h:1086:3: warning: unknown attribute '__access__'
-/usr/include/stdlib.h:1087:3: warning: unknown attribute '__access__'
-in_sdl.c: note: in included file (through q_stdinc.h, quakedef.h):
-/usr/include/string.h:56:32: warning: unknown attribute '__access__'
-/usr/include/string.h:168:29: warning: unknown attribute '__access__'
-/usr/include/string.h:181:6: warning: unknown attribute '__access__'
-/usr/include/string.h:392:5: warning: unknown attribute '__access__'
-/usr/include/string.h:393:5: warning: unknown attribute '__access__'
-/usr/include/string.h:435:5: warning: unknown attribute '__access__'
-/usr/include/string.h:467:5: warning: unknown attribute '__access__'
-/usr/include/string.h:508:30: warning: unknown attribute '__access__'
-/usr/include/string.h:514:31: warning: unknown attribute '__access__'
 gl_model.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//include/immintrin.h, /usr/include/SDL2/SDL_cpuinfo.h, /usr/include/SDL2/SDL.h, quakedef.h):
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:4992:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5000:3: warning: mixing declarations and code
@@ -3407,9 +3388,6 @@ gl_model.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//in
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5048:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5056:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5064:3: warning: mixing declarations and code
-in_sdl.c: note: in included file (through /usr/include/SDL2/SDL_stdinc.h, /usr/include/SDL2/SDL_main.h, /usr/include/SDL2/SDL.h, quakedef.h):
-/usr/include/wchar.h:111:30: warning: unknown attribute '__access__'
-/usr/include/wchar.h:117:31: warning: unknown attribute '__access__'
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5072:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5080:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512vlbwintrin.h:5088:3: warning: mixing declarations and code
@@ -3536,6 +3514,41 @@ gl_model.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//in
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2345:60: error: got __W
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2356:60: error: Expected ) in function call
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2356:60: error: too many errors
+r_brush.c: In function ‘R_AddDynamicLights’:
+r_brush.c:1003:46: warning: unused variable ‘brightness’ [-Wunused-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                                              ^~~~~~~~~~
+r_brush.c:1003:39: warning: variable ‘cblue’ set but not used [-Wunused-but-set-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                                       ^~~~~
+r_brush.c:1003:31: warning: variable ‘cgreen’ set but not used [-Wunused-but-set-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                               ^~~~~~
+r_brush.c:1003:25: warning: variable ‘cred’ set but not used [-Wunused-but-set-variable]
+ 1003 |         float           cred, cgreen, cblue, brightness;
+      |                         ^~~~
+in_sdl.c: note: in included file (through /usr/include/stdio.h, q_stdinc.h, quakedef.h):
+/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:75:17: warning: dubious bitfield without explicit `signed' or `unsigned'
+in_sdl.c: note: in included file (through q_stdinc.h, quakedef.h):
+/usr/include/stdio.h:655:12: warning: unknown attribute '__access__'
+/usr/include/stdio.h:902:3: warning: unknown attribute '__access__'
+in_sdl.c: note: in included file (through q_stdinc.h, quakedef.h):
+/usr/include/stdlib.h:1081:5: warning: unknown attribute '__access__'
+/usr/include/stdlib.h:1086:3: warning: unknown attribute '__access__'
+/usr/include/stdlib.h:1087:3: warning: unknown attribute '__access__'
+in_sdl.c: note: in included file (through q_stdinc.h, quakedef.h):
+/usr/include/string.h:56:32: warning: unknown attribute '__access__'
+/usr/include/string.h:168:29: warning: unknown attribute '__access__'
+/usr/include/string.h:181:6: warning: unknown attribute '__access__'
+/usr/include/string.h:392:5: warning: unknown attribute '__access__'
+/usr/include/string.h:393:5: warning: unknown attribute '__access__'
+/usr/include/string.h:435:5: warning: unknown attribute '__access__'
+/usr/include/string.h:467:5: warning: unknown attribute '__access__'
+/usr/include/string.h:508:30: warning: unknown attribute '__access__'
+/usr/include/string.h:514:31: warning: unknown attribute '__access__'
+in_sdl.c: note: in included file (through /usr/include/SDL2/SDL_stdinc.h, /usr/include/SDL2/SDL_main.h, /usr/include/SDL2/SDL.h, quakedef.h):
+/usr/include/wchar.h:111:30: warning: unknown attribute '__access__'
+/usr/include/wchar.h:117:31: warning: unknown attribute '__access__'
 in_sdl.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//include/immintrin.h, /usr/include/SDL2/SDL_cpuinfo.h, /usr/include/SDL2/SDL.h, quakedef.h):
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fintrin.h:16193:3: warning: mixing declarations and code
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fintrin.h:16201:3: warning: mixing declarations and code
@@ -7228,6 +7241,9 @@ net_udp.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//inc
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2345:60: error: got __W
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2356:60: error: Expected ) in function call
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2356:60: error: too many errors
+cd_sdl.c:39:9: note: ‘#pragma message: Warning: SDL CDAudio support disabled’
+   39 | #pragma message("Warning: SDL CDAudio support disabled")
+      |         ^~~~~~~
 net_dgrm.c: note: in included file (through /usr/include/stdio.h, q_stdinc.h):
 /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:75:17: warning: dubious bitfield without explicit `signed' or `unsigned'
 net_dgrm.c: note: in included file (through q_stdinc.h):
@@ -7630,9 +7646,6 @@ net_loop.c: note: in included file (through /usr/lib/gcc/x86_64-linux-gnu/14//in
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2345:60: error: got __W
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2356:60: error: Expected ) in function call
 /usr/lib/gcc/x86_64-linux-gnu/14//include/avx512fp16intrin.h:2356:60: error: too many errors
-cd_sdl.c:39:9: note: ‘#pragma message: Warning: SDL CDAudio support disabled’
-   39 | #pragma message("Warning: SDL CDAudio support disabled")
-      |         ^~~~~~~
 net_main.c: note: in included file (through /usr/include/stdio.h, q_stdinc.h):
 /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:75:17: warning: dubious bitfield without explicit `signed' or `unsigned'
 net_main.c: note: in included file (through q_stdinc.h):
