@@ -1,0 +1,73 @@
+LOG started on: 05/09/2026 10:12:14 
+Playing registered version.
+Console initialized.
+UDP Initialized
+Exe: 10:07:41 May  9 2026
+256.0 megabyte heap
+Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: NVIDIA Corporation
+GL_RENDERER: NVIDIA GeForce2 MX OpenGL Engine
+GL_VERSION: 1.1 NVIDIA-1.4.18
+Warning: OpenGL version < 1.5, skipping ARB_vertex_buffer_object check
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 2
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SWAP_CONTROL
+FOUND: EXT_texture_filter_anisotropic
+Warning: texture_non_power_of_two not supported
+Warning: OpenGL version < 2, GLSL not available
+Warning: GLSL gamma not available, using hardware gamma
+Warning: GLSL alias model rendering not available, using Fitz renderer
+Warning: EXT_packed_pixels disabled on big endian systemsWarning: glGenerateMipmap not available, liquids won't have mipmaps
+Couldn't init SDL cdrom: SDL not built with cdrom support
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '.'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Unknown command "no"
+Unknown command "cost"
+Unknown command "on"
+Unknown command "r_dynamic_distance"
+Unknown command "on"
+Unknown command "matches"
+Unknown command "only"
+Unknown command "vid_wait"
+Playing demo from demo2.dem.
+3 demo(s) in loop
+
+
+
+the Grisly Grotto
+Using protocol 15
+You got the shells
+
+          Only 1 more to go...
+
+
+          Sequence completed!
+
+
+        You found a secret area!
+
+You got the shells
+You got the nails
+You got armor
+You got the nails
+You receive 25 health
+You got the Super Nailgun
+You got the nails
+You get 2 rockets  
+You receive 25 health
+You got the shells
+You get 2 rockets  
+You got the nails
+You get 2 rockets  
+985 frames  18.0 seconds  54.7 fps
