@@ -47,15 +47,23 @@ mkdir -p "$RAW_DIR"
 declare -a FPS
 for i in $(seq 1 $RUNS); do
   echo "[bench $TARGET $DEMO $RES] run $i/$RUNS"
-  # Belt-and-suspenders: pkill any stale quakespasm before each run.
+  # Belt-and-suspenders: kill any stale quakespasm before each run.
   # Poll: integer `sleep 1` because Panther's /bin/sleep is integer-only
   # (sleep 0.2 returns instantly → busy-spin, kills demo at ~20s in).
-  # On match: SIGKILL immediately — the log is already on disk because Quake's
+  # Pre-run kill is the gentle TERM-grace-KILL pattern (same as the
+  # post-run pattern below). A prior aborted run can leave quakespasm
+  # in fullscreen; bare KILL without TERM trips Panther's Rage 128 LUT
+  # corruption (black screen, mouse moves, OS up — recoverable only via
+  # ~/bin/qsreboot.sh). `killall -TERM` returns 0 if anything matched,
+  # so the `if` only sleeps when there's actually a stale process to
+  # clean up. Costs 0s on the common case.
+  # On qconsole.log match: SIGKILL — log is already on disk because Quake's
   # qconsole.log uses raw write() (no stdio buffering, see Quake/console.c:473).
   # `cd` MUST run BEFORE `&` (own line) so the parent shell's cwd is
   # ~/Desktop/quake — otherwise `[ -f qconsole.log ]` checks $HOME and never
   # matches. (`cd && X &` backgrounds the whole chain in a subshell.)
-  ssh "$HOST" "killall -KILL quakespasm 2>/dev/null
+  ssh "$HOST" "if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
+    killall -KILL quakespasm 2>/dev/null || true
     sleep 1
     cd ~/Desktop/quake
     rm -f qconsole.log
