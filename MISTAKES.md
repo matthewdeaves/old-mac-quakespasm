@@ -53,6 +53,19 @@ addresses the same hot loop with the right tool.
 Numbers retained in benchmarks/results.csv tagged `2e8f7861`
 (pre-revert). The revert lands as a clean revert commit.
 
+**Retest 2026-05-09 (post all four machines fresh-rebooted).** Suspected
+that the original B5 bench may have been comparing against a cold-cache
+baseline reading (G4mini's 9ab48841 row showed 69.30 fps demo3 1024,
+~6% above the pre-B5 cluster of 65.20–66.40). Re-applied B5 to working
+tree, redeployed, ran 5×demo3 1024 + 5×demo3 640 across all 4 freshly
+rebooted machines. Result: G4mini demo3 1024 = 65.00 fps with B5 in
+binary — sits inside the no-B5 cluster, 4.3 fps below the 9ab48841
+outlier. Conclusion: 9ab48841's 69.30 was the anomaly, not the new
+baseline. **Original revert verdict stands.** Working-tree changes
+discarded. Don't relitigate without a real hardware profiler that can
+pin the G4 vs G4mini divergence; the speculative microarchitectural
+explanation in the original entry is the best we have.
+
 ---
 
 ## 2026-05-09 — Round v5 B3: Lion PGO/LTO (mostly skipped; LTO kept opt-in but neutral)
