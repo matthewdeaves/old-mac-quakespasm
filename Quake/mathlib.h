@@ -52,6 +52,24 @@ static inline int IS_NAN (float x) {
 
 #define Q_rint(x) ((x) > 0 ? (int)((x) + 0.5) : (int)((x) - 0.5)) //johnfitz -- from joequake
 
+#if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
+// PowerPC frsqrte: 5-bit hardware estimate of 1/sqrt(x), ~6 cycles vs
+// ~30 for a software sqrt. Two Newton-Raphson iterations refine to
+// ~22-bit float precision — well under the noise floor for any vector
+// magnitude or normalisation that Quake performs. Hoisted to header
+// (Round v7 Candidate 5) so callers in gl_sky.c etc. can fuse a
+// sqrt+divide into a single rsqrte+multiply on PPC; non-PPC TUs
+// don't see this definition (the inline asm is ppc-only).
+static inline float Q_rsqrt_ppc (float x)
+{
+	double y;
+	__asm__ ("frsqrte %0,%1" : "=f" (y) : "f" ((double) x));
+	y = 0.5 * y * (3.0 - x * y * y);
+	y = 0.5 * y * (3.0 - x * y * y);
+	return (float) y;
+}
+#endif
+
 #define DotProduct(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
 #define DoublePrecisionDotProduct(x,y) ((double)(x)[0]*(y)[0]+(double)(x)[1]*(y)[1]+(double)(x)[2]*(y)[2])
 #define VectorSubtract(a,b,c) {(c)[0]=(a)[0]-(b)[0];(c)[1]=(a)[1]-(b)[1];(c)[2]=(a)[2]-(b)[2];}

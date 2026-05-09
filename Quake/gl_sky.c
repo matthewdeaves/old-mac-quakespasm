@@ -953,8 +953,18 @@ void Sky_GetTexCoord (vec3_t v, float speed, float *s, float *t)
 	dir[2] *= 3;	// flatten the sphere
 
 	length = dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2];
-	length = sqrt (length);
-	length = 6*63/length;
+#if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
+	// Round v7 Candidate 5: fuse sqrt+divide into one rsqrte+multiply.
+	// length = 6*63 / sqrt(length)  ==  6*63 * (1/sqrt(length))
+	// On PPC, frsqrte+2 Newton iterations is ~30 cycles vs ~70 for the
+	// portable sqrt+divide. ~22-bit precision is far below cloud-texcoord
+	// visual sensitivity. Cloud-layer sky only (skybox-loaded levels
+	// skip this hot path entirely).
+	length = (6.0f * 63.0f) * Q_rsqrt_ppc (length);
+#else
+	length = sqrtf (length);
+	length = (6.0f * 63.0f) / length;
+#endif
 
 	scroll = cl.time*speed;
 	scroll -= (int)scroll & ~127;

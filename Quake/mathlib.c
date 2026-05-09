@@ -24,20 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
-// PowerPC frsqrte: 5-bit hardware estimate of 1/sqrt(x), ~6 cycles vs
-// ~30 for a software sqrt. Two Newton-Raphson iterations refine to
-// ~22-bit float precision — well under the noise floor for any vector
-// magnitude or normalisation that Quake performs.
-static inline float Q_rsqrt_ppc (float x)
-{
-	double y;
-	__asm__ ("frsqrte %0,%1" : "=f" (y) : "f" ((double) x));
-	y = 0.5 * y * (3.0 - x * y * y);
-	y = 0.5 * y * (3.0 - x * y * y);
-	return (float) y;
-}
-#endif
+// Q_rsqrt_ppc lives in mathlib.h as static inline so callers across
+// translation units can fuse sqrt+divide into one rsqrte+multiply.
 
 vec3_t vec3_origin = {0,0,0};
 
