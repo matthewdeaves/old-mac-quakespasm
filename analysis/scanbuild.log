@@ -1,0 +1,113 @@
+r_part.c:216:3: warning: Value stored to 'angle' is never read [deadcode.DeadStores]
+  216 |                 angle = cl.time * avelocities[i][2];
+      |                 ^       ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+gl_warp.c:116:11: warning: Assigned value is garbage or undefined [core.uninitialized.Assign]
+  116 |                 dist[j] = dist[0];
+      |                         ^ ~~~~~~~
+1 warning generated.
+gl_draw.c:182:31: warning: The left operand of '+' is a garbage value [core.UndefinedBinaryOperatorResult]
+  182 |                         scrap_allocated[texnum][*x + i] = best + h;
+      |                                                 ~~ ^
+gl_draw.c:242:12: warning: The left operand of '/' is a garbage value [core.UndefinedBinaryOperatorResult]
+  242 |                 gl.sl = x/(float)BLOCK_WIDTH;
+      |                         ~^
+2 warnings generated.
+gl_texmgr.c:1100:30: warning: Division by zero [core.DivideZero]
+ 1100 |         xfrac = ((inwidth-1) << 16) / (outwidth-1);
+      |                 ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
+gl_texmgr.c:1101:31: warning: Division by zero [core.DivideZero]
+ 1101 |         yfrac = ((inheight-1) << 16) / (outheight-1);
+      |                 ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
+2 warnings generated.
+In file included from image.c:35:
+./lodepng.c:123:45: warning: Assigned value is garbage or undefined [core.uninitialized.Assign]
+  123 |   for(i = 0; i < size; i++) ((char*)dst)[i] = ((const char*)src)[i];
+      |                                             ^ ~~~~~~~~~~~~~~~~~~~~~
+./lodepng.c:3791:11: warning: Value stored to 'alpha_done' is never read [deadcode.DeadStores]
+ 3791 |           alpha_done = 1;
+      |           ^            ~
+./lodepng.c:3861:11: warning: Value stored to 'alpha_done' is never read [deadcode.DeadStores]
+ 3861 |           alpha_done = 1;
+      |           ^            ~
+image.c:411:8: warning: Value stored to 'blue' is never read [deadcode.DeadStores]
+  411 |                                                         blue = red = green = alphabyte = 0;
+      |                                                         ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+image.c:411:15: warning: Although the value stored to 'red' is used in the enclosing expression, the value is never actually read from 'red' [deadcode.DeadStores]
+  411 |                                                         blue = red = green = alphabyte = 0;
+      |                                                                ^     ~~~~~~~~~~~~~~~~~~~~~
+image.c:411:21: warning: Although the value stored to 'green' is used in the enclosing expression, the value is never actually read from 'green' [deadcode.DeadStores]
+  411 |                                                         blue = red = green = alphabyte = 0;
+      |                                                                      ^       ~~~~~~~~~~~~~
+image.c:411:29: warning: Although the value stored to 'alphabyte' is used in the enclosing expression, the value is never actually read from 'alphabyte' [deadcode.DeadStores]
+  411 |                                                         blue = red = green = alphabyte = 0;
+      |                                                                              ^           ~
+7 warnings generated.
+bgmusic.c:418:4: warning: Value stored to 'fileBytes' is never read [deadcode.DeadStores]
+  418 |                         fileBytes = res;
+      |                         ^           ~~~
+1 warning generated.
+r_brush.c:1173:5: warning: Value stored to 'i' is never read [deadcode.DeadStores]
+ 1173 |                                 i = 0;
+      |                                 ^   ~
+1 warning generated.
+gl_model.c:982:3: warning: Value stored to 'altmax' is never read [deadcode.DeadStores]
+  982 |                 altmax = 0;
+      |                 ^        ~
+1 warning generated.
+cd_sdl.c:39:9: note: ‘#pragma message: Warning: SDL CDAudio support disabled’
+   39 | #pragma message("Warning: SDL CDAudio support disabled")
+      |         ^~~~~~~
+net_main.c:716:8: warning: Branch condition evaluates to a garbage value [core.uninitialized.Branch]
+  716 |                         if (! msg_init[i])
+      |                             ^~~~~~~~~~~~~
+1 warning generated.
+cl_demo.c:134:3: warning: Value stored to 'r' is never read [deadcode.DeadStores]
+  134 |                 r = fread (&f, 4, 1, cls.demofile);
+      |                 ^   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+console.c:951:16: warning: Array access (from variable 'c') results in a null pointer dereference [core.NullDereference]
+  951 |                 partial[i] = c[i];
+      |                              ^~~~
+console.c:1143:3: warning: Value stored to 'v' is never read [deadcode.DeadStores]
+ 1143 |                 v += 8;
+      |                 ^    ~
+2 warnings generated.
+menu.c:1890:3: warning: Value stored to 'l' is never read [deadcode.DeadStores]
+ 1890 |                 l = lanConfig_port;
+      |                 ^   ~~~~~~~~~~~~~~
+1 warning generated.
+miniz.c:434:17: warning: Null pointer passed to 1st parameter expecting 'nonnull' [core.NonNullParamChecker]
+  434 |                 TINFL_MEMCPY(pOut_buf_cur, pIn_buf_cur, n);
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+miniz.c:188:31: note: expanded from macro 'TINFL_MEMCPY'
+  188 | #define TINFL_MEMCPY(d, s, l) memcpy(d, s, l)
+      |                               ^~~~~~~~~~~~~~~
+miniz.c:542:35: warning: Although the value stored to 'rev_code' is used in the enclosing expression, the value is never actually read from 'rev_code' [deadcode.DeadStores]
+  542 |                     tree_cur -= ((rev_code >>= 1) & 1);
+      |                                   ^            ~
+miniz.c:712:7: warning: Null pointer passed to 1st parameter expecting 'nonnull' [core.NonNullParamChecker]
+  712 |                                                 memcpy(pOut_buf_cur, pSrc, sizeof(mz_uint32)*2);
+      |                                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+miniz.c:734:39: warning: Array access (from variable 'pSrc') results in a null pointer dereference [core.NullDereference]
+  734 |                     pOut_buf_cur[0] = pSrc[0];
+      |                                       ^~~~~~~
+miniz.c:743:39: warning: Array access (from variable 'pSrc') results in a null pointer dereference [core.NullDereference]
+  743 |                     pOut_buf_cur[0] = pSrc[0];
+      |                                       ^~~~~~~
+miniz.c:1269:9: warning: Assigned value is garbage or undefined [core.uninitialized.Assign]
+ 1269 |         mz_uint32 zip64_total_num_of_disks = MZ_READ_LE32(pZip64_locator + MZ_ZIP64_ECDL_TOTAL_NUMBER_OF_DISKS_OFS);
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+miniz.c:1270:46: warning: The left operand of '<<' is a garbage value [core.UndefinedBinaryOperatorResult]
+ 1270 |         mz_uint64 zip64_cdir_total_entries = MZ_READ_LE64(pZip64_end_of_central_dir + MZ_ZIP64_ECDH_CDIR_TOTAL_ENTRIES_OFS);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./miniz.h:331:127: note: expanded from macro 'MZ_READ_LE64'
+  331 | #define MZ_READ_LE64(p) (((mz_uint64)MZ_READ_LE32(p)) | (((mz_uint64)MZ_READ_LE32((const mz_uint8 *)(p) + sizeof(mz_uint32))) << 32U))
+      |                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  ^
+miniz.c:1704:25: warning: Value stored to 'pField_data' is never read [deadcode.DeadStores]
+ 1704 |                         pField_data += sizeof(mz_uint64);
+      |                         ^              ~~~~~~~~~~~~~~~~~
+miniz.c:1705:25: warning: Value stored to 'field_data_remaining' is never read [deadcode.DeadStores]
+ 1705 |                         field_data_remaining -= sizeof(mz_uint64);
+      |                         ^                       ~~~~~~~~~~~~~~~~~
+9 warnings generated.
