@@ -674,6 +674,20 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 
 	if (R_OldWaterEffective())
 	{
+		// PPC port -- Round v7 phase 6: hoist GL_VERTEX_ARRAY +
+		// GL_TEXTURE_COORD_ARRAY client state out of DrawWaterPoly's
+		// per-poly toggle. R_BeginTransparentDrawing (called inside
+		// the loop) only touches depth-mask / blend / texenv-mode /
+		// color — not client state — so see-through water (r_wateralpha
+		// 0.6 + watervis NoVis) is unaffected. -nodgp-water-hoist
+		// reverts to the per-poly pattern for A/B.
+		extern qboolean water_hoist_disabled;
+		const qboolean hoist_water = !water_hoist_disabled;
+		if (hoist_water)
+		{
+			glEnableClientState (GL_VERTEX_ARRAY);
+			glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+		}
 		for (i=0 ; i<model->numtextures ; i++)
 		{
 			t = model->textures[i];
@@ -697,6 +711,11 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 				}
 			}
 			R_EndTransparentDrawing (entalpha);
+		}
+		if (hoist_water)
+		{
+			glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+			glDisableClientState (GL_VERTEX_ARRAY);
 		}
 	}
 	else if (cl.worldmodel->haslitwater && r_litwater.value && r_world_program != 0)

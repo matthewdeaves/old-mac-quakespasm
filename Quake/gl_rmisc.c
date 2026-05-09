@@ -256,6 +256,20 @@ void R_Init (void)
 		}
 	}
 
+	// PPC port -- Round v7 phase 6: -nodgp-water-hoist falls back to
+	// the per-poly glEnableClientState toggles in DrawWaterPoly. Used
+	// to A/B the hoist's contribution. Affects oldwater hosts only
+	// (yosemite, sawtooth, mini-intel; quicksilver/mini-g4/imac-2019
+	// take the GLSL r_world_program path which is unaffected).
+	{
+		extern qboolean water_hoist_disabled;
+		if (COM_CheckParm("-nodgp-water-hoist"))
+		{
+			water_hoist_disabled = true;
+			Con_Warning ("Round v7 phase 6 water-state-hoist disabled by -nodgp-water-hoist\n");
+		}
+	}
+
 #ifdef __ALTIVEC__
 	// PPC port -- Phase 4.4: AltiVec lightmap compose loop in
 	// R_BuildLightMap. Default-DISABLED (regressed -0.5..-2.3% on G4

@@ -199,6 +199,14 @@ gl_subdivide_size is a user-tunable cvar with no hard cap, and dropping
 a draw to fit a fixed buffer would leave visible holes in water.
 ================
 */
+// PPC port -- Round v7 phase 6: water-poly client-state hoist (Candidate 2).
+// `-nodgp-water-hoist` cmdline opt-out parsed in R_Init falls back to the
+// pre-hoist per-poly glEnableClientState/glDisableClientState pattern, used
+// to A/B the contribution. Default = hoist enabled (client state lifted to
+// R_DrawTextureChains_Water's oldwater branch — one toggle pair around the
+// entire texture-chain loop, not per polygon).
+qboolean water_hoist_disabled = false;
+
 void DrawWaterPoly (glpoly_t *p)
 {
 	float	st[p->numverts * 2];
@@ -225,11 +233,17 @@ void DrawWaterPoly (glpoly_t *p)
 
 	glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][0]);
 	glTexCoordPointer (2, GL_FLOAT, 0, st);
-	glEnableClientState (GL_VERTEX_ARRAY);
-	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	if (water_hoist_disabled)
+	{
+		glEnableClientState (GL_VERTEX_ARRAY);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	}
 	glDrawArrays (GL_POLYGON, 0, p->numverts);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-	glDisableClientState (GL_VERTEX_ARRAY);
+	if (water_hoist_disabled)
+	{
+		glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+		glDisableClientState (GL_VERTEX_ARRAY);
+	}
 }
 
 //==============================================================================
