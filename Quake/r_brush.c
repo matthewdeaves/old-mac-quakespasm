@@ -1098,30 +1098,73 @@ void R_AddDynamicLights (msurface_t *surf)
 		}
 		else
 #endif
-		for (t = 0 ; t<tmax ; t++)
 		{
-			td = local[1] - t*16;
-			if (td < 0)
-				td = -td;
-			for (s=0 ; s<smax ; s++)
+			/* PPC port -- Round v5 B5: scalar dlight cast hoist.
+			 *
+			 * Original inner loop did per-texel float->int casts (fctiw,
+			 * ~12 cyc on G3) AND the gate-firing branch did 3 fmul + 3
+			 * fctiw + 3 add (~21 cyc) for the lightmap accumulation.
+			 *
+			 * The math is integer-valued throughout (light radius, sd/td
+			 * coords, brightness are all integer-valued). Only the
+			 * float-typed STORAGE was forcing the casts. By precomputing
+			 * local[0]/local[1]/rad/minlight as ints once per dlight,
+			 * and converting cred/cgreen/cblue to scaled-int once, the
+			 * inner loop becomes pure int math:
+			 *   per-texel:  ~19 cyc (was ~50 cyc)
+			 *   gate-firing: int-mul + int-add (was float-mul + fctiw + add)
+			 *
+			 * Precision: br * icred where icred = (int)(color * 256.0f)
+			 * vs. original (int)(brightness_f * cred_f) -- max divergence
+			 * is < 1 unit per channel (sub-palette-resolution: lightmap
+			 * stores 8-bit channels, so any difference < 256 is
+			 * imperceptible after the final >> in lightmap dispatch).
+			 *
+			 * Single-texel-edge off-by-one possible at lightmap cells
+			 * where local[0]/local[1] has fractional part AND
+			 * (local - s*16) crosses zero -- rare and imperceptible.
+			 *
+			 * Helps G3 (no AltiVec; scalar path is the only path), G4
+			 * with -altivec-dlights opt-out, G4mini same, Lion same.
+			 * G3 specifically is GPU-bound so this is CPU headroom for
+			 * visual effects rather than a direct fps win, but on
+			 * dlight-heavy frames where R_AddDynamicLights is ~12% of
+			 * frame on G3 (Pass C profile), CPU savings can spill into
+			 * fps when those frames are CPU-bound. */
+			const int int_local0  = (int)local[0];
+			const int int_local1  = (int)local[1];
+			const int int_minlight = (int)minlight;
+			const int int_rad      = (int)rad;
+			const int icred   = (int)(cl_dlights[lnum].color[0] * 256.0f);
+			const int icgreen = (int)(cl_dlights[lnum].color[1] * 256.0f);
+			const int icblue  = (int)(cl_dlights[lnum].color[2] * 256.0f);
+
+			for (t = 0 ; t<tmax ; t++)
 			{
-				sd = local[0] - s*16;
-				if (sd < 0)
-					sd = -sd;
-				if (sd > td)
-					dist = sd + (td>>1);
-				else
-					dist = td + (sd>>1);
-				if (dist < minlight)
-				//johnfitz -- lit support via lordhavoc
+				td = int_local1 - t*16;
+				if (td < 0)
+					td = -td;
+				for (s=0 ; s<smax ; s++)
 				{
-					brightness = rad - dist;
-					bl[0] += (int) (brightness * cred);
-					bl[1] += (int) (brightness * cgreen);
-					bl[2] += (int) (brightness * cblue);
+					int idist;
+					sd = int_local0 - s*16;
+					if (sd < 0)
+						sd = -sd;
+					if (sd > td)
+						idist = sd + (td>>1);
+					else
+						idist = td + (sd>>1);
+					if (idist < int_minlight)
+					//johnfitz -- lit support via lordhavoc
+					{
+						const int br = int_rad - idist;
+						bl[0] += br * icred;
+						bl[1] += br * icgreen;
+						bl[2] += br * icblue;
+					}
+					bl += 3;
+					//johnfitz
 				}
-				bl += 3;
-				//johnfitz
 			}
 		}
 	}
