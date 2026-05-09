@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the bench matrix on all 5 machines concurrently.
+# Run the bench matrix on all 6 machines concurrently.
 # Cuts wall time roughly to the slowest leg (G3) vs sequential.
 #
 # Machines (Apple-codename / form-factor naming):
@@ -8,9 +8,10 @@
 #   quicksilver  PowerMac G4    733 MHz, Radeon 9000, 10.4.11 Tiger
 #   mini-g4      Mac mini G4   1.25 GHz, Radeon 9200, 10.4.11 Tiger
 #   mini-intel   Mac mini Intel 2.33 GHz Core 2 Duo, GMA 950, 10.7.5 Lion
+#   imac-2019    iMac 27" 2019, i5-9600K @ 3.70 GHz, Radeon Pro 580X 8GB, 15.7.5 Sequoia
 #
 # usage: scripts/parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]
-#   default:    runs all 5 machines and appends to rolling benchmarks/results.csv.
+#   default:    runs all 6 machines and appends to rolling benchmarks/results.csv.
 #               History grows across phases — that's how we see improvement.
 #   --reset:    starts fresh epoch — wipes results.csv + raw/ first, but backs
 #               up results.csv to results.csv.bak.<ts> if non-empty.
@@ -22,6 +23,7 @@
 #   --no-quicksilver  skip the Quicksilver G4 leg
 #   --no-mini-g4      skip the Mac mini G4 leg
 #   --no-mini-intel   skip the Intel Mac mini leg (use if Lion is offline)
+#   --no-imac-2019    skip the 2019 iMac leg
 #
 # env vars (DEMOS / RESES / RUNS) are forwarded to full-bench.sh — see that
 # script for the full set of overrides.
@@ -50,6 +52,7 @@ SKIP[sawtooth]=0
 SKIP[quicksilver]=0
 SKIP[mini-g4]=0
 SKIP[mini-intel]=0
+SKIP[imac-2019]=0
 PASSTHRU=()  # extra flags forwarded to full-bench.sh (--quick etc)
 for arg in "$@"; do
   case "$arg" in
@@ -61,7 +64,8 @@ for arg in "$@"; do
     --no-quicksilver)   SKIP[quicksilver]=1 ;;
     --no-mini-g4)       SKIP[mini-g4]=1 ;;
     --no-mini-intel)    SKIP[mini-intel]=1 ;;
-    -h|--help)          sed -n '2,32p' "$0"; exit 0 ;;
+    --no-imac-2019)     SKIP[imac-2019]=1 ;;
+    -h|--help)          sed -n '2,33p' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
@@ -96,7 +100,7 @@ fi
 
 # Active legs — preserve fastest → slowest order so the wall-time tail
 # corresponds to the G3.
-ALL_LEGS=(mini-intel quicksilver mini-g4 sawtooth yosemite)
+ALL_LEGS=(imac-2019 mini-intel quicksilver mini-g4 sawtooth yosemite)
 ACTIVE_LEGS=()
 for LEG in "${ALL_LEGS[@]}"; do
   [ "${SKIP[$LEG]}" -eq 0 ] && ACTIVE_LEGS+=("$LEG")

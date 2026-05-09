@@ -183,13 +183,14 @@ fps + visuals together. Gate any new perf or visual phase behind a
 named knob unless you have a strong reason not to (e.g. a code-size
 win that's only realised by removing the scalar fallback).
 
-## Hosts (5 bench machines, named by Apple codename / form-factor)
+## Hosts (6 bench machines, named by Apple codename / form-factor)
 
-SSH aliases live in `~/.ssh/config`. Renamed 2026-05-09 to nicer names —
-the rename round added the new G4 (sawtooth) at the same time. Historical
-CSV rows tagged with the OLD names (`g3`, `g4`, `g4mini`, `lion`) refer
-to the same hardware as `yosemite`, `quicksilver`, `mini-g4`, `mini-intel`
-respectively.
+SSH aliases live in `~/.ssh/config`. Historical CSV rows tagged with
+the OLD names (`g3`, `g4`, `g4mini`, `lion`) refer to the same hardware
+as `yosemite`, `quicksilver`, `mini-g4`, `mini-intel` respectively
+(rename round 2026-05-09 b5982ea9). `sawtooth` joined as the 5th
+machine the same day; `imac-2019` joined as the 6th machine 2026-05-09
+later that day.
 
 - `yosemite` — PowerMac1,1 Blue & White G3, 449 MHz PPC 750, Rage 128
   16 MB AGP, 10.3.9 Panther. Apple codename "Yosemite".
@@ -212,11 +213,20 @@ respectively.
   if `build.sh` fails with `ssh: connect to host ... No route to host`,
   the box is asleep — wake it (Wake-on-LAN, key press, or `caffeinate`
   if you've configured one) and retry.
+- `imac-2019` — iMac19,1 iMac 27" 2019, Intel Core i5-9600K @ 3.70 GHz
+  (6-core Coffee Lake Refresh), 8 GB RAM, AMD Radeon Pro 580X 8 GB VRAM,
+  Retina 5K (5120×2880), macOS 15.7.5 Sequoia. **By far the most capable
+  target** — hits ~2000 fps at 1024×768. **Bench-only** (not a build
+  host). Same x86_64 arch as mini-intel so reuses `build/quakespasm-lion`.
+  Modern OpenSSH (no legacy crypto knobs needed). The Lion 10.7-target
+  binary runs cleanly on Sequoia after `xattr -dr com.apple.quarantine`
+  (deploy.sh handles this if needed). Added 2026-05-09.
 
 The three G4 machines (`sawtooth`, `quicksilver`, `mini-g4`) all share
 the same `build/quakespasm-g4` binary — `-mcpu=7400 -maltivec` is
 correct for all three. The 7450 and 7447A run 7400 baseline code happily;
-`-mtune=7450` is just scheduling hints.
+`-mtune=7450` is just scheduling hints. The two Intel machines
+(`mini-intel`, `imac-2019`) share `build/quakespasm-lion`.
 
 Hardware lineup spans the GPU axis:
 - yosemite (Rage 128) and sawtooth (GeForce2 MX): fixed-function GPUs,
@@ -225,8 +235,13 @@ Hardware lineup spans the GPU axis:
   programmable-pipeline GPUs but pre-shader-model-2.0; shaders work
   but engine doesn't use them on PPC.
 - mini-intel (GMA 950): GL 1.4 only, no GLSL.
+- imac-2019 (Radeon Pro 580X 8GB): modern shader-capable GPU; the
+  Lion-target binary still uses the GL 1.x fixed-function path because
+  it links against 10.7 SDK headers, but the GPU has acres of headroom
+  so we hit CPU-side ceilings (~2000 fps timedemo) rather than GPU ones.
 
-So GLSL paths are inert across the entire matrix.
+So GLSL paths are inert across the entire matrix on the binaries we
+ship (Lion-SDK x86_64 + 10.4u-SDK PPC).
 
 Old-Mac SSH (Lion + PPC) needs legacy crypto. The config entries already
 include `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,

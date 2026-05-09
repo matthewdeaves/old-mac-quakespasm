@@ -36,6 +36,7 @@ case "$TARGET" in
   quicksilver) HOST="quicksilver"; TIMEOUT=120 ;;
   mini-g4)     HOST="mini-g4";     TIMEOUT=120 ;;
   mini-intel)  HOST="mini-intel";  TIMEOUT=60  ;;
+  imac-2019)   HOST="imac-2019";   TIMEOUT=45  ;;  # i5-9600K + Radeon Pro 580X — fastest
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 

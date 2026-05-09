@@ -32,7 +32,7 @@ if [ "${1:-}" = "fat" ]; then
   MODE="fat"
   shift
 fi
-TARGET="${1:?usage: $0 [fat] <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>}"
+TARGET="${1:?usage: $0 [fat] <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019>}"
 
 # MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
 # ppc slice is the Panther-compatible build. One framework serves all
@@ -72,6 +72,15 @@ case "$TARGET" in
     # Macmini2,1 — Mac mini Intel C2D 2.33 GHz + GMA 950, Lion 10.7.5.
     # Dual-role: this is also the cross-build host for all PPC binaries.
     HOST="mini-intel"
+    RSYNC_EXTRA=""
+    BIN_TARGET="lion"
+    ;;
+  imac-2019)
+    # iMac19,1 — iMac 27" 2019, Core i5-9600K @ 3.70 GHz + Radeon Pro
+    # 580X 8GB, macOS Sequoia 15.7.5. Same x86_64 arch as mini-intel,
+    # so reuses build/quakespasm-lion. Vastly more capable GPU/CPU
+    # than mini-intel — expect chart-topping fps and full visual stack.
+    HOST="imac-2019"
     RSYNC_EXTRA=""
     BIN_TARGET="lion"
     ;;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the host-side tooling (currently qsreboot.sh + qsreboot-setup.sh)
-# to ~/bin on all four bench Macs. Idempotent -- re-run after adding a
+# to ~/bin on all six bench Macs. Idempotent -- re-run after adding a
 # new machine, or after editing the source scripts in scripts/host-bin/.
 #
 # After install, run the setup step ONCE per machine to enable
@@ -12,7 +12,7 @@
 # kernel even if Finder/display state is borked.
 #
 # usage: scripts/install-host-tools.sh [host [host...]]
-#   default hosts: yosemite sawtooth quicksilver mini-g4 mini-intel
+#   default hosts: yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019
 # env:
 #   HOSTS=...   override host list
 
@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO_ROOT/scripts/host-bin"
 
 HOSTS=("$@")
-[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite sawtooth quicksilver mini-g4 mini-intel})
+[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019})
 
 for host in "${HOSTS[@]}"; do
     echo "=== $host ==="

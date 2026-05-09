@@ -1,6 +1,6 @@
 ---
 name: ppc-ops
-description: Build, deploy, and benchmark QuakeSpasm on the 5 bench machines (yosemite, sawtooth, quicksilver, mini-g4, mini-intel) from this Ubuntu workstation via the mini-intel cross-build host. Use this skill any time the user asks to compile, ship, or measure a build on any of the bench machines.
+description: Build, deploy, and benchmark QuakeSpasm on the 6 bench machines (yosemite, sawtooth, quicksilver, mini-g4, mini-intel, imac-2019) from this Ubuntu workstation via the mini-intel cross-build host. Use this skill any time the user asks to compile, ship, or measure a build on any of the bench machines.
 ---
 
 # PPC operations skill
@@ -16,6 +16,7 @@ bench pipeline. Don't reinvent it inline — invoke the scripts.
 | quicksilver | PowerMac3,5  / G4    733 MHz / Radeon 9000 64 MB / Tiger 10.4.11     | g4                 |
 | mini-g4     | PowerMac10,1 / G4   1.25 GHz / Radeon 9200 32 MB / Tiger 10.4.11     | g4                 |
 | mini-intel  | Macmini2,1   / C2D  2.33 GHz / GMA 950 64 MB / Lion 10.7.5            | lion               |
+| imac-2019   | iMac19,1     / i5-9600K 3.70 GHz / Radeon Pro 580X 8 GB / Sequoia 15.7.5 | lion               |
 
 `mini-intel` is also the cross-build host for all PPC binaries.
 

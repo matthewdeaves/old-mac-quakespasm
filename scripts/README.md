@@ -1,9 +1,9 @@
 # scripts/ — build, deploy, bench tooling for QuakeSpasm
 
 Multi-host workflow: edit on Ubuntu → build on the cross-build host
-(`mini-intel`, the Lion box) → run on the 5 bench machines.
+(`mini-intel`, the Lion box) → run on the 6 bench machines.
 SSH config aliases (`yosemite`, `sawtooth`, `quicksilver`, `mini-g4`,
-`mini-intel`) are expected in `~/.ssh/config`.
+`mini-intel`, `imac-2019`) are expected in `~/.ssh/config`.
 
 > **Project goal** is best-looking Quake on G3/G4/Intel while keeping
 > framerate comfortably playable (≥ 60 fps on G4 + Intel, ≥ 20 fps on G3).
@@ -24,6 +24,7 @@ SSH config aliases (`yosemite`, `sawtooth`, `quicksilver`, `mini-g4`,
 | quicksilver | PowerMac3,5  G4 QS  733 MHz, Radeon 9000 Pro 64 MB, Tiger 10.4.11    | `quakespasm-g4`       |
 | mini-g4     | PowerMac10,1 Mac mini G4 1.25 GHz, Radeon 9200 32 MB, Tiger 10.4.11   | `quakespasm-g4`       |
 | mini-intel  | Macmini2,1   C2D 2.33 GHz, GMA 950 64 MB shared, Lion 10.7.5          | `quakespasm-lion`     |
+| imac-2019   | iMac19,1     i5-9600K 3.70 GHz (6c), Radeon Pro 580X 8 GB, Sequoia 15.7.5 | `quakespasm-lion` |
 
 `mini-intel` is both the cross-build host AND a runnable bench reference of its
 own. The matrix spans the GPU axis from fixed-function (Rage 128, GeForce2 MX)
