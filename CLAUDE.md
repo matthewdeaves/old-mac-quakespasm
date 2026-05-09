@@ -49,7 +49,32 @@ scripts/screenshot.sh <host>      drive the deployed Quakespasm fat (or per-targ
                                   benchmarks/screenshots/<host>/. Tunable shot
                                   density via SHOTS_PER_DEMO + WAITS_BETWEEN_SHOTS
                                   in the script.
+scripts/install-host-tools.sh     push scripts/host-bin/* to ~/bin on every
+                                  bench Mac. Idempotent, re-run after editing
+                                  qsreboot.sh or adding a machine.
+scripts/host-bin/qsreboot.sh      runs ON the Mac. Reboots through `sudo -n
+                                  /sbin/reboot` (Tier 1, definite, works
+                                  through wedged Finder / corrupt LUT) with
+                                  Finder Apple Event as Tier 2 fallback.
+                                  Use as: ssh <host> '~/bin/qsreboot.sh'
+scripts/host-bin/qsreboot-setup.sh runs ON the Mac. ONE-TIME `sudo
+                                  ~/bin/qsreboot-setup.sh` per machine to
+                                  install the NOPASSWD sudoers entry. Backs
+                                  up /etc/sudoers, validates with `visudo
+                                  -c`, restores backup on syntax failure.
+                                  Idempotent.
 ```
+
+**Host-side reboot recovery.** When Quake hard-kills in fullscreen on G3,
+Panther's Rage 128 driver leaves the display LUT corrupt — black screen,
+mouse moves, OS alive over SSH. Apple-menu Restart fails because Finder
+itself can be wedged. After running `qsreboot-setup.sh` once per
+machine, `ssh <host> '~/bin/qsreboot.sh'` from the orchestration host
+issues a kernel-level reboot regardless of display/Finder state. This
+is the canonical recovery path; do not power-cycle unless qsreboot.sh
+itself has been verified failed (very rare — would mean sudoers got
+mangled, in which case the in-script visudo -c restore should have
+caught it).
 
 There's also a `ppc-ops` skill (`.claude/skills/ppc-ops/SKILL.md`) and
 `/bench` + `/deploy` slash commands that wrap these. See
