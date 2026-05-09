@@ -1,8 +1,9 @@
-LOG started on: 05/09/2026 17:19:52 
+LOG started on: 05/09/2026 17:32:08 
 Playing registered version.
 Console initialized.
+UDP_Init: WARNING: gethostbyname failed (Unknown host)
 UDP Initialized
-Exe: 17:31:20 May  9 2026
+Exe: 17:42:39 May  9 2026
 256.0 megabyte heap
 Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
@@ -36,9 +37,7 @@ from '.'
 execing quake.rc
 execing default.cfg
 execing config.cfg
-execing autoexec.cfg
-Unknown command "or"
-Unknown command "Radeon"
+couldn't exec autoexec.cfg
 Unknown command "vid_wait"
 Playing demo from demo3.dem.
 3 demo(s) in loop
@@ -64,4 +63,4 @@ You got the silver runekey
 
         Your way has been lit...
 
-1090 frames  22.8 seconds  47.9 fps
+1090 frames  16.0 seconds  68.2 fps

@@ -1,8 +1,8 @@
-LOG started on: 05/09/2026 15:46:45 
+LOG started on: 05/09/2026 17:21:10 
 Playing registered version.
 Console initialized.
 UDP Initialized
-Exe: 10:57:36 May  9 2026
+Exe: 17:31:20 May  9 2026
 256.0 megabyte heap
 Video mode 640x480x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
@@ -36,7 +36,9 @@ from '.'
 execing quake.rc
 execing default.cfg
 execing config.cfg
-couldn't exec autoexec.cfg
+execing autoexec.cfg
+Unknown command "or"
+Unknown command "Radeon"
 Unknown command "vid_wait"
 Playing demo from demo1.dem.
 3 demo(s) in loop
@@ -45,6 +47,7 @@ Playing demo from demo1.dem.
 
 the Necropolis
 Using protocol 15
+Warning: Mod_DecompressVis: output overrun on model "maps/e1m3.bsp"
 You got the shells
 You got the Grenade Launcher
 You receive 25 health
@@ -64,4 +67,4 @@ You receive 25 health
          You need the gold key
 
 You got the gold key
-969 frames   7.0 seconds 138.4 fps
+969 frames  10.7 seconds  90.2 fps

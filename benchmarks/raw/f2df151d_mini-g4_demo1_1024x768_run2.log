@@ -1,8 +1,8 @@
-LOG started on: 05/09/2026 17:19:52 
+LOG started on: 05/09/2026 17:28:33 
 Playing registered version.
 Console initialized.
 UDP Initialized
-Exe: 17:31:20 May  9 2026
+Exe: 17:42:39 May  9 2026
 256.0 megabyte heap
 Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
@@ -36,32 +36,33 @@ from '.'
 execing quake.rc
 execing default.cfg
 execing config.cfg
-execing autoexec.cfg
-Unknown command "or"
-Unknown command "Radeon"
+couldn't exec autoexec.cfg
 Unknown command "vid_wait"
-Playing demo from demo3.dem.
+Playing demo from demo1.dem.
 3 demo(s) in loop
 
 
 
-The Door To Chthon
+the Necropolis
 Using protocol 15
-Warning: Mod_DecompressVis: output overrun on model "maps/e1m6.bsp"
+Warning: Mod_DecompressVis: output overrun on model "maps/e1m3.bsp"
 You got the shells
-You got the rockets
-You get 2 rockets  
-You receive 25 health
-You got the Rocket Launcher
+You got the Grenade Launcher
 You receive 25 health
 You get 2 rockets  
-You got armor
 You got the rockets
-You receive 100 health
+You got the nailgun
+You got the nails
+You got the nails
+You receive 15 health
+You receive 15 health
+You got the rockets
 You get 2 rockets  
 You got the nails
-You got the silver runekey
+You got the nails
+You receive 25 health
 
-        Your way has been lit...
+         You need the gold key
 
-1090 frames  22.8 seconds  47.9 fps
+You got the gold key
+969 frames  19.9 seconds  48.6 fps

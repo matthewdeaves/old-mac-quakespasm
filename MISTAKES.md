@@ -16,6 +16,51 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-09 — Round v6 wrap mini-g4 stale-binary CSV pollution
+
+**What happened.** Round v6 wrap full-grid bench appended mini-g4 rows
+tagged with the v6 wrap commit `5cbcf785` while a STALE pre-watervis
+binary was still deployed on the machine (deployed 11:07Z that morning
+under an earlier commit; superseded mid-day by the watervis fat). The
+discovery was made post-bench; sawtooth + imac-2019 were re-benched on
+the corrected binary, but mini-g4 was missed and shipped wrong rows in
+the v6 wrap commit (`3c4de53f`).
+
+**How it surfaced.** Round v7 wrap end-of-round full grid showed mini-g4
+demo1 1024 dropping from "v6 baseline 72.20 → 50.30" — a 30% regression
+that didn't reproduce in any other phase smoke and didn't match round
+v5 wrap pre-watervis numbers.
+
+**Bisect.** Checked out `5cbcf785` in working tree, built G4 binary from
+v6 head, deployed to mini-g4, ran standalone bench. Got 53.40 fps —
+not 72.20. Confirmed v6 wrap row was stale-binary data. The v7 wrap
+50.30 was the actual post-watervis state, properly comparable to the
+true v6 baseline of 53.40, i.e. **-5.8%** instead of "-30%".
+
+**Cleanup.** Deleted the 12 stale rows from `benchmarks/results.csv`,
+re-ran a full mini-g4 grid at v6 head to capture the correct baseline,
+relabeled raw logs accordingly. PPC_PLAN.md §17.7 documents the
+correction.
+
+**Lessons.**
+- After ANY mid-bench binary refresh, re-bench EVERY affected machine
+  before the wrap commit — not just the ones with most-suspect rows.
+- "Stale binary" is invisible to bench scripts: the `.app` MD5 should
+  be checked + logged per cell, OR the deploy timestamp should appear
+  in CSV alongside the commit hash. Building this in is round-v8 work.
+- Cross-validate the v6 wrap CSV against round v5 wrap numbers (which
+  had no stale-binary issue): v5 mini-g4 demo1 1024 = 76.00 (pre-
+  watervis), v6 stale row = 72.20, v6 actual = 53.40. The v6 stale
+  was much closer to v5 than to actual v6, which should have been a
+  red flag at wrap-bench time.
+
+**If we revisit:** the mini-g4 demo3 1024 +42% / 640 +46% wins from
+v7 phase 1 (sky hoist) on the Radeon 9200's ATI driver are the round
+v7 headline. Confirm them in any future bisect — they're the win that
+makes the round meaningful.
+
+---
+
 ## 2026-05-09 — Round v5 B5: scalar dlight cast hoist — REVERT WAS WRONG, RE-APPLIED
 
 **Read this first.** The original revert below was driven by a bad

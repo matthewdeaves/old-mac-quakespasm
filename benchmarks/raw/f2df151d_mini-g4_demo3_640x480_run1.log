@@ -1,10 +1,10 @@
-LOG started on: 05/09/2026 17:19:52 
+LOG started on: 05/09/2026 17:35:03 
 Playing registered version.
 Console initialized.
 UDP Initialized
-Exe: 17:31:20 May  9 2026
+Exe: 17:42:39 May  9 2026
 256.0 megabyte heap
-Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+Video mode 640x480x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
 GL_RENDERER: ATI Radeon 9200 OpenGL Engine
 GL_VERSION: 1.3 ATI-1.4.18
@@ -36,9 +36,7 @@ from '.'
 execing quake.rc
 execing default.cfg
 execing config.cfg
-execing autoexec.cfg
-Unknown command "or"
-Unknown command "Radeon"
+couldn't exec autoexec.cfg
 Unknown command "vid_wait"
 Playing demo from demo3.dem.
 3 demo(s) in loop
@@ -64,4 +62,4 @@ You got the silver runekey
 
         Your way has been lit...
 
-1090 frames  22.8 seconds  47.9 fps
+1090 frames   9.5 seconds 114.2 fps

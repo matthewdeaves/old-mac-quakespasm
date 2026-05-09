@@ -1,8 +1,8 @@
-LOG started on: 05/09/2026 15:44:13 
+LOG started on: 05/09/2026 17:17:43 
 Playing registered version.
 Console initialized.
 UDP Initialized
-Exe: 10:57:36 May  9 2026
+Exe: 17:31:20 May  9 2026
 256.0 megabyte heap
 Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
 GL_VENDOR: ATI Technologies Inc.
@@ -36,7 +36,9 @@ from '.'
 execing quake.rc
 execing default.cfg
 execing config.cfg
-couldn't exec autoexec.cfg
+execing autoexec.cfg
+Unknown command "or"
+Unknown command "Radeon"
 Unknown command "vid_wait"
 Playing demo from demo2.dem.
 3 demo(s) in loop
@@ -45,6 +47,7 @@ Playing demo from demo2.dem.
 
 the Grisly Grotto
 Using protocol 15
+Warning: Mod_DecompressVis: output overrun on model "maps/e1m4.bsp"
 You got the shells
 
           Only 1 more to go...
@@ -68,4 +71,4 @@ You got the shells
 You get 2 rockets  
 You got the nails
 You get 2 rockets  
-985 frames  14.9 seconds  65.9 fps
+985 frames  23.8 seconds  41.4 fps

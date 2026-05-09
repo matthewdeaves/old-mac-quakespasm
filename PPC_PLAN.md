@@ -1529,3 +1529,194 @@ Sequence of events:
   for `clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling`
   (modern paranoia, not relevant) would let `clang-tidy.log` shrink
   from ~70K lines to something readable.
+
+---
+
+## §16 Round v6 closed-out (2026-05-09)
+
+**Theme.** Translucent water on un-vis'd id1 maps without glitches.
+
+The Round v5 polish landed `r_wateralpha 0.6` on all 5 machines,
+which immediately surfaced the X-ray artifact: items in lower rooms
+visible THROUGH stairs / container floors when the BSP wasn't
+vis-compiled with translucent water in mind (which is every id1
+map — id Software's vis tool predates this).
+
+**Approach explored and reverted:** depth-prepass
+(`R_DrawWorld_WaterDepthPrepass`) — write water depth before items.
+Worked in principle but blocked watervis under leaves whose PVS
+didn't actually contain the visible water surfaces. The X-ray was
+real but rare; the watervis-NoVis fallback covered it more
+cleanly.
+
+**Approach shipped (`9825b5f3`):** trigger NoVis behaviour in
+`R_MarkSurfaces` whenever any liquid alpha is < 1. id1 maps were
+vis-compiled assuming opaque water (which OCCLUDES the leaf you
+look INTO), so PVS data inside transparent water is broken; falling
+back to "draw everything" inside that scope is correct and cheap
+(R128 is fillrate-bound, not surface-count-bound, so the extra
+non-PVS surfaces submitted are mostly culled in glDrawArrays-land).
+
+**End-of-round full grid (`5cbcf785`, all 6 machines):**
+
+| Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
+|---------|---:|---:|---:|---:|---:|---:|
+| yosemite | 16.80 | 15.20 | 19.85 | 35.15 | 33.25 | 36.75 |
+| sawtooth | 42.70 | 35.40 | 46.85 | 55.70 | 54.55 | 57.20 |
+| quicksilver | 63.80 | 62.60 | 86.20 | 71.90 | 72.45 | 98.60 |
+| mini-g4 | 72.20 | 65.90 | 64.30 | 138.55 | 134.70 | 114.50 |
+| mini-intel | 73.10 | 53.85 | 44.75 | 165.00 | 129.80 | 188.90 |
+| imac-2019 | 1714.85 | 1836.05 | 1726.05 | 2040.00 | 2016.45 | 1985.40 |
+
+(yosemite numbers are depressed vs round v5 because watervis NoVis
+trades ~5–9 fps on water-light demos for see-through water visuals.
+Project goal is best-looking at playable fps, not max fps.)
+
+---
+
+## §17 Round v7 — small wins, sky/water hoists, emissive lights
+
+**Theme.** "Cheap-and-big optimisation wins are gone." Pre-round
+analysis (PPC_PERF_R7.md) graded most candidates sub-1% on G3.
+Strategy: pick a handful of low-risk well-understood patches,
+land them as discrete bisectable phases, validate with end-of-
+round full grid.
+
+### 17.1 Phase 1 — DrawGLPoly sky-state client-state hoist (`a155a574`)
+
+Same theory as Phase 3.3 brush hoist: lift GL_VERTEX_ARRAY enable/
+disable out of `DrawGLPoly`'s per-poly toggle pattern, wrap once
+around `Sky_ProcessTextureChains` + `Sky_ProcessEntities`. R128 +
+GeForce2 MX driver state-set is non-trivial; older drivers may not
+no-op redundant sets. Toggleable: `-nodgp-sky-hoist`.
+
+Smoke (demo1, --quick) was inside ±1% of v6 baseline on every
+target. End-of-round full grid is the real measurement.
+
+### 17.2 Phase 2 — Tier A emissive-fullbright dynamic lights (`4f40e119`)
+
+VISUAL UPGRADE, not perf — costs fps for nicer-looking world. New
+TU `gl_emissive.c` with `r_emissive_lights` cvar (default 0). At
+map load, walks brush surfaces with emissive textures (light /
+button / panel / screen / comp / tech), seeds a flat array with
+origin + colour + radius. Per frame, distance-gates against
+`r_dynamic_distance` and injects up to `r_emissive_lights_max`
+into `cl_dlights[]` via `CL_AllocDlight`. Rest of the dlight
+pipeline picks them up transparently.
+
+Pre-smoke review (PPC_PERF_R7_REVIEW.md) caught two blockers
+before commit:
+- B1: `dl->die = cl.time + 0.1f` would saturate the 64-slot
+  `cl_dlights[]` pool within ~6 frames at 60 fps and stomp the
+  player muzzle-flash slot. Fixed: `cl.time + 0.001f` (BRIGHTLIGHT/
+  DIMLIGHT idiom).
+- B2: FIFO seed selection at MAX_EMISSIVE_SEEDS let id1 wall
+  textures with stray fullbright trim pixels (wbrick*, wmet*) crowd
+  out real buttons/lights. Fixed: pre-filter via R_PickEmissiveColor
+  name-table match (light/button/btn/comp/tech/panel/screen).
+
+cvar default OFF — binary smoke is neutral. Per-machine autoexec
+edits to enable were deferred (project priority is fps, not visuals
+beyond the existing translucent-water bar).
+
+### 17.3 Phase 3 — Sky_GetTexCoord frsqrte fuse (`20a886a4`)
+
+Tiny PPC-only patch in `gl_sky.c`. Was `length = 6*63 / sqrt(length)`
+(double promote); now `length = 6.0f * 63.0f * Q_rsqrt_ppc(length)`
+on PPC, `sqrtf` on others. Hoisted Q_rsqrt_ppc from mathlib.c to
+mathlib.h as static inline so callers across TUs can fuse. ~40 cyc
+saved per cloud-vert; cloud-layer sky only.
+
+### 17.4 Phase 4 — Dead-code removal: R_DrawWorld_WaterDepthPrepass (`20a886a4`)
+
+Hygiene. The Round v6 reverted depth-prepass approach was unused.
+Removed. No fps impact.
+
+### 17.5 Phase 5 — Wdouble-promotion narrowing in renderer hot paths (`e5ee357c`)
+
+Targeted Candidate 4a+4b. Narrowed only the literals on per-frame
+hot paths: Q_rint macro, R_RenderDlight constants, R_MarkLights
+clamp, R_RecursiveLightPoint scale, CL_RunParticles constants,
+R_DrawParticles scale, alias e->lerptime default. Skipped the
+intentional doubles (`cl.time` comparisons, `DoublePrecisionDotProduct`
+for SSE-build-precision). Honest expectation: smoke-neutral; landed
+because the diff is mechanical and bisects cleanly.
+
+### 17.6 Phase 6 — DrawWaterPoly client-state hoist (`f2df151d`)
+
+Mirror of Phase 1 for the oldwater path. Affects yosemite + sawtooth
++ mini-intel only (quicksilver / mini-g4 / imac-2019 take the GLSL
+r_world_program path). `R_BeginTransparentDrawing` doesn't touch
+client state, so see-through water (r_wateralpha 0.6 + watervis
+NoVis) is unaffected. Toggleable: `-nodgp-water-hoist`.
+
+### 17.7 End-of-round full grid (`f2df151d`)
+
+| Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
+|---------|---:|---:|---:|---:|---:|---:|
+| yosemite | 16.55 | 15.20 | 19.80 | 35.20 | 33.40 | 36.75 |
+| sawtooth | 42.65 | 35.40 | 46.75 | 55.90 | 55.10 | 57.30 |
+| quicksilver | 64.20 | 62.45 | 86.15 | 71.95 | 72.10 | 98.25 |
+| mini-g4 | 49.40 | 39.30 | 68.20 | 86.50 | 74.80 | 114.35 |
+| mini-intel | 73.05 | 54.55 | 44.70 | 165.35 | 132.15 | 189.00 |
+| imac-2019 | 1835.25 | 1853.25 | 1731.70 | 2048.60 | 2018.55 | 1807.00 |
+
+**Deltas vs v6 wrap (5cbcf785), corrected baseline:**
+
+- **yosemite**: -1.5% to +0.5%, all noise. NEUTRAL.
+- **sawtooth**: -0.2% to +1.0%, all noise. NEUTRAL+.
+- **quicksilver**: -0.5% to +0.6%, all noise. NEUTRAL.
+- **mini-g4**: **+42.4% / +45.9% on demo3** (the round v7 headline
+  — sky-state hoist on Radeon 9200's ATI driver, which is markedly
+  more sensitive to redundant `glEnableClientState` than Quicksilver's
+  Radeon 9000 driver). Small regressions of -3.5% to -7.5% on
+  demo1/demo2. Net: massive trade favouring the sky-heavy demo.
+- **mini-intel**: -0.1% to +1.8%, slight positives. NEUTRAL+.
+- **imac-2019**: +7.0% on demo1 1024, +0.1-0.9% elsewhere except
+  -9.0% on demo3 640 (run3 outlier 1772 fps vs runs 1+2 at 1939/1646
+  — Sequoia thermal/driver transient at >1900 fps, not real).
+
+**Round v7 mini-g4 v6 baseline correction:** the original `5cbcf785`
+mini-g4 rows in `benchmarks/results.csv` (12 rows from 2026-05-09T15:00–15:05Z)
+were generated by a stale binary deployed at 11:07Z that morning,
+predating the round v6 watervis NoVis trigger. The stale-binary
+discovery was made mid-round-v6-wrap and sawtooth + imac-2019 were
+re-benched, but mini-g4 was missed. Pre-round-v7-wrap the stale rows
+read e.g. demo1 1024 = 72.20; the correct v6 baseline (re-benched at
+HEAD `5cbcf785` post-round-v7) is 53.40. The CSV stale rows have
+been deleted and replaced with corrected values; raw logs renamed
+accordingly.
+
+### 17.7.1 Cumulative state across rounds (G3 yosemite headline)
+
+| Round | demo1 1024 | demo3 1024 | Notes |
+|-------|---:|---:|-------|
+| Vanilla v2-baseline (`4c165e6f`) | 7.70 | 5.10 | early-port, pre-PPC-perf-work |
+| Round v5 wrap (`0b5ee6c3`) | 24.25 | 20.25 | pre-watervis baseline |
+| Round v6 wrap (`5cbcf785`) | 16.80 | 19.85 | + watervis NoVis (translucent water) |
+| Round v7 wrap (`f2df151d`) | 16.55 | 19.80 | small-wins round; neutral on yosemite |
+
+G3 round v7 is neutral vs round v6 — the cheap-and-big wins truly
+are gone for that GPU. The +118% / +286% improvements over the
+v2-baseline came from rounds 1–5; v6 paid back ~7-fps on demo1 to
+buy translucent water; v7 holds the line.
+
+### 17.8 Filed for round v8
+
+- **Cvar-on path for Tier A emissive lights**: per-machine autoexec
+  enables (radius/max tuned per GPU class) — see PPC_PERF_R7.md
+  candidate 9 table for the proposed values. Smoke-validate the
+  cvar-on path on G3 demo3 1024 (highest-stress dlight) before
+  shipping autoexec defaults.
+- **Candidate 3 (Sky_DrawFaceQuad state hoist)**: cloud-layer-sky
+  only. Verify which demo maps actually use cloud-layer sky vs
+  skybox before implementing — `Sky_LoadSkyBox` short-circuits
+  Sky_DrawFace if any skybox texture is loaded.
+- **Ironwail flat-array efrags pattern**: per IRONWAIL_REVIEW.md
+  candidate 1, gl_refrag.c:120 / 157 + r_part.c:580. CPU-side flat
+  array replaces the linked-list traversal pattern; modest win but
+  matches the Tier A flat-array shape we already have.
+- **`-pg` profiling pass on yosemite + Tiger sample on G4 trio**:
+  per PPC_PERF_R7.md "measure first" recommendation. Instead of
+  more static analysis, capture actual per-function hot list to
+  re-rank future round candidates.
