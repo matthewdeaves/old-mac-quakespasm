@@ -939,7 +939,13 @@ void Con_TabComplete (void)
 		return;
 
 // get partial string (space -> cursor)
-	if (!key_tabpartial[0]) //first time through, find new insert point. (Otherwise, use previous.)
+	// Defensive `|| !c`: scan-build flagged that the static `c` could
+	// theoretically be read while still NULL (its initial value) if
+	// key_tabpartial[0] is somehow non-zero on the very first call --
+	// e.g. if external code seeded key_tabpartial without going through
+	// Con_TabComplete. Edge case but real; force re-derivation when
+	// `c` is NULL regardless of the key_tabpartial state.
+	if (!key_tabpartial[0] || !c) //first time through, find new insert point. (Otherwise, use previous.)
 	{
 		//work back from cursor until you find a space, quote, semicolon, or prompt
 		c = key_lines[edit_line] + key_linepos - 1; //start one space left of cursor

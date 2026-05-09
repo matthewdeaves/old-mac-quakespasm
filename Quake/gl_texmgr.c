@@ -1095,6 +1095,15 @@ static unsigned *TexMgr_ResampleTexture (unsigned *in, int inwidth, int inheight
 
 	outwidth = TexMgr_Pad(inwidth);
 	outheight = TexMgr_Pad(inheight);
+
+	/* Defensive: if either dimension is 1 (which happens only for
+	 * pathological inwidth/inheight=0 inputs that escape the early
+	 * return above when TexMgr_Pad(0)==1), the divisor below becomes
+	 * 0. scan-build flagged this path as reachable. Bail to the
+	 * caller on a clearly-bogus image rather than div-by-zero. */
+	if (outwidth <= 1 || outheight <= 1)
+		return in;
+
 	out = (unsigned *) Hunk_Alloc(outwidth*outheight*4);
 
 	xfrac = ((inwidth-1) << 16) / (outwidth-1);
