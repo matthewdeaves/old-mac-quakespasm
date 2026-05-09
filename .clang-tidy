@@ -1,0 +1,109 @@
+# clang-tidy config for Quakespasm PPC port.
+# Round v6 (2026-05-09): noise-suppression sweep.
+#
+# scripts/analyze-all.sh enables a broad check list:
+#   --checks='bugprone-*,performance-*,readability-*,cert-*,misc-*,
+#             -readability-magic-numbers,
+#             -readability-isolate-declaration,
+#             -readability-braces-around-statements'
+#
+# This file layers further excludes on top, suppressing categories that
+# don't surface real Quake bugs but dominate the log (~60K of the original
+# ~70K lines). After this trim the log is ~1.5K lines of actually
+# reviewable findings.
+#
+# Suppressed-and-rationale (counts from pre-suppression run, 2026-05-09):
+#
+#   bugprone-narrowing-conversions (6090) — Quake's vec3 / int↔float
+#       idiom: scaling, fixed-point, RGB pack/unpack, time deltas. Each
+#       cast is intentional. False-positive rate ≈ 100%.
+#
+#   misc-include-cleaner (5152) — header inclusion graph quibbles.
+#       Quake's Quake/quakedef.h is the umbrella header by design;
+#       refactoring per-file include lists is project-out-of-scope.
+#
+#   readability-identifier-length (2215) — Quake convention uses i, j,
+#       k for loop counters; s, c, p for string/char/ptr; v for vec3.
+#       Renaming would churn every file for no readability win.
+#
+#   readability-uppercase-literal-suffix (747) — `1.0f` vs `1.0F`. Style
+#       preference; lowercase is universal in C since K&R. Pedantic.
+#
+#   readability-math-missing-parentheses (456) — `a + b * c` is fine.
+#       Operator precedence is part of the language; parens-everywhere
+#       hurts readability of the math-heavy mathlib.c paths.
+#
+#   clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+#       (239) — every memset/memcpy/sprintf flagged as "use _s variants".
+#       _s variants don't exist on PowerPC Tiger/Panther toolchains and
+#       the bounds are statically known at every call site we control.
+#
+#   readability-function-cognitive-complexity (129) — Host_Frame, drawing
+#       loops, message parsers — all famously long Quake functions.
+#       Splitting them is a refactor, not a bug fix; out of scope.
+#
+#   bugprone-easily-swappable-parameters (128) — fires on any function
+#       with two same-typed args. Quake has many (vec3 src, vec3 dst).
+#       False-positive rate ≈ 90%; not worth the noise.
+#
+#   readability-non-const-parameter (62) — flags non-const ptrs that the
+#       function doesn't actually mutate. Adding const requires touching
+#       headers + every caller; project-out-of-scope refactor.
+#
+#   misc-unused-parameters (37) — typically callbacks with fixed
+#       signatures (cmd handlers, demo loaders). Renaming to _foo
+#       silences but adds no value.
+#
+#   readability-else-after-return (30), readability-redundant-* (52),
+#   readability-inconsistent-declaration-parameter-name (18),
+#   readability-avoid-* (26), readability-named-parameter (9) —
+#       style-only; Quake codebase consistency wins over modern
+#       clang-tidy preferences.
+#
+# Kept-and-why (these still surface in the log post-suppression):
+#
+#   bugprone-* (excluding the four above) — real-bug-prone patterns:
+#       narrowing-via-multiplication, macro parentheses, switch fall-
+#       through, suspicious string compares, branch clones, integer
+#       division, suspicious realloc.
+#   clang-analyzer-deadcode.DeadStores (19) — uninit / over-write paths.
+#   clang-analyzer-security.insecureAPI.strcpy (16) — real overflow risk.
+#   performance-type-promotion-in-math-fn (21) — float vs double in
+#       math.h calls; can reveal genuine perf-relevant precision bugs.
+
+# Note: clang-tidy resolves checks as a glob list. The cmdline --checks=
+# option REPLACES this whole Checks: setting (verified with clang-tidy 20
+# --list-checks). So scripts/analyze-all.sh's clangtidy stage no longer
+# passes --checks= at all — the effective list lives here as the single
+# source of truth.
+Checks: >
+  bugprone-*,
+  performance-*,
+  readability-*,
+  cert-*,
+  misc-*,
+  -readability-magic-numbers,
+  -readability-isolate-declaration,
+  -readability-braces-around-statements,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -bugprone-narrowing-conversions,
+  -bugprone-easily-swappable-parameters,
+  -misc-include-cleaner,
+  -misc-unused-parameters,
+  -readability-identifier-length,
+  -readability-uppercase-literal-suffix,
+  -readability-math-missing-parentheses,
+  -readability-function-cognitive-complexity,
+  -readability-non-const-parameter,
+  -readability-redundant-casting,
+  -readability-redundant-declaration,
+  -readability-else-after-return,
+  -readability-avoid-nested-conditional-operator,
+  -readability-avoid-unconditional-preprocessor-if,
+  -readability-inconsistent-declaration-parameter-name,
+  -readability-named-parameter
+
+# WarningsAsErrors blank — these are advisory.
+WarningsAsErrors: ''
+
+# header-filter remains 'Quake/' (set on the analyze-all.sh cmdline).

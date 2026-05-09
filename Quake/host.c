@@ -26,6 +26,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "bgmusic.h"
 #include <setjmp.h>
 
+#ifdef __APPLE__
+// PPC port: per-machine autoexec dispatch in Host_Init queries hw.model.
+#include <sys/sysctl.h>
+#endif
+
 /*
 
 A server can allways be started, even if the system started out as a client
@@ -914,6 +919,45 @@ void Host_Init (void)
 			Cbuf_AddText ("exec autoexec-ppc750.cfg\n");
 #elif defined(__x86_64__) || defined(__amd64__)
 			Cbuf_AddText ("exec autoexec-x86_64.cfg\n");
+#endif
+
+#ifdef __APPLE__
+			// Round v6: per-machine layer on top of the per-arch baseline
+			// above. The fat binary's per-arch dispatch can't tell
+			// mini-intel (GMA 950) from iMac19,1 (Radeon Pro 580X / 5K)
+			// — both are x86_64. hw.model disambiguates: each known
+			// machine gets its hand-tuned cfg layered on, overriding any
+			// arch-conservative default with the right resolution + visual
+			// stack for the actual hardware. Unknown models fall through
+			// silently (per-arch baseline applies). Same -noarchautoexec
+			// flag suppresses both layers for headless bench/screenshot.
+			{
+				static const struct { const char *model; const char *cfg; } qs_machine_map[] = {
+					{ "PowerMac1,1",  "autoexec-yosemite.cfg"    },
+					{ "PowerMac3,1",  "autoexec-sawtooth.cfg"    },
+					{ "PowerMac3,5",  "autoexec-quicksilver.cfg" },
+					{ "PowerMac10,1", "autoexec-mini-g4.cfg"     },
+					{ "Macmini2,1",   "autoexec-mini-intel.cfg"  },
+					{ "iMac19,1",     "autoexec-imac-2019.cfg"   },
+				};
+				char model[64];
+				size_t mlen = sizeof(model);
+				memset (model, 0, sizeof(model));
+				if (sysctlbyname("hw.model", model, &mlen, NULL, 0) == 0)
+				{
+					size_t i;
+					for (i = 0; i < sizeof(qs_machine_map)/sizeof(qs_machine_map[0]); i++)
+					{
+						if (!strcmp(model, qs_machine_map[i].model))
+						{
+							char buf[80];
+							q_snprintf (buf, sizeof(buf), "exec %s\n", qs_machine_map[i].cfg);
+							Cbuf_AddText (buf);
+							break;
+						}
+					}
+				}
+			}
 #endif
 		}
 	}

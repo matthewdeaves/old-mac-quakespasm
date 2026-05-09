@@ -89,8 +89,11 @@ t_scanbuild() {
 
 t_clangtidy() {
   command -v clang-tidy >/dev/null || { skip_tool clangtidy "needs apt install clang-tidy"; return 0; }
+  # NB: no --checks= here. Cmdline --checks= REPLACES the .clang-tidy file's
+  # Checks: setting (verified with clang-tidy 20 --list-checks), so the
+  # negations in .clang-tidy were silently dropped. Single source of truth
+  # is .clang-tidy at the repo root.
   clang-tidy \
-    --checks='bugprone-*,performance-*,readability-*,cert-*,misc-*,-readability-magic-numbers,-readability-isolate-declaration,-readability-braces-around-statements' \
     --header-filter='Quake/' \
     Quake/*.c -- -I Quake/ -I /usr/include/SDL2 -DUSE_SDL2 -DUSE_CODEC_WAVE -DUSE_CODEC_VORBIS \
     > analysis/clang-tidy.log 2>&1 || true

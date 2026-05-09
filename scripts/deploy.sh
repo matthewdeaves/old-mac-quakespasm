@@ -137,9 +137,18 @@ cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 #   confusing "which file wins" question for users who edit them later.
 mkdir -p "$STAGE/id1"
 if [ "$MODE" = "fat" ]; then
+  # Per-arch baseline (selected by host.c via __VEC__/__ppc__/__x86_64__).
   cp "$REPO_ROOT/scripts/bundle/autoexec-ppc750.cfg"  "$STAGE/id1/"
   cp "$REPO_ROOT/scripts/bundle/autoexec-ppc7400.cfg" "$STAGE/id1/"
   cp "$REPO_ROOT/scripts/bundle/autoexec-x86_64.cfg"  "$STAGE/id1/"
+  # Round v6: per-machine layer (selected by host.c via hw.model sysctl).
+  # The fat binary's per-arch dispatch can't separate mini-intel (GMA 950)
+  # from iMac19,1 (Radeon Pro 580X / 5K Retina), nor among the three G4s.
+  # Layering autoexec-<machine>.cfg on top of the per-arch baseline gives
+  # each known model its hand-tuned visual stack + resolution. Files:
+  for cfg in yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
+    cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$STAGE/id1/"
+  done
 else
   AUTOEXEC="$REPO_ROOT/scripts/bundle/autoexec-$TARGET.cfg"
   if [ -f "$AUTOEXEC" ]; then
