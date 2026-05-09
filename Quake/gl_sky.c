@@ -82,6 +82,26 @@ static const int vec_to_st[6][3] =
 
 static float	skyfog; // ericw
 
+// PPC port -- Round v7 phase 1: client-state hoist for the flat-sky pass.
+//
+// Pre-round v7, Sky_ProcessPoly called DrawGLPoly per visible sky surface,
+// and DrawGLPoly toggles GL_VERTEX_ARRAY + GL_TEXTURE_COORD_ARRAY on/off
+// per call (4 client-state ops per sky surface). Sky is rendered first
+// each frame from Sky_DrawSky, with GL_TEXTURE_2D disabled for the
+// flat-bound pass, so the per-surface texcoord state was wasted —
+// the GPU never reads texcoords when texturing is disabled.
+//
+// Hoist: enable GL_VERTEX_ARRAY once around Sky_ProcessTextureChains +
+// Sky_ProcessEntities; per-surface draw uses Sky_DrawFlatPoly which
+// only does glVertexPointer + glDrawArrays. Drops 4 GL state ops per
+// sky surface to 1 pointer rebind. Texcoord array is never enabled
+// in this pass, since the flat-sky pass is texture-disabled anyway.
+//
+// Predicted impact: G3 (R128) +0.5-2.0% on sky-heavy demos; less on
+// G4/Lion (driver state set is cheaper). Toggleable opt-out via
+// `-nodgp-sky-hoist` cmdline flag for end-of-round bisection.
+qboolean sky_hoist_disabled = false;
+
 //==============================================================================
 //
 //  INIT
@@ -400,6 +420,15 @@ void Sky_Init (void)
 
 	Cmd_AddCommand ("sky",Sky_SkyCommand_f);
 
+	// PPC port -- Round v7 phase 1: opt-out of the flat-sky pass
+	// client-state hoist. Falls back to per-surface DrawGLPoly toggle
+	// pattern, used to A/B the hoist's contribution.
+	if (COM_CheckParm ("-nodgp-sky-hoist"))
+	{
+		sky_hoist_disabled = true;
+		Con_Warning ("Round v7 phase 1 sky-state-hoist disabled by -nodgp-sky-hoist\n");
+	}
+
 	skybox_name[0] = 0;
 	for (i=0; i<6; i++)
 		skybox_textures[i] = NULL;
@@ -608,13 +637,41 @@ static void Sky_ClipPoly (int nump, vec3_t vecs, int stage)
 
 /*
 ================
+Sky_DrawFlatPoly -- PPC port (Round v7 phase 1)
+
+Vertex-only stateless draw. Caller (Sky_DrawSky) is expected to have
+GL_VERTEX_ARRAY enabled and GL_TEXTURE_2D disabled. No per-call client-
+state toggles — saves 4 GL state-set ops per sky surface vs the legacy
+DrawGLPoly path. Texcoord array is intentionally absent: the flat-sky
+pass paints with glColor3fv (skyflatcolor) and texturing disabled, so
+glTexCoordPointer was never read.
+
+Falls back to DrawGLPoly when the user passes -nodgp-sky-hoist on the
+cmdline (Sky_Init parses the flag).
+================
+*/
+static void Sky_DrawFlatPoly (glpoly_t *p)
+{
+	if (sky_hoist_disabled)
+	{
+		DrawGLPoly (p);
+		return;
+	}
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), &p->verts[0][0]);
+	glDrawArrays (GL_POLYGON, 0, p->numverts);
+	PERF_COUNT (PERF_CNT_SURFACE);
+	PERF_COUNT (PERF_CNT_DRAW);
+}
+
+/*
+================
 Sky_ProcessPoly
 ================
 */
 void Sky_ProcessPoly (glpoly_t	*p)
 {
 	//draw it
-	DrawGLPoly(p);
+	Sky_DrawFlatPoly (p);
 	rs_brushpasses++;
 
 	//update sky bounds
@@ -1131,8 +1188,16 @@ void Sky_DrawSky (void)
 		glColor3fv (Fog_GetColor());
 	else
 		glColor3fv (skyflatcolor);
+	// PPC port -- Round v7 phase 1: hoist GL_VERTEX_ARRAY enable around
+	// the flat-sky pass. Sky_DrawFlatPoly relies on this state being on
+	// when sky_hoist_disabled is false. No texcoord array because GL_-
+	// TEXTURE_2D is disabled here — texcoords would be ignored.
+	if (!sky_hoist_disabled)
+		glEnableClientState (GL_VERTEX_ARRAY);
 	Sky_ProcessTextureChains ();
 	Sky_ProcessEntities ();
+	if (!sky_hoist_disabled)
+		glDisableClientState (GL_VERTEX_ARRAY);
 	glColor3f (1, 1, 1);
 	glEnable (GL_TEXTURE_2D);
 
