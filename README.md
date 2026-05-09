@@ -54,6 +54,7 @@ Same engine, very different visual stacks. The fat binary's per-machine layer (`
 
 |  | demo1 (e1m1) | demo2 (e1m3) | demo3 (e1m8) |
 |---|---|---|---|
+| **Yosemite** (Rage 128, classic warp) | ![](docs/screenshots/yosemite_spasm0010.webp) | ![](docs/screenshots/yosemite_spasm0040.webp) | _no shot — SSD failure before demo3_ |
 | **Sawtooth** (GeForce2 MX, fixed-function) | ![](docs/screenshots/sawtooth_spasm0010.webp) | ![](docs/screenshots/sawtooth_spasm0040.webp) | ![](docs/screenshots/sawtooth_spasm0070.webp) |
 | **Quicksilver** (Radeon 9000, shader water) | ![](docs/screenshots/quicksilver_spasm0010.webp) | ![](docs/screenshots/quicksilver_spasm0040.webp) | ![](docs/screenshots/quicksilver_spasm0070.webp) |
 | **Mac mini G4** (Radeon 9200) | ![](docs/screenshots/mini-g4_spasm0010.webp) | ![](docs/screenshots/mini-g4_spasm0040.webp) | ![](docs/screenshots/mini-g4_spasm0070.webp) |
