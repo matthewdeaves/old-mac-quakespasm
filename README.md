@@ -1,10 +1,24 @@
 # QuakeSpasm — PowerPC Mac port
 
+[![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
+[![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#the-bench-fleet)
+[![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#the-bench-fleet)
+[![Engine: QuakeSpasm fork](https://img.shields.io/badge/Engine-QuakeSpasm%20fork-red.svg)](https://github.com/sezero/quakespasm)
+[![AltiVec](https://img.shields.io/badge/AltiVec-hand--paths-orange.svg)](#where-the-wins-came-from)
+
 The best-looking QuakeSpasm I could make run smoothly on six retro Macs spanning **23 years** of Apple hardware — from a 1999 G3 tower running Mac OS X Panther, to a 2019 iMac on Sequoia.
 
 One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + Intel x86_64), and a per-machine config that picks itself at boot via `sysctl hw.model`.
 
 The hard floor: **every machine stays comfortably playable.** No fps win that hurt visuals on any target made it in.
+
+<p align="center">
+  <img src="docs/screenshots/sawtooth_spasm0010.webp" width="24%" alt="Sawtooth G4 / GeForce2 MX — fixed-function" />
+  <img src="docs/screenshots/quicksilver_spasm0040.webp" width="24%" alt="Quicksilver G4 / Radeon 9000 — shader water" />
+  <img src="docs/screenshots/mini-intel_spasm0070.webp" width="24%" alt="Mac mini Intel / GMA 950 — Lion sky" />
+  <img src="docs/screenshots/imac-2019_spasm0010.webp" width="24%" alt="iMac 27&quot; 2019 / Radeon Pro 580X — 1440p" />
+</p>
+<p align="center"><sub><i>Same engine, four GPU eras: GeForce2 MX (fixed-function) → Radeon 9000 (shader water) → GMA 950 (Lion fallback) → Radeon Pro 580X (1440p modern).</i></sub></p>
 
 ## The bench fleet
 
