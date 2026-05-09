@@ -14,6 +14,14 @@
 #   mini-g4      PowerMac10,1  Mac mini G4 1.25 GHz / Radeon 9200 / 10.4.11
 #   mini-intel   Macmini2,1    C2D 2.33 GHz / GMA 950 / 10.7.5 Lion
 #
+# env: EXTRA_CVARS  optional cmdline cvar overrides spliced into the launch
+#                   line right before +timedemo. Use to bench cvar-on
+#                   states (e.g. emissive lights) without touching the
+#                   per-machine autoexec, which `-noarchautoexec` skips
+#                   anyway. Example:
+#                     EXTRA_CVARS="+set r_emissive_lights 1 +set r_emissive_lights_max 4" \
+#                       scripts/bench.sh yosemite demo3 1024x768 3
+#
 # output: appends row to benchmarks/results.csv,
 #         saves raw qconsole.log to benchmarks/raw/
 
@@ -82,7 +90,7 @@ for i in $(seq 1 $RUNS); do
       -fullscreen -width $W -height $H \\
       -noarchautoexec \\
       +vid_wait 0 \\
-      +timedemo $DEMO > /dev/null 2>&1 &
+      ${EXTRA_CVARS:+$EXTRA_CVARS }+timedemo $DEMO > /dev/null 2>&1 &
     PID=\$!
     j=0
     while [ \$j -lt $TIMEOUT ]; do
