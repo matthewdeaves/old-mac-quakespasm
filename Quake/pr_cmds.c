@@ -216,12 +216,12 @@ static void SetMinMaxSize (edict_t *e, float *minvec, float *maxvec, qboolean ro
 	// find min / max for rotations
 		angles = e->v.angles;
 
-		a = angles[1]/180 * M_PI;
+		a = angles[1]/180.0f * (float)M_PI;
 
-		xvector[0] = cos(a);
-		xvector[1] = sin(a);
-		yvector[0] = -sin(a);
-		yvector[1] = cos(a);
+		xvector[0] = cosf(a);
+		xvector[1] = sinf(a);
+		yvector[0] = -sinf(a);
+		yvector[1] = cosf(a);
 
 		VectorCopy (minvec, bounds[0]);
 		VectorCopy (maxvec, bounds[1]);
@@ -479,7 +479,7 @@ static void PF_vectoyaw (void)
 		yaw = 0;
 	else
 	{
-		yaw = (int) (atan2(value1[1], value1[0]) * 180 / M_PI);
+		yaw = (int) (atan2f(value1[1], value1[0]) * 180.0f / (float)M_PI);
 		if (yaw < 0)
 			yaw += 360;
 	}
@@ -513,12 +513,12 @@ static void PF_vectoangles (void)
 	}
 	else
 	{
-		yaw = (int) (atan2(value1[1], value1[0]) * 180 / M_PI);
+		yaw = (int) (atan2f(value1[1], value1[0]) * 180.0f / (float)M_PI);
 		if (yaw < 0)
 			yaw += 360;
 
-		forward = sqrt (value1[0]*value1[0] + value1[1]*value1[1]);
-		pitch = (int) (atan2(value1[2], forward) * 180 / M_PI);
+		forward = sqrtf (value1[0]*value1[0] + value1[1]*value1[1]);
+		pitch = (int) (atan2f(value1[2], forward) * 180.0f / (float)M_PI);
 		if (pitch < 0)
 			pitch += 360;
 	}
@@ -1023,7 +1023,7 @@ static void PF_fabs (void)
 {
 	float	v;
 	v = G_FLOAT(OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = fabs(v);
+	G_FLOAT(OFS_RETURN) = fabsf(v);
 }
 
 static void PF_vtos (void)
@@ -1193,10 +1193,10 @@ static void PF_walkmove (void)
 		return;
 	}
 
-	yaw = yaw * M_PI * 2 / 360;
+	yaw = yaw * (float)M_PI * 2.0f / 360.0f;
 
-	move[0] = cos(yaw) * dist;
-	move[1] = sin(yaw) * dist;
+	move[0] = cosf(yaw) * dist;
+	move[1] = sinf(yaw) * dist;
 	move[2] = 0;
 
 // save program state, because SV_movestep may call other progs
@@ -1297,12 +1297,12 @@ static void PF_rint (void)
 
 static void PF_floor (void)
 {
-	G_FLOAT(OFS_RETURN) = floor(G_FLOAT(OFS_PARM0));
+	G_FLOAT(OFS_RETURN) = floorf(G_FLOAT(OFS_PARM0));
 }
 
 static void PF_ceil (void)
 {
-	G_FLOAT(OFS_RETURN) = ceil(G_FLOAT(OFS_PARM0));
+	G_FLOAT(OFS_RETURN) = ceilf(G_FLOAT(OFS_PARM0));
 }
 
 
