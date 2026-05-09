@@ -240,6 +240,12 @@ void R_PushDlights (void)
 	if (gl_flashblend.value)
 		return;
 
+	// PPC port -- Round v7 phase 2: inject emissive-fullbright dynamic
+	// lights into cl_dlights[] before the regular sweep so the rest of
+	// the dlight pipeline picks them up transparently. R_PushEmissiveLights
+	// is a no-op when r_emissive_lights cvar is 0 (default).
+	R_PushEmissiveLights ();
+
 	r_dlightframecount = r_framecount + 1;	// because the count hasn't advanced yet for this frame
 	l = cl_dlights;
 

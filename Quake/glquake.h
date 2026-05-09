@@ -499,6 +499,15 @@ void Sky_LoadTexture (qmodel_t *m, texture_t *mt);
 void Sky_LoadTextureQ64 (qmodel_t *m, texture_t *mt);
 void Sky_LoadSkyBox (const char *name);
 
+// PPC port -- Round v7 phase 2: emissive-fullbright dynamic lights.
+// See gl_emissive.c for design notes.
+void R_EmissiveLights_Init (void);
+void R_BuildEmissiveLights (qmodel_t *world);
+void R_PushEmissiveLights (void);
+extern cvar_t r_emissive_lights;
+extern cvar_t r_emissive_lights_radius;
+extern cvar_t r_emissive_lights_max;
+
 void TexMgr_RecalcWarpImageSize (void);
 
 void R_ClearTextureChains (qmodel_t *mod, texchain_t chain);

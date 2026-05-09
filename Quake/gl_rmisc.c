@@ -240,6 +240,8 @@ void R_Init (void)
 	Sky_Init (); //johnfitz
 	Fog_Init (); //johnfitz
 
+	R_EmissiveLights_Init ();  // PPC port -- Round v7 phase 2
+
 	R_PerfPrint_Init ();   // PPC port -- Phase 7: register gl_perfprint cvar + parse -perfprint
 
 	// PPC port -- §14.3 item 3: -nowarpedarrays falls back to the
@@ -445,6 +447,7 @@ void R_NewMap (void)
 	GL_BuildLightmaps ();
 	GL_BuildBModelVertexBuffer ();
 	GL_BuildBModelVAR ();         // PPC port -- Phase 3.2: register VAR pool for this level (G4 only at runtime; self-resets)
+	R_BuildEmissiveLights (cl.worldmodel);  // PPC port -- Round v7 phase 2
 	//ericw -- no longer load alias models into a VBO here, it's done in Mod_LoadAliasModel
 
 	r_framecount = 0; //johnfitz -- paranoid?
