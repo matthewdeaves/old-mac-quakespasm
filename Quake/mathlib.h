@@ -50,7 +50,10 @@ static inline int IS_NAN (float x) {
 }
 #endif
 
-#define Q_rint(x) ((x) > 0 ? (int)((x) + 0.5) : (int)((x) - 0.5)) //johnfitz -- from joequake
+// Round v7 Candidate 4a: 0.5 (double) → 0.5f keeps the rounding entirely
+// in float, sparing PPC/SSE callers a float→double promote+narrow round-
+// trip per call site. ~25 callers across renderer + lightmap clamp.
+#define Q_rint(x) ((x) > 0 ? (int)((x) + 0.5f) : (int)((x) - 0.5f)) //johnfitz -- from joequake
 
 #if defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
 // PowerPC frsqrte: 5-bit hardware estimate of 1/sqrt(x), ~6 cycles vs

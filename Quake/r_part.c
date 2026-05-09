@@ -725,11 +725,11 @@ void CL_RunParticles (void)
 	extern	cvar_t	sv_gravity;
 
 	frametime = cl.time - cl.oldtime;
-	time3 = frametime * 15;
-	time2 = frametime * 10;
-	time1 = frametime * 5;
-	grav = frametime * sv_gravity.value * 0.05;
-	dvel = 4*frametime;
+	time3 = frametime * 15.0f;
+	time2 = frametime * 10.0f;
+	time1 = frametime * 5.0f;
+	grav = frametime * sv_gravity.value * 0.05f;
+	dvel = 4.0f * frametime;
 
 	for ( ;; )
 	{
@@ -908,11 +908,11 @@ void R_DrawParticles (void)
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
 			      + (p->org[1] - r_origin[1]) * vpn[1]
 			      + (p->org[2] - r_origin[2]) * vpn[2];
-			if (scale < 20)
-				scale = 1 + 0.08;
+			if (scale < 20.0f)
+				scale = 1.08f;
 			else
-				scale = 1 + scale * 0.004;
-			scale /= 2.0; //quad is half the size of triangle
+				scale = 1.0f + scale * 0.004f;
+			scale *= 0.5f; //quad is half the size of triangle
 			scale *= texturescalefactor;
 
 			c = (GLubyte *) &d_8to24table[(int)p->color];
@@ -963,10 +963,10 @@ void R_DrawParticles (void)
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
 			      + (p->org[1] - r_origin[1]) * vpn[1]
 			      + (p->org[2] - r_origin[2]) * vpn[2];
-			if (scale < 20)
-				scale = 1 + 0.08;
+			if (scale < 20.0f)
+				scale = 1.08f;
 			else
-				scale = 1 + scale * 0.004;
+				scale = 1.0f + scale * 0.004f;
 			scale *= texturescalefactor;
 
 			c = (GLubyte *) &d_8to24table[(int)p->color];

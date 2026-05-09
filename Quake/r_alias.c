@@ -661,7 +661,7 @@ void R_SetupAliasFrame (aliashdr_t *paliashdr, int frame, lerpdata_t *lerpdata)
 		posenum += (int)(cl.time / e->lerptime) % numposes;
 	}
 	else
-		e->lerptime = 0.1;
+		e->lerptime = 0.1f;
 
 	if (e->lerpflags & LERP_RESETANIM) //kill any lerp in progress
 	{
