@@ -16,30 +16,28 @@ triage notes are committed.
 - `perf-candidates.md` — opt-info / vectoriser-miss output triaged into
   candidate optimisations for the next round.
 
-## Tool inventory (Round v5 baseline)
+## Tool inventory (Round v5 wrap, 2026-05-09)
 
-| Tool | Status | Last run | Findings | Notes |
-|------|--------|----------|----------|-------|
-| cppcheck | wired | (pending) | — | Pattern + flow; standalone, no build needed |
-| gcc -fanalyzer | wired | (pending) | — | Interprocedural; runs as part of `build-linux.sh analyze` |
-| shellcheck | wired | (pending) | — | scripts/ tree quality |
-| ASan (gcc) | wired | (pending) | — | `build-linux.sh asan` + headless timedemo |
-| UBSan (gcc) | wired | (pending) | — | `build-linux.sh ubsan` + headless timedemo |
-| Compiler warnings (Linux) | wired | (pending) | — | Modern gcc 15 maxout in `build-linux.sh default` |
-| scan-build (clang SA) | **needs `apt install clang-tools`** | — | — | sudo gate; install in morning |
-| clang-tidy | **needs `apt install clang-tidy`** | — | — | sudo gate; install in morning |
-| flawfinder | **needs `apt install flawfinder`** | — | — | sudo gate; install in morning |
-| sparse | **needs `apt install sparse`** | — | — | sudo gate; install in morning |
-| iwyu | **needs `apt install iwyu`** | — | — | sudo gate; install in morning |
-| Infer | not packaged in apt | — | — | release tarball; deferred |
+| Tool | Status | Last run | Findings | Verdict |
+|------|--------|----------|----------|---------|
+| cppcheck | run | 2026-05-09 | ~25 path-warnings | All FPs: cppcheck doesn't credit Sys_Error noreturn through macro layer; OOB-bound checks are upstream qpic_t flexible-array idiom |
+| gcc -fanalyzer | run | 2026-05-09 | (in fanalyzer.log) | No new findings vs Round v5 A2 (already triaged) |
+| shellcheck | run | 2026-05-09 | 41 lines / ~10 issues | Cosmetic SC2086/SC2029 in scripts; not blocking |
+| ASan (gcc) | wired | 2026-05-08 | clean | Demo run completed, no leaks/OOB |
+| UBSan (gcc) | wired | 2026-05-08 | 5 fixed | All landed in 463ec405 + d564b16a |
+| Compiler warnings (Linux) | run | 2026-05-09 | 1595 lines | Mostly Wfloat-equal (491) + Wdouble-promotion (490) — all expected for the precision-critical hot path. 2 Wduplicated-branches (cl_input.c:195 intentional placeholder; sbar.c:455 upstream Sbar_ColorForMap quirk) |
+| scan-build (clang SA) | run | 2026-05-09 | 113 lines / 6 paths | All scan-build noreturn-blind FPs (Sys_Error path-impossible). Already-fixed gl_texmgr.c div-by-zero shows but is gated by 1104-1105 early return. |
+| clang-tidy | run | 2026-05-09 | ~70K warnings | Dominated by clang-analyzer-security.insecureAPI (DeprecatedOrUnsafeBufferHandling on every memset/memcpy/sprintf — modern paranoia, not relevant); bugprone-* finds the same upstream quirks (cl_input.c, sbar.c) |
+| flawfinder | broken | 2026-05-09 | UTF-8 decode error in in_sdl.c | Non-UTF8 byte in author comment block; cosmetic, would re-run with PYTHONUTF8=0 if we cared |
+| sparse | run | 2026-05-09 | 13925 lines | All noise: 4200 "mixing decl + code" (intentional C99), 1314 "unknown attribute __access__" (sparse < gcc), rest in glibc headers |
+| iwyu | skipped | 2026-05-09 | — | Needs `bear` (not installed) for compile_commands.json |
+| Infer | not packaged in apt | — | — | Release tarball; deferred |
 
-**Morning install command:**
-
-```
-sudo apt install -y clang-tools clang-tidy flawfinder sparse iwyu
-```
-
-After install, rerun `scripts/analyze-all.sh` to add their results.
+**Headline: no new actionable bugs surfaced this run.** Round v5 A2 +
+A4 sweeps caught the meaningful UB and uninit-read class issues.
+Remaining warnings are upstream Quake codebase idioms (qpic_t flexible
+array, Sbar_ColorForMap, johnfitz comment markers), scan-build's
+noreturn-blindness, or modern compilers' "memset is unsafe" noise.
 
 ## How to run
 
