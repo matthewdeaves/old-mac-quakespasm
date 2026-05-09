@@ -49,8 +49,11 @@ static const float	turbsin[] = {
 #include "gl_warp_sin.h"
 };
 
-#define WARPCALC(s,t) ((s + turbsin[(int)((t*2)+(cl.time*(128.0/M_PI))) & 255]) * (1.0/64)) //johnfitz -- correct warp
-#define WARPCALC2(s,t) ((s + turbsin[(int)((t*0.125+cl.time)*(128.0/M_PI)) & 255]) * (1.0/64)) //johnfitz -- old warp
+/* Macro args parenthesised to be safe under arithmetic at the call site;
+ * clang-tidy bugprone-macro-parentheses flagged this. Both call paths
+ * happen to pass simple lvalue references today, but defensive. */
+#define WARPCALC(s,t) (((s) + turbsin[(int)(((t)*2)+(cl.time*(128.0/M_PI))) & 255]) * (1.0/64)) //johnfitz -- correct warp
+#define WARPCALC2(s,t) (((s) + turbsin[(int)(((t)*0.125+cl.time)*(128.0/M_PI)) & 255]) * (1.0/64)) //johnfitz -- old warp
 
 //==============================================================================
 //
