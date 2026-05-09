@@ -10,7 +10,27 @@ we learned. Newest at the top.
 
 ---
 
-## 2026-05-09 — Round v5 B5: scalar dlight cast hoist (reverted)
+## 2026-05-09 — Round v5 B5: scalar dlight cast hoist — REVERT WAS WRONG, RE-APPLIED
+
+**Read this first.** The original revert below was driven by a bad
+baseline reading. A proper A/B done same-session, same-warm-state, on
+the same g4mini hardware shows **B5 is a clean +2.9% on demo3 1024 and
++0.9% on demo3 640** with zero regression. Phase A (no B5) and Phase B
+(B5) ran back-to-back on warm g4mini, 5 runs per cell, MD5-verified
+binaries on both sides. Spread inside each phase < 0.2 fps. See commits
+6d386dde (the inconclusive retest that prompted the proper A/B) and the
+B5-reapply commit that follows this addendum.
+
+The lesson stands and is now load-bearing: **never declare a regression
+without an apples-to-apples same-session A/B on the suspected target.**
+The prior workflow compared a fresh-bench reading against a historical
+CSV row taken under unknown machine state; the noise band on g4mini for
+unchanged code spans 65.20 → 69.30 across recent commits, which is
+~6% — wide enough to swallow a +3% real signal.
+
+---
+
+## 2026-05-09 — Round v5 B5: scalar dlight cast hoist (ORIGINAL REVERT — superseded above)
 
 **What we tried.** Round v5 plan B5: replace the scalar fallback's
 per-texel `(int)(brightness_f * cred_f)` (3 fmul + 3 fctiw) with
@@ -53,18 +73,25 @@ addresses the same hot loop with the right tool.
 Numbers retained in benchmarks/results.csv tagged `2e8f7861`
 (pre-revert). The revert lands as a clean revert commit.
 
-**Retest 2026-05-09 (post all four machines fresh-rebooted).** Suspected
-that the original B5 bench may have been comparing against a cold-cache
-baseline reading (G4mini's 9ab48841 row showed 69.30 fps demo3 1024,
-~6% above the pre-B5 cluster of 65.20–66.40). Re-applied B5 to working
-tree, redeployed, ran 5×demo3 1024 + 5×demo3 640 across all 4 freshly
-rebooted machines. Result: G4mini demo3 1024 = 65.00 fps with B5 in
-binary — sits inside the no-B5 cluster, 4.3 fps below the 9ab48841
-outlier. Conclusion: 9ab48841's 69.30 was the anomaly, not the new
-baseline. **Original revert verdict stands.** Working-tree changes
-discarded. Don't relitigate without a real hardware profiler that can
-pin the G4 vs G4mini divergence; the speculative microarchitectural
-explanation in the original entry is the best we have.
+**Retest 2026-05-09 (post all four machines fresh-rebooted) — INITIALLY
+mis-verdicted.** First retest compared B5-applied binary against
+historical no-B5 readings from the rolling CSV. G4mini came in at 65.00
+with B5, sitting inside the 65.20-69.30 historical cluster — read as
+"neutral, original revert stands". This was wrong because the historical
+cluster itself spans 6%+ noise; a +2.9% real signal hides in there.
+
+**Proper A/B 2026-05-09 (same-session, no reboot between phases).**
+Both binaries deployed back-to-back on warm g4mini, 5 runs each cell,
+MD5-verified on the target. Result:
+* demo3 1024: no-B5 65.10 → B5 67.00 = **+2.9%**
+* demo3 640:  no-B5 115.50 → B5 116.50 = **+0.9%**
+Each phase tight to 0.2 fps spread. The +2.9% is far outside the
+within-phase noise floor. **Original revert was wrong; re-applying B5
+in the commit that follows.** Future bench discipline: any
+"regression" verdict needs a same-session A/B on the suspected target
+before it sticks. Comparing against historical CSV rows under unknown
+machine state is unreliable when the target is sensitive to microarch
+state (cache, OS bookkeeping, AGP traffic patterns).
 
 ---
 
