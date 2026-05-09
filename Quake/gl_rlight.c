@@ -107,10 +107,10 @@ void R_RenderDlight (dlight_t *light)
 	glColor3f (0,0,0);
 	for (i=16 ; i>=0 ; i--)
 	{
-		a = i/16.0 * M_PI*2;
+		a = i/16.0f * (float)M_PI*2.0f;
 		for (j=0 ; j<3 ; j++)
-			v[j] = light->origin[j] + vright[j]*cos(a)*rad
-				+ vup[j]*sin(a)*rad;
+			v[j] = light->origin[j] + vright[j]*cosf(a)*rad
+				+ vup[j]*sinf(a)*rad;
 		glVertex3fv (v);
 	}
 	glEnd ();

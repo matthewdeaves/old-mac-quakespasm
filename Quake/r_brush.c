@@ -1016,7 +1016,9 @@ void R_AddDynamicLights (msurface_t *surf)
 		rad = cl_dlights[lnum].radius;
 		dist = DotProduct (cl_dlights[lnum].origin, surf->plane->normal) -
 				surf->plane->dist;
-		rad -= fabs(dist);
+		/* fabsf instead of fabs: input is float, fabs widens to double
+		 * (PPC: function call) where fabsf is a single fabs instruction. */
+		rad -= fabsf(dist);
 		minlight = cl_dlights[lnum].minlight;
 		if (rad < minlight)
 			continue;

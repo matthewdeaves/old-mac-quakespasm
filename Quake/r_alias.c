@@ -850,9 +850,9 @@ void R_SetupAliasLighting (entity_t	*e)
 
 //ericw -- shadevector is passed to the shader to compute shadedots inside the
 //shader, see GLAlias_CreateShaders()
-	radiansangle = (quantizedangle / 16.0) * 2.0 * 3.14159;
-	shadevector[0] = cos(-radiansangle);
-	shadevector[1] = sin(-radiansangle);
+	radiansangle = (quantizedangle / 16.0f) * 2.0f * 3.14159f;
+	shadevector[0] = cosf(-radiansangle);
+	shadevector[1] = sinf(-radiansangle);
 	shadevector[2] = 1;
 	VectorNormalize(shadevector);
 //ericw --

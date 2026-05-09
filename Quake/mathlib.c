@@ -173,15 +173,21 @@ void AngleVectors (vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
 
+	/* PPC port -- Round v5: prefer sinf/cosf over sin/cos to avoid
+	 * float->double promotion. PPC double math is ~2x scalar single-
+	 * precision, and AngleVectors is called per visible entity per
+	 * frame. clang-tidy performance-type-promotion-in-math-fn flagged
+	 * all 6 sites. The constant `M_PI*2 / 360` still widens to double
+	 * but is computed once per call (constant-folded by gcc). */
 	angle = angles[YAW] * (M_PI*2 / 360);
-	sy = sin(angle);
-	cy = cos(angle);
+	sy = sinf(angle);
+	cy = cosf(angle);
 	angle = angles[PITCH] * (M_PI*2 / 360);
-	sp = sin(angle);
-	cp = cos(angle);
+	sp = sinf(angle);
+	cp = cosf(angle);
 	angle = angles[ROLL] * (M_PI*2 / 360);
-	sr = sin(angle);
-	cr = cos(angle);
+	sr = sinf(angle);
+	cr = cosf(angle);
 
 	forward[0] = cp*cy;
 	forward[1] = cp*sy;
