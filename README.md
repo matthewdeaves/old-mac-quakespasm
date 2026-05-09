@@ -1,16 +1,21 @@
-# QuakeSpasm — PowerPC Mac port
+# QuakeSpasm — six old Macs, one fat binary
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
 [![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#the-bench-fleet)
 [![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#the-bench-fleet)
 [![Engine: QuakeSpasm fork](https://img.shields.io/badge/Engine-QuakeSpasm%20fork-red.svg)](https://github.com/sezero/quakespasm)
 [![AltiVec](https://img.shields.io/badge/AltiVec-hand--paths-orange.svg)](#where-the-wins-came-from)
+[![Rounds: 7](https://img.shields.io/badge/Rounds-7-purple.svg)](PPC_PLAN.md)
 
-The best-looking QuakeSpasm I could make run smoothly on six retro Macs spanning **23 years** of Apple hardware — from a 1999 G3 tower running Mac OS X Panther, to a 2019 iMac on Sequoia.
+<p align="center">
+  <img src="docs/images/quakespasm-icon-256.png" width="120" alt="QuakeSpasm icon" />
+</p>
 
-One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + Intel x86_64), and a per-machine config that picks itself at boot via `sysctl hw.model`.
+The best-looking QuakeSpasm I could make run smoothly on **six retro Macs spanning 23 years** of Apple hardware — from a 1999 G3 tower running Mac OS X Panther, to a 2019 iMac on Sequoia.
 
-The hard floor: **every machine stays comfortably playable.** No fps win that hurt visuals on any target made it in.
+One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + Intel x86_64), one engine — and a per-machine config that picks itself at boot via `sysctl hw.model`.
+
+The hard floor: **every machine stays comfortably playable.** No fps win that hurt visuals on any target made it in. And no visual upgrade lands without a bench cell that proves it doesn't drop the slowest target below its playability floor.
 
 <p align="center">
   <img src="docs/screenshots/sawtooth_spasm0010.webp" width="24%" alt="Sawtooth G4 / GeForce2 MX — fixed-function" />
@@ -20,96 +25,155 @@ The hard floor: **every machine stays comfortably playable.** No fps win that hu
 </p>
 <p align="center"><sub><i>Same engine, four GPU eras: GeForce2 MX (fixed-function) → Radeon 9000 (shader water) → GMA 950 (Lion fallback) → Radeon Pro 580X (1440p modern).</i></sub></p>
 
+## Headline result
+
+The 1999 B&W G3 tower (449 MHz PPC 750, ATI Rage 128 with 16 MB VRAM) went from unplayable on the heaviest demo to **comfortably playable with the full visual stack on**:
+
+| Cell | Early-port build (`4c165e6f`) | Round v7 + emissive (`0baed4c8`) | Improvement |
+|---|---:|---:|---:|
+| **demo3 1024×768** | **5.10 fps** (slideshow) | **19.80 fps** | **+288% (3.9×)** |
+| demo1 1024×768 | 7.70 fps | 16.85 fps | +118% (2.2×) |
+| demo3 640×480 | 15.60 fps | 36.65 fps | +135% (2.4×) |
+| demo1 640×480 | 23.90 fps | 35.10 fps | +47% |
+
+…and that's with **translucent water** (`r_wateralpha 0.6` + watervis NoVis), **alias drop-shadows**, **emissive-fullbright dynamic lights** (buttons / panels / lights cast coloured light onto walls), reduced particles (`r_particles 2`), classic warp water (Rage 128 has a refraction bug at 1024 with the new shader path), coarser warp tessellation, and a per-frame dynamic-light distance gate to amortise the muzzle-flash tax on a fragment-shader-less GPU.
+
+Round v7's surprise win was a sky-state client-state hoist that the **Radeon 9200's ATI driver happens to love**: Mac mini G4 demo3 at 1024×768 jumped **+42.4%** (47.90 → 68.20 fps) from one targeted patch. The Radeon 9000 sibling (quicksilver) saw it as a no-op (-0.1%). Same patch, different driver, totally different outcome — exactly the kind of thing that only shows up when you bench across the matrix.
+
 ## The bench fleet
 
-| Machine | CPU | GPU | OS |
-|---|---|---|---|
-| **Yosemite** (PowerMac1,1 B&W G3, 1999) | 449 MHz PPC 750 | ATI Rage 128 16 MB | 10.3.9 Panther |
-| **Sawtooth** (PowerMac3,1 G4 AGP, 1999) | 500 MHz PPC 7400 | NVIDIA GeForce2 MX 32 MB | 10.4.11 Tiger |
-| **Quicksilver** (PowerMac3,5, 2001) | 733 MHz PPC 7450 | ATI Radeon 9000 Pro 64 MB | 10.4.11 Tiger |
-| **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger |
-| **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion |
-| **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7.5 Sequoia |
+| Machine | CPU | GPU | OS | Default res |
+|---|---|---|---|---:|
+| **Yosemite** (PowerMac1,1 B&W G3, 1999) | 449 MHz PPC 750 | ATI Rage 128 16 MB | 10.3.9 Panther | 640×480 |
+| **Sawtooth** (PowerMac3,1 G4 AGP, 1999) | 500 MHz PPC 7400 | NVIDIA GeForce2 MX 32 MB | 10.4.11 Tiger | 1024×768 |
+| **Quicksilver** (PowerMac3,5, 2001) | 733 MHz PPC 7450 | ATI Radeon 9000 Pro 64 MB | 10.4.11 Tiger | 1024×768 |
+| **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger | 1024×768 |
+| **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
+| **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7.5 Sequoia | 2560×1440 |
 
-The fleet covers four GPU eras: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Radeon 9000/9200), Intel integrated GMA, and a modern AMD discrete part. Different bottlenecks at every level — which is what makes the matrix interesting.
+The matrix covers **four GPU eras**: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Radeon 9000/9200), Intel integrated GMA, and a modern AMD discrete part. Different bottlenecks at every level — which is what makes the project interesting. CPU-bound effects show up on Lion + iMac; fillrate-bound effects show up on the G3 + sawtooth; per-driver state-set cost shows up most starkly on the Radeon 9200.
 
-## How fast does it go?
+## Latest fps across all six machines
 
-Median fps from a 90-shot timedemo (`demo1`/`demo2`/`demo3`) at the resolution each machine ships at by default:
+Round v7 wrap (`f2df151d`) — full grid `timedemo demo1/2/3` × 1024×768 + 640×480, 3 runs each, median of run 2 + 3 (drop the warmup):
 
-| Machine | demo1 | demo3 (heavier) | Default res |
-|---|---:|---:|---:|
-| Yosemite (G3 / Rage 128) | 24.20 | 20.25 | 1024×768 |
-| Sawtooth (G4 / GeForce2 MX) | 57.95 | 47.75 | 1024×768 |
-| Quicksilver (G4 / Radeon 9000) | 110.85 | 85.75 | 1024×768 |
-| Mac mini G4 (G4 / Radeon 9200) | 76.05 | 67.00 | 1024×768 |
-| Mac mini Intel (Lion / GMA 950) | 96.40 | 44.85 | 1024×768 |
-| iMac 27" (Intel / Radeon Pro 580X) | ~2000 | ~2000 | 2560×1440 |
+| Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
+|---|---:|---:|---:|---:|---:|---:|
+| Yosemite (G3 / Rage 128) | 16.85 | 15.15 | **19.80** | 35.10 | 33.30 | 36.65 |
+| Sawtooth (G4 / GeForce2 MX) | 42.65 | 35.40 | 46.75 | 55.90 | 55.10 | 57.30 |
+| Quicksilver (G4 / Radeon 9000) | 64.20 | 62.45 | 86.15 | 71.95 | 72.10 | 98.25 |
+| Mac mini G4 (G4 / Radeon 9200) | 49.40 | 39.30 | **68.20** | 86.50 | 74.80 | 114.35 |
+| Mac mini Intel (Lion / GMA 950) | 73.05 | 54.55 | 44.70 | 165.35 | 132.15 | 189.00 |
+| iMac 27" (Sequoia / Radeon Pro 580X) | 1835.25 | 1853.25 | 1731.70 | 2048.60 | 2018.55 | 1807.00 |
 
-The G3 is the floor target at 20 fps on the heaviest demo — playable but tight. Everything else clears 45+ fps with room.
+**Bold** cells are headline — yosemite holding 19.80 fps demo3 1024 with the full visual stack on, and mini-g4 demo3 1024 at 68.20 fps after the round-v7 sky hoist (the Radeon 9200's ATI driver win).
 
 ## What each machine actually renders
 
 Same engine, very different visual stacks. The fat binary's per-machine layer (`autoexec-<machine>.cfg`, picked by `sysctl hw.model` at boot) tunes each cell to its hardware:
 
-|  | demo1 (e1m1) | demo2 (e1m3) | demo3 (e1m8) |
-|---|---|---|---|
-| **Yosemite** (Rage 128, classic warp) | ![](docs/screenshots/yosemite_spasm0010.webp) | ![](docs/screenshots/yosemite_spasm0040.webp) | _no shot — SSD failure before demo3_ |
-| **Sawtooth** (GeForce2 MX, fixed-function) | ![](docs/screenshots/sawtooth_spasm0010.webp) | ![](docs/screenshots/sawtooth_spasm0040.webp) | ![](docs/screenshots/sawtooth_spasm0070.webp) |
-| **Quicksilver** (Radeon 9000, shader water) | ![](docs/screenshots/quicksilver_spasm0010.webp) | ![](docs/screenshots/quicksilver_spasm0040.webp) | ![](docs/screenshots/quicksilver_spasm0070.webp) |
-| **Mac mini G4** (Radeon 9200) | ![](docs/screenshots/mini-g4_spasm0010.webp) | ![](docs/screenshots/mini-g4_spasm0040.webp) | ![](docs/screenshots/mini-g4_spasm0070.webp) |
-| **Mac mini Intel** (GMA 950, Lion) | ![](docs/screenshots/mini-intel_spasm0010.webp) | ![](docs/screenshots/mini-intel_spasm0040.webp) | ![](docs/screenshots/mini-intel_spasm0070.webp) |
-| **iMac 27"** (Radeon Pro 580X, 1440p) | ![](docs/screenshots/imac-2019_spasm0010.webp) | ![](docs/screenshots/imac-2019_spasm0040.webp) | ![](docs/screenshots/imac-2019_spasm0070.webp) |
+|  | Yosemite (Rage 128) | Sawtooth (GeForce2 MX) | Quicksilver (Radeon 9000) | Mini-G4 (Radeon 9200) | Mini-Intel (GMA 950) | iMac (Radeon Pro 580X) |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Anisotropic filtering | — | — | 16× | 16× | 16× | 16× |
+| Trilinear (`GL_LINEAR_MIPMAP_LINEAR`) | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Alias drop-shadows | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `r_shadow_distance` | engine default | 512 | 512 | 512 | 512 | engine default |
+| Translucent water | ✓ classic warp | ✓ classic warp | ✓ shader water | ✓ shader water | ✓ classic warp | ✓ shader water |
+| Translucent lava / slime / tele | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Watervis NoVis (X-ray fix) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Emissive-fullbright lights | ✓ r 0.5 / cap 4 | ✓ r 0.5 / cap 6 | ✓ r 1.0 / cap 12 | ✓ r 1.0 / cap 12 | ✓ r 0.75 / cap 8 | ✓ r 1.5 / cap 32 |
+| `r_dynamic_distance` (cull) | 768 | 768 | engine default | engine default | engine default | engine default |
+| `gl_clear 0` (skip backbuffer) | ✓ | — (driver quirk) | ✓ | ✓ | ✓ | ✓ |
+| `gl_texture_lodbias -1.5` | — | inert (probe) | ✓ | ✓ | — | — |
+| Reduced particles (`r_particles 2`) | ✓ | — | — | — | — | — |
+| Coarser warp tess (`gl_subdivide_size 256`) | ✓ | — | — | — | — | — |
+
+Everything in this table is runtime-flippable via cvar so end-of-round review can A/B individual contributions without a rebuild.
+
+<p align="center">
+  <img src="docs/screenshots/yosemite_spasm0010.webp" width="32%" alt="Yosemite (G3 / Rage 128) — e1m1 classic warp water" />
+  <img src="docs/screenshots/sawtooth_spasm0010.webp" width="32%" alt="Sawtooth (G4 / GeForce2 MX) — e1m1" />
+  <img src="docs/screenshots/quicksilver_spasm0040.webp" width="32%" alt="Quicksilver (G4 / Radeon 9000) — e1m3 shader water" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/mini-g4_spasm0070.webp" width="32%" alt="Mac mini G4 (Radeon 9200) — e1m8 sky" />
+  <img src="docs/screenshots/mini-intel_spasm0070.webp" width="32%" alt="Mac mini Intel (Lion / GMA 950) — e1m8 sky" />
+  <img src="docs/screenshots/imac-2019_spasm0040.webp" width="32%" alt="iMac 27&quot; 2019 (Radeon Pro 580X) — 1440p" />
+</p>
+
+## How the fat binary picks its config
+
+At engine start, three layers of `.cfg` execute in order, each free to override the previous:
+
+<p align="center">
+  <img src="docs/images/architecture.svg" width="92%" alt="Architecture: arch baseline → per-machine layer → autoexec dispatch" />
+</p>
+
+The first layer is the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-x86_64.cfg`), picked by C macros at compile time (`__VEC__` / `__ppc__` / `__x86_64__`). The second is the per-machine layer (`autoexec-<machine>.cfg`), picked at runtime by reading `hw.model` via `sysctlbyname()` — see [`Quake/host.c:946`](Quake/host.c). So sawtooth (a G4 with a fixed-function GPU) starts from the G4 shader-water-anisotropic baseline and walks back the bits that would tank a GeForce2 MX. Mac mini Intel and iMac 27" both start from the same x86_64 baseline and diverge dramatically — the iMac pushes 1440p with cap-32 emissive lights; the mini stays at 1024×768 with cap-8 emissive and a shadow distance gate to nurse the GMA 950's fillrate.
+
+This is the lever that makes a single fat binary serve six wildly different machines without conditional code paths in the engine.
+
+## How it's built
+
+Cross-builds happen on the Mac mini Intel — the only machine left with a working `gcc-4.0` + `MacOSX10.3.9.sdk` + `MacOSX10.4u.sdk` toolchain (Apple's Xcode 3.2.6 era). The same machine doubles as a runtime target via native x86_64 builds against the Lion default toolchain.
+
+<p align="center">
+  <img src="docs/images/build-pipeline.svg" width="92%" alt="Build pipeline: rsync sources from Ubuntu → cross-compile on Lion → lipo three slices → fat .app bundle" />
+</p>
+
+The Ubuntu workstation orchestrates everything (edit, git, drive ssh). Sources rsync over to Lion. Three sub-builds run in sequence on Lion: the G3 slice with the 10.3.9 SDK and `-mcpu=750`; the G4 slice with the 10.4u SDK and `-mcpu=7400 -maltivec`; the Intel slice with default-SDK clang and `-arch x86_64`. `lipo -create` glues the three Mach-O binaries into one fat `quakespasm-fat`. The `.app` bundle (Info.plist, Launcher.nib, fat SDL.framework with a Panther-compatible PPC slice baked in, codec dylibs) is identical for every target — `deploy.sh` rsyncs the same bundle byte-for-byte to all six machines.
+
+## How it's benched
+
+```bash
+scripts/build-fat.sh                              # 3-arch universal binary
+scripts/deploy.sh fat <machine>                   # ship to one of the 6 hosts
+scripts/bench.sh <machine> demo1 1024x768 3       # 3 timedemo runs, append to results.csv
+scripts/parallel-bench.sh                         # full matrix, all 6 legs concurrent
+scripts/bench-and-commit.sh "<phase>" --quick     # smoke + commit (clean tree only)
+```
+
+Each phase that lands gets a smoke bench (demo1 × 2 res × 3 runs, ~3-4 min wall) and the resulting CSV rows + raw `qconsole.log` files are committed alongside the code change. Full grid (3 demos × 2 res × 3 runs) is reserved for end-of-round wraps.
+
+<p align="center">
+  <img src="docs/images/bench-loop.svg" width="92%" alt="Bench loop: code edit → build fat → deploy 6 machines → parallel timedemo → CSV append → commit" />
+</p>
+
+The CSV in [`benchmarks/results.csv`](benchmarks/results.csv) is a rolling history (~500 rows across 7 rounds and 100+ commits) — every cell is tagged with the commit hash that produced it, so any regression is bisectable end-to-end.
 
 ## Where the wins came from
 
-Roughly in order of gain:
+Across 7 rounds, roughly in order of cumulative gain on the G3:
 
-- **Distance gates** for shadows + dynamic lights (`r_shadow_distance`, `r_dynamic_distance`) — biggest G3 lever, since each dlight on a fixed-function GPU is a full extra blending pass.
-- **AltiVec hand-paths** for sound mixer, alias model lerp, alias colour-fuse, lightmap compose, mipmap chain, dlight per-texel attenuation. Bisectable behind cmdline opt-outs (`-noaltivec-snd`, `-altivec-lm`, etc.).
-- **`frsqrte`-based sqrt** in the math library hot loops (vec3 length / normalize) — base PowerPC instruction, helps both G3 and G4.
-- **APPLE_vertex_array_range** static-brush VRAM pool on G4 — moves the world geometry into video memory at load time so the per-frame submission is a pointer flip instead of a memcpy.
-- **APPLE_client_storage + STORAGE_CACHED_APPLE** texture upload hints — avoids the GL-internal copy of mipmap chains.
-- **BGRA `8_8_8_8_REV` lightmap upload format** — matches the GL driver's preferred channel order so the upload skips a swizzle.
-- **`gl_clear 0`** on 4 of 5 targets — Quake covers 100% of the screen anyway, so the per-frame backbuffer clear is a redundant fillrate-bound write. Sawtooth's GeForce2 MX driver is quirky here and stays at engine default 1.
+| Round | Wins | Headline |
+|---|---|---|
+| **v1** | `frsqrte` math, client vertex arrays + CVA, BGRA `8_8_8_8_REV` lightmap upload | G3 demo1 640: 19.35 → 23.90 fps |
+| **v2** | `APPLE_client_storage`, `STORAGE_CACHED_APPLE`, `APPLE_vertex_array_range` static-brush VRAM pool, multitex array conversion | G4 demo1 1024: 108 → 134 fps |
+| **v3** | AltiVec alias lerp + sound mixer + colour fuse + lightmap compose + mipmap chain, alias drop-shadows enabled, distance-gated shadows | G4 visual stack pivot (60+ fps with full visuals) |
+| **v4** | Fat 3-arch binary + per-machine dispatch, `gl_texture_lodbias`, anisotropy 16× | One bundle serves all targets |
+| **v5** | `r_dynamic_distance` (G3 dlight gate — biggest G3 lever), translucent water/lava/slime/tele, `gl_clear 0` on 4 of 5 targets | G3 demo3 1024 5.10 → 20.25 fps |
+| **v6** | Watervis NoVis trigger — fixes the X-ray bug under `r_wateralpha < 1` on un-vis'd id1 maps without depth-prepass cost | Translucent water everywhere, glitch-free |
+| **v7** | Sky-state client-state hoist (mini-g4 +42% on demo3 1024), Tier A emissive-fullbright dynamic lights, `Sky_GetTexCoord` `frsqrte` fuse, water-state hoist, `-Wdouble-promotion` cleanup, dead-code purge | Visual stack ON across all 6 machines, sub-noise cost on G3 |
 
-The cumulative gain across the round is in `PPC_PLAN.md §15`.
-
-## How the universal binary picks its config
-
-```
-host.c  →  exec quake.rc           (engine defaults)
-        →  exec autoexec-ppc750.cfg / -ppc7400.cfg / -x86_64.cfg   (per-arch baseline,
-                                                                    picked by __VEC__ /
-                                                                    __ppc__ / __x86_64__)
-        →  exec autoexec-<machine>.cfg                              (per-machine layer,
-                                                                     picked by hw.model
-                                                                     sysctl)
-```
-
-Each layer can override the previous. So Sawtooth (G4 / GeForce2 MX) starts from the G4 baseline that pushes shaders + trilinear, then `autoexec-sawtooth.cfg` walks back the bits that would tank fixed-function performance. iMac 27" starts from the x86_64 baseline (tuned for GMA 950) and overrides upward to push 1440p with the full alpha stack.
-
-## Build and ship
-
-The full build/deploy/bench loop is scripted. Don't write inline ssh+make heredocs — invoke the scripts:
-
-```bash
-scripts/build-fat.sh                    # 3-arch universal binary
-scripts/deploy.sh fat <machine>         # ship to one of the 6 hosts
-scripts/bench.sh <machine> demo1 1024x768 3   # 3 timedemo runs, append to results.csv
-scripts/parallel-bench.sh               # full matrix, all 5+ legs concurrent
-```
-
-Cross-builds happen on the Mac mini Intel (the only machine left with a working `gcc-4.0` + `MacOSX10.3.9.sdk` + `MacOSX10.4u.sdk` toolchain). PPC binaries are built there over SSH; the same machine doubles as a runtime target via native x86_64 builds.
+Bisectability is a first-class concern: every round v3+ visual or perf phase is gated behind a named cvar or cmdline flag (`-noaltivec-snd`, `-altivec-lm`, `-nodgp-sky-hoist`, `-nodgp-water-hoist`, `r_emissive_lights`, `r_dynamic_distance`, `r_shadow_distance`, etc.) so end-of-round review can A/B individual contributions without a rebuild. Full inventory in [`CLAUDE.md`](CLAUDE.md) under "Toggleable knobs".
 
 ## Dig deeper
 
-- **`PPC_PLAN.md`** — the working doc. Every phase, every decision, every reverted experiment.
-- **`MISTAKES.md`** — append-only log of approaches that broke and why. Read this before relighting any "easy" idea.
-- **`CLAUDE.md`** — operational tribal knowledge: SSH legacy crypto, Tiger/Panther bundle layout, why `bench.sh` legs don't run in parallel from one shell, the `qsreboot.sh` recovery path for wedged G3s, etc.
-- **`analysis/INDEX.md`** — static-analysis tooling state. cppcheck, gcc -fanalyzer, clang-tidy, scan-build, sparse, ASan, UBSan all wired against the Linux build.
-- **`scripts/README.md`** — script contracts.
+- [**`PPC_PLAN.md`**](PPC_PLAN.md) — the working doc. Every phase, every decision, every reverted experiment. Read §15 (round v5 close-out), §16 (round v6), and §17 (round v7) for the cumulative trajectory.
+- [**`MISTAKES.md`**](MISTAKES.md) — append-only log of approaches that broke and why. Read this before relighting any "easy" idea. Notable entries: BGRA static-texture upload (broke past demo1), Lion PGO (LLVM 2.9-era toolchain), the round v6 wrap stale-binary CSV pollution.
+- [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: SSH legacy crypto for Tiger/Panther, bundle layout, why `bench.sh` legs don't run in parallel from one shell, the `qsreboot.sh` recovery path for wedged G3s, the toggleable-knobs inventory, and per-machine codename → hardware map.
+- [**`PPC_PERF_R7.md`**](PPC_PERF_R7.md) — the round v7 candidate-list static analysis (9 candidates, ranked by G3 fps potential).
+- [**`PPC_PERF_R7_REVIEW.md`**](PPC_PERF_R7_REVIEW.md) — pre-smoke review that caught two real bugs in the Tier A emissive-lights design before they shipped.
+- [**`IRONWAIL_REVIEW.md`**](IRONWAIL_REVIEW.md) — cross-engine technique review against the Ironwail QuakeSpasm fork, used to vet round v7 candidates and seed round v8.
+- [**`analysis/INDEX.md`**](analysis/INDEX.md) — static-analysis tooling state. cppcheck, gcc `-fanalyzer`, clang-tidy, scan-build, sparse, ASan, UBSan, all wired against the Linux build.
+- [**`scripts/README.md`**](scripts/README.md) — script contracts + CI cadence.
+
+## Releases
+
+The fat universal `Quakespasm.app` bundle is published as a tagged release so anyone with one of these six machines can drop it in and run. See [GitHub Releases](https://github.com/matthewdeaves/old-mac-quakespasm/releases) for the latest build.
 
 ## License
 
-Upstream QuakeSpasm is GPL-2.0 — see `LICENSE.txt`. All port work in this fork follows the same license.
+Upstream QuakeSpasm is GPL-2.0 — see [`LICENSE.txt`](LICENSE.txt). All port work in this fork follows the same license.
+
+The Round v6 watervis NoVis trigger and the Round v7 emissive-fullbright dynamic-light pipeline are believed to be original; they're contributed under GPL-2.0 to be picked up by any downstream QuakeSpasm derivative that finds them useful.
