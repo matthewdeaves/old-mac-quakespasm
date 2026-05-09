@@ -40,6 +40,59 @@ The 1999 B&W G3 tower (449 MHz PPC 750, ATI Rage 128 with 16 MB VRAM) went from 
 
 Round v7's surprise win was a sky-state client-state hoist that the **Radeon 9200's ATI driver happens to love**: Mac mini G4 demo3 at 1024×768 jumped **+42.4%** (47.90 → 68.20 fps) from one targeted patch. The Radeon 9000 sibling (quicksilver) saw it as a no-op (-0.1%). Same patch, different driver, totally different outcome — exactly the kind of thing that only shows up when you bench across the matrix.
 
+## What you need to run it
+
+### One of these Macs
+
+| Variant | Tested machines | macOS | Binary slice | Disk |
+|---|---|---|---|---|
+| **G3 (PPC 750)** | Beige G3, B&W G3, iMac G3, iBook G3, PowerBook G3 ("Pismo" etc.) | **10.3.9 Panther** or later (10.4 Tiger ok) | `quakespasm-g3` (`ppc750`, 10.3.9 SDK) | ~10 MB for the .app + your game data |
+| **G4 (PPC 7400 / 7450 / 7447A)** | Sawtooth, Quicksilver, MDD, eMac, iMac G4, Mac mini G4, iBook G4, PowerBook G4 | **10.4 Tiger** or later | `quakespasm-g4` (`ppc7400` + AltiVec, 10.4u SDK) | ~10 MB |
+| **Intel (x86_64)** | All Intel Macs from 2007 onward — Mac mini, MacBook, iMac, Mac Pro | **10.7 Lion** or later (verified on Sequoia 15.7) | `quakespasm-lion` (default toolchain) | ~10 MB |
+
+> ⚠️ The Intel build is x86_64-only. Pre-Lion Intel Macs (10.5 Leopard / 10.6 Snow Leopard with 32-bit kernel) are not supported by this release. Pre-2007 32-bit-only Core Solo / Core Duo machines need a `i386` build that isn't included.
+
+### Original Quake game data (you provide)
+
+You **must** supply your own `id1/pak0.pak` (shareware) and ideally `id1/pak1.pak` (registered) — they aren't redistributable. Sources:
+
+- The **shareware** version of Quake (`pak0.pak` only, no second/third/fourth episodes) is freely downloadable from various places on the web.
+- The **full** version requires the original commercial `pak1.pak` — buy it on [Steam](https://store.steampowered.com/app/2310/QUAKE/) or [GOG](https://www.gog.com/en/game/quake_the_offering) (drag the paks out of either install) or from your dusty 1996 CD.
+- **Mission Pack 1: Scourge of Armagon** (`hipnotic/pak0.pak`) and **Mission Pack 2: Dissolution of Eternity** (`rogue/pak0.pak`) are optional add-ons that the engine will auto-detect if present.
+
+### Install layout
+
+The release `.zip` extracts to a folder with this shape:
+
+```
+Quakespasm-<variant>/
+├── Quakespasm.app                 (drop next to id1/, double-click to launch)
+├── id1/
+│   ├── autoexec-yosemite.cfg      (per-machine configs — engine picks
+│   ├── autoexec-sawtooth.cfg       the right one at boot via sysctl)
+│   ├── autoexec-quicksilver.cfg
+│   ├── autoexec-mini-g4.cfg
+│   ├── autoexec-mini-intel.cfg
+│   ├── autoexec-imac-2019.cfg
+│   ├── autoexec-ppc750.cfg        (per-arch baselines, picked at compile time
+│   ├── autoexec-ppc7400.cfg        via __VEC__ / __ppc__ / __x86_64__)
+│   ├── autoexec-x86_64.cfg
+│   ├── pak0.pak                   ← YOU PROVIDE
+│   └── pak1.pak                   ← YOU PROVIDE (for the full game)
+└── quakespasm.pak                 (engine resources — tiny, keep it)
+```
+
+Move that whole folder to `~/Desktop/quake/` (the bundle's `@executable_path`-relative install names expect it there), then double-click `Quakespasm.app`.
+
+### Modern macOS gatekeeper note
+
+The release binaries aren't code-signed or notarized. On Sierra+ you'll get a "can't be opened because it is from an unidentified developer" dialog on first launch. Either:
+
+- **Right-click** the `.app`, choose "Open" — Gatekeeper offers an "Open anyway" override.
+- **Or from Terminal:** `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app`
+
+Pre-Sierra Macs (Panther through Mavericks) don't ask — the app launches directly.
+
 ## The bench fleet
 
 | Machine | CPU | GPU | OS | Default res |
