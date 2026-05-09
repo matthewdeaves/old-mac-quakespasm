@@ -1130,6 +1130,15 @@ void R_RenderScene (void)
 
 	S_ExtraUpdate (); // don't let sound get messed up if going slow
 
+	// PPC port (Round v6): the water depth prepass that used to live
+	// here (R_DrawWorld_WaterDepthPrepass) was removed once the
+	// translucent-liquid NoVisPVS trigger in R_MarkSurfaces became
+	// the active path — the world is already fully drawn behind
+	// water without it, so the prepass added only depth-precision
+	// round-trip errors that caused water-surface tearing on the
+	// G4's Radeon 9000 driver. Function still exists in r_world.c
+	// for reference; not called.
+
 	R_DrawShadows (); //johnfitz -- render entity shadows
 
 	PERF_BEGIN(PERF_ALIAS);

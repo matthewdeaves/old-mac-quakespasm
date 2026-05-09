@@ -196,6 +196,16 @@ byte *Mod_LeafPVS (mleaf_t *leaf, qmodel_t *model)
 {
 	if (leaf == model->leafs)
 		return Mod_NoVisPVS (model);
+	// PPC port (Round v6) — when an in-engine watervis expansion has
+	// been built for this model, return the pre-expanded row directly
+	// (no decompression needed). Leaf 0 is the solid leaf, so leaf
+	// indices 1..numleafs map to rows 0..numleafs-1.
+	if (model->visdata_expanded)
+	{
+		int idx = (int)(leaf - model->leafs) - 1;
+		if (idx >= 0 && idx < model->numleafs)
+			return model->visdata_expanded + idx * model->pvsbytes;
+	}
 	return Mod_DecompressVis (leaf->compressed_vis, model);
 }
 
@@ -2441,6 +2451,447 @@ static void Mod_LoadLeafsExternal(FILE* f)
 
 /*
 =================
+Mod_FindContentsTransparent -- PPC port (Round v6)
+
+Spike's watervis classification, ported from Ironwail's gl_model.c
+(commit reference: andrei-drexler/ironwail, "spike -- added this so we
+can disable glitchy wateralpha where its not supported").
+
+WHY THIS EXISTS:
+Quake's `vis` tool compiles PVS data into the BSP assuming water is
+opaque. Leaves on the far side of a water surface are NOT in the PVS
+of leaves on the near side (and vice versa) unless the map was
+explicitly compiled with watervis-aware vis (`vis -level 4`, or
+post-processed by a watervis/vispatch tool). Original id1 maps were
+all built without it.
+
+When the engine renders translucent water (r_wateralpha < 1) on a
+non-watervised map, the leaves on the far side of the water are not
+drawn (PVS-culled) -- but the screen-space pixels under the water
+surface still get blended with WHATEVER got drawn there (often the
+sky, the void, or random distant geometry that happens to be in PVS
+for some other reason). Result: black "X-ray void" patches,
+flickering distant rooms bleeding through floors and stairs, etc.
+
+THE TEST:
+For each leaf with water/lava/slime contents, decompress its PVS and
+check if any visible leaf has DIFFERENT contents. If yes, the vis was
+computed treating that content type as transparent (because the
+solver bridged across the water surface). If no leaf with water
+content can see a leaf without water content, the vis was opaque-only
+for that content.
+
+Result is a per-content-type bitmask. R_ParseWorldspawn uses it to
+gate map_wateralpha (etc.) -- if a content type isn't in the mask,
+its alpha is forced to 1.0. End user sees clean opaque water on id1
+maps; translucent water on watervis-patched / community-built maps.
+
+r_novis 1 escape hatch: if novis is on, all PVS is treated as
+"everything visible" elsewhere in the engine, so we mark all content
+types as transparent here too (no point in gating something that has
+no PVS culling anyway).
+=================
+*/
+static void Mod_FindContentsTransparent (void)
+{
+	int			i, j, k;
+	mleaf_t		*leaf;
+	mleaf_t		*other;
+	msurface_t	*surf;
+	int			numclusters;
+	int			contentfound = 0;
+	int			contenttransparent = 0;
+	int			contenttype;
+
+	loadmodel->contentstransparent = 0;
+
+	if (!loadmodel->leafs || loadmodel->numleafs <= 0)
+		return;
+
+	numclusters = loadmodel->submodels[0].visleafs;
+
+	if (r_novis.value)
+	{
+		// novis: entire PVS is forced visible elsewhere, so transparency
+		// can't reveal anything that wasn't already going to be drawn.
+		loadmodel->contentstransparent = (SURF_DRAWWATER|SURF_DRAWTELE|SURF_DRAWSLIME|SURF_DRAWLAVA);
+		return;
+	}
+
+	// PVS is 1-based: leaf 0 is the solid leaf and has no PVS / never
+	// appears in others' PVS. Walk leafs 1..numclusters.
+	for (i = 0, leaf = loadmodel->leafs + 1; i < numclusters; i++, leaf++)
+	{
+		byte *vis;
+
+		if (leaf->contents == CONTENTS_WATER)
+		{
+			// Water leaves use texture flags to distinguish drawwater
+			// from drawtele (Quake reuses the WATER content for both).
+			// Bail early once we've already classified BOTH types.
+			if ((contenttransparent & (SURF_DRAWWATER|SURF_DRAWTELE)) == (SURF_DRAWWATER|SURF_DRAWTELE))
+				continue;
+
+			contenttype = 0;
+			for (j = 0; j < leaf->nummarksurfaces; j++)
+			{
+				// QuakeSpasm stores marksurfaces as msurface_t**, not as
+				// indices like Ironwail/Spike. Dereference directly.
+				surf = leaf->firstmarksurface[j];
+				if (surf->flags & (SURF_DRAWWATER|SURF_DRAWTELE))
+				{
+					contenttype = surf->flags & (SURF_DRAWWATER|SURF_DRAWTELE);
+					break;
+				}
+			}
+			// Possible (rare) for a CONTENTS_WATER leaf to have no
+			// turb-flagged surfaces; skip it harmlessly.
+			if (contenttype == 0)
+				continue;
+		}
+		else if (leaf->contents == CONTENTS_SLIME)
+			contenttype = SURF_DRAWSLIME;
+		else if (leaf->contents == CONTENTS_LAVA)
+			contenttype = SURF_DRAWLAVA;
+		else
+			continue;
+
+		// Already proved this content type is transparent? Skip.
+		if (contenttransparent & contenttype)
+			continue;
+
+		contentfound |= contenttype;
+
+		vis = Mod_DecompressVis (leaf->compressed_vis, loadmodel);
+		// Walk visible leaves; if ANY has a different contents, this
+		// leaf's PVS bridged across its water/lava/slime surface,
+		// implying watervis-aware compilation.
+		for (j = 0; j < (numclusters + 7) / 8; j++)
+		{
+			if (!vis[j])
+				continue;
+			for (k = 0; k < 8; k++)
+			{
+				if (!(vis[j] & (1u << k)))
+					continue;
+				other = &loadmodel->leafs[(j << 3) + k + 1];
+				if (leaf->contents != other->contents)
+				{
+					contenttransparent |= contenttype;
+					goto next_leaf;
+				}
+			}
+		}
+	next_leaf: ;
+	}
+
+	// Content types we never *found* in this BSP get treated as
+	// transparent -- there are no leaves of that type to glitch on.
+	// This keeps submodels (which have no leaves of these types)
+	// rendering correctly when the parent worldmodel was watervised.
+	loadmodel->contentstransparent = contenttransparent
+		| (~contentfound & (SURF_DRAWWATER|SURF_DRAWTELE|SURF_DRAWSLIME|SURF_DRAWLAVA));
+
+	// Diagnostic for the curious -- only printed at developer 1.
+	if (contenttransparent)
+	{
+		Con_DPrintf2 ("%s vised for transparent:", loadmodel->name);
+		if (contenttransparent & SURF_DRAWWATER) Con_DPrintf2 (" water");
+		if (contenttransparent & SURF_DRAWLAVA)  Con_DPrintf2 (" lava");
+		if (contenttransparent & SURF_DRAWSLIME) Con_DPrintf2 (" slime");
+		if (contenttransparent & SURF_DRAWTELE)  Con_DPrintf2 (" tele");
+		Con_DPrintf2 ("\n");
+	}
+	else if (contentfound)
+	{
+		Con_DPrintf ("%s is not watervised; forcing opaque liquids\n", loadmodel->name);
+	}
+}
+
+/*
+=================
+Mod_BuildExpandedVis -- PPC port (Round v6)
+
+In-engine equivalent of Bengt Jardrup's `vispatch` tool. When the BSP's
+PVS wasn't computed treating water (or lava/slime) as transparent
+(Mod_FindContentsTransparent reported some bits clear), the renderer
+gets PVS-leak artifacts under translucent liquids: leaves on the far
+side of a water surface aren't drawn, so the alpha blend mixes water
+with sky / void / random distant geometry. Looks like X-ray patches.
+
+Fix: at map load, identify pairs of leaves separated by a single
+liquid surface and union their PVS together — exactly what watervis
+would have done at compile time. Result: from any leaf adjacent to
+water, the leaves on the *other* side are now in PVS, so they render
+behind the translucent water as expected.
+
+We do this in *uncompressed* form (one bit per leaf, numleafs² / 8
+bytes total). For typical Quake maps (~600 leaves) that's ~45 KB,
+trivial. For huge custom maps it can climb into the megabytes; on the
+G3 we're prepared to pay that for clean visuals.
+
+Memory ownership: the table is Hunk-allocated so it lives until the
+next map load (via Hunk_FreeToLowMark in CL_ClearState path).
+
+How "two leaves separated by a single water surface" is detected:
+in Quake's BSP, each msurface_t appears in the marksurfaces list of
+both leaves it borders (the front-side leaf and the back-side leaf).
+We build an inverse "surface → leaves" map by walking every leaf's
+marksurface array, then for each SURF_DRAWWATER/LAVA/SLIME surface
+union the PVS rows of the two leaves it bridges.
+
+Iteration converges in 1-2 passes (single-hop water bridges fold in
+neighbour PVSs, second pass propagates further). We cap at 4 passes
+defensively.
+=================
+*/
+static void Mod_BuildExpandedVis (void)
+{
+	int			i, j, k, pass, numclusters, pvsbytes;
+	int			liquid_mask = SURF_DRAWWATER | SURF_DRAWLAVA | SURF_DRAWSLIME | SURF_DRAWTELE;
+	int			needed_mask;
+	int			bridge_count;
+	int			bridge_capacity;
+	int		   *bridge_a;
+	int		   *bridge_b;
+	mleaf_t		*leaf;
+	int			worldmodel_leafs;
+	int			lmark;
+
+	// PPC port (Round v6) — DISABLED. The in-engine PVS expansion
+	// proved too fragile across maps + GL drivers (worked on GMA 950,
+	// glitched on Radeon 9000). The simpler NoVisPVS-when-translucent
+	// path in R_MarkSurfaces is the actual fix; this routine is kept
+	// as scaffolding in case we ever want to revisit it.
+	return;
+
+	if (!loadmodel->leafs || loadmodel->numleafs <= 0)
+		return;
+
+	// Only build if at least one liquid type is NOT already vis'd
+	// transparent (otherwise BSP's own PVS is already correct).
+	needed_mask = liquid_mask & ~loadmodel->contentstransparent;
+	if (!needed_mask)
+		return;
+
+	worldmodel_leafs = loadmodel->numleafs;
+	numclusters = loadmodel->submodels[0].visleafs;
+	if (numclusters <= 0 || numclusters > worldmodel_leafs)
+		numclusters = worldmodel_leafs;
+	pvsbytes = (numclusters + 7) >> 3;
+
+	loadmodel->pvsbytes = pvsbytes;
+	loadmodel->visdata_expanded = (byte *)Hunk_AllocName (numclusters * pvsbytes, "visexp");
+
+	// Step 1: decompress every leaf's PVS into its row in the table.
+	for (i = 0; i < numclusters; i++)
+	{
+		byte *row = loadmodel->visdata_expanded + i * pvsbytes;
+		leaf = loadmodel->leafs + 1 + i;
+		if (leaf->compressed_vis)
+		{
+			byte *decomp = Mod_DecompressVis (leaf->compressed_vis, loadmodel);
+			memcpy (row, decomp, pvsbytes);
+		}
+		else
+		{
+			memset (row, 0xff, pvsbytes);
+		}
+	}
+
+	// Step 2: discover water bridges. For every liquid surface in the
+	// model, sample one point slightly in front of its plane and one
+	// slightly behind, and ask Mod_PointInLeaf which leaves those
+	// points fall in. If the two leaves differ AND at least one of
+	// them is a liquid leaf, this is a bridge to register.
+	//
+	// QuakeSpasm's marksurface arrays place a given msurface_t in
+	// only one leaf's marksurfaces list — the leaf containing the
+	// surface's "front" half-space. So we cannot find both sides by
+	// walking marksurfaces alone, which is why we sample by plane
+	// instead. The lmark counter is reused as the temporary buffer
+	// index since the BSP only has up to ~32K surfaces in practice.
+	lmark = Hunk_LowMark ();
+	bridge_capacity = 256;
+	bridge_count = 0;
+	bridge_a = (int *)Hunk_AllocName (bridge_capacity * sizeof(int), "vbridge");
+	bridge_b = (int *)Hunk_AllocName (bridge_capacity * sizeof(int), "vbridge");
+
+	for (i = 0; i < loadmodel->numsurfaces; i++)
+	{
+		msurface_t	*surf = loadmodel->surfaces + i;
+		mplane_t	*plane;
+		glpoly_t	*p;
+		vec3_t		centroid, offset_plus, offset_minus;
+		mleaf_t		*la, *lb;
+		int			ia, ib;
+		int			vc;
+		float		nrm[3];
+		float		side;
+
+		if (!(surf->flags & needed_mask))
+			continue;
+		if (!surf->polys || surf->polys->numverts <= 0)
+			continue;
+
+		plane = surf->plane;
+		side = (surf->flags & SURF_PLANEBACK) ? -1.0f : 1.0f;
+		nrm[0] = plane->normal[0] * side;
+		nrm[1] = plane->normal[1] * side;
+		nrm[2] = plane->normal[2] * side;
+
+		// Centroid: average of the surface's polygon vertices. polys
+		// chain head is the un-warped poly for shader water, or the
+		// first sub-divided fragment for classic warp; either way the
+		// average is on the surface plane and inside the surface's
+		// extent.
+		p = surf->polys;
+		centroid[0] = centroid[1] = centroid[2] = 0;
+		for (vc = 0; vc < p->numverts; vc++)
+		{
+			centroid[0] += p->verts[vc][0];
+			centroid[1] += p->verts[vc][1];
+			centroid[2] += p->verts[vc][2];
+		}
+		centroid[0] /= p->numverts;
+		centroid[1] /= p->numverts;
+		centroid[2] /= p->numverts;
+
+		offset_plus [0] = centroid[0] + nrm[0] * 1.0f;
+		offset_plus [1] = centroid[1] + nrm[1] * 1.0f;
+		offset_plus [2] = centroid[2] + nrm[2] * 1.0f;
+		offset_minus[0] = centroid[0] - nrm[0] * 1.0f;
+		offset_minus[1] = centroid[1] - nrm[1] * 1.0f;
+		offset_minus[2] = centroid[2] - nrm[2] * 1.0f;
+
+		la = Mod_PointInLeaf (offset_plus,  loadmodel);
+		lb = Mod_PointInLeaf (offset_minus, loadmodel);
+		if (!la || !lb || la == lb)
+			continue;
+
+		// Convert leaf pointers to cluster indices (1-based to
+		// 0-based for our table). Skip if either lands in the solid
+		// leaf (index 0) or is out of range.
+		ia = (int)(la - loadmodel->leafs) - 1;
+		ib = (int)(lb - loadmodel->leafs) - 1;
+		if (ia < 0 || ib < 0 || ia >= numclusters || ib >= numclusters)
+			continue;
+
+		if (bridge_count + 1 >= bridge_capacity)
+		{
+			int new_cap = bridge_capacity * 2;
+			int *new_a = (int *)Hunk_AllocName (new_cap * sizeof(int), "vbridge");
+			int *new_b = (int *)Hunk_AllocName (new_cap * sizeof(int), "vbridge");
+			memcpy (new_a, bridge_a, bridge_count * sizeof(int));
+			memcpy (new_b, bridge_b, bridge_count * sizeof(int));
+			bridge_a = new_a;
+			bridge_b = new_b;
+			bridge_capacity = new_cap;
+		}
+		bridge_a[bridge_count] = ia;
+		bridge_b[bridge_count] = ib;
+		bridge_count++;
+	}
+
+	// Step 3: CONSERVATIVE bit-only PVS propagation. The previous
+	// "OR row[A] into row[X] if X sees A" formulation was too
+	// aggressive — it transitively pulled in what A sees (and what
+	// A's neighbours see, etc.) until distant leaves miles away
+	// became visible. The X-ray got worse, not better.
+	//
+	// Conservative rule: for each bridge (A, B), if leaf X already
+	// sees A, X gains exactly bit B (NOT B's full PVS). Then we
+	// iterate until no new bits are gained. The "lower room behind
+	// water" case still works because:
+	//   pass 1: X sees air-above-water (A); X gains water leaf (B)
+	//   pass 2: X sees B; X gains air-below-water (C, bridged to B)
+	// At iteration end, X has bits A, B, C set, so the renderer
+	// iterates leaves A, B, C and renders their marksurfaces — that's
+	// what we want, no more.
+	//
+	// Cap at 8 passes (each pass propagates one water-hop further;
+	// real maps converge in 2-3).
+	for (pass = 0; pass < 8; pass++)
+	{
+		int changed = 0;
+		for (i = 0; i < bridge_count; i++)
+		{
+			int a = bridge_a[i];
+			int b = bridge_b[i];
+			byte mask_a = (byte)(1 << (a & 7));
+			byte mask_b = (byte)(1 << (b & 7));
+			int  byte_a = a >> 3;
+			int  byte_b = b >> 3;
+
+			for (k = 0; k < numclusters; k++)
+			{
+				byte *row_x = loadmodel->visdata_expanded + k * pvsbytes;
+				if ((row_x[byte_a] & mask_a) && !(row_x[byte_b] & mask_b))
+				{
+					row_x[byte_b] |= mask_b;
+					changed = 1;
+				}
+				if ((row_x[byte_b] & mask_b) && !(row_x[byte_a] & mask_a))
+				{
+					row_x[byte_a] |= mask_a;
+					changed = 1;
+				}
+			}
+		}
+		if (!changed)
+			break;
+	}
+
+	// Intentionally NOT setting contentstransparent here. The in-engine
+	// expansion is best-effort and isn't reliable enough across all
+	// id1 maps and GL drivers to claim the BSP "is watervised". Leaving
+	// the bits clear keeps R_MarkSurfaces' translucent-liquid trigger
+	// active so we fall back to NoVisPVS — guaranteed-correct visuals
+	// at the cost of some per-frame surface marking. The watervis-log
+	// line below still shows that we ran for diagnostic purposes.
+
+	// Diagnostic to qconsole.log via Con_Printf.
+	Con_Printf ("[watervis] %s: %d leaves, %d bridges, %d KB\n",
+		loadmodel->name, numclusters, bridge_count,
+		(numclusters * pvsbytes) / 1024);
+
+	// Diagnostic to id1/watervis.log directly — works regardless of
+	// -condebug, useful for manual launches via the .app icon.
+	{
+		FILE *f;
+		char path[1024];
+		extern char com_basedir[]; // common.c
+		q_snprintf (path, sizeof(path), "%s/id1/watervis.log", com_basedir);
+		f = fopen (path, "a");
+		if (f)
+		{
+			int n_water = 0;
+			for (i = 0; i < numclusters; i++)
+			{
+				leaf = loadmodel->leafs + 1 + i;
+				if (leaf->contents == CONTENTS_WATER ||
+				    leaf->contents == CONTENTS_LAVA  ||
+				    leaf->contents == CONTENTS_SLIME)
+					n_water++;
+			}
+			fprintf (f, "[watervis] %s leaves=%d clusters=%d water_leafs=%d "
+				"bridges=%d pvsbytes=%d table_kb=%d "
+				"contentstransparent_pre=0x%x post=0x%x\n",
+				loadmodel->name,
+				loadmodel->numleafs, numclusters,
+				n_water, bridge_count, pvsbytes,
+				(numclusters * pvsbytes) / 1024,
+				loadmodel->contentstransparent & ~needed_mask,
+				loadmodel->contentstransparent);
+			fclose (f);
+		}
+	}
+
+	(void)lmark;	// suppress unused warning under some compilers
+}
+
+/*
+=================
 Mod_LoadBrushModel
 =================
 */
@@ -2532,6 +2983,20 @@ visdone:
 	Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 
 	Mod_MakeHull0 ();
+
+	// PPC port (Round v6) — classify per-content-type transparency from
+	// the BSP's PVS (Spike's watervis fix). Runs after submodel load so
+	// submodel[0].visleafs is populated.
+	Mod_FindContentsTransparent ();
+
+	// PPC port (Round v6) — in-engine watervis. If the BSP's PVS wasn't
+	// computed treating water/lava/slime as transparent (the case for
+	// id1 maps), expand the PVS in memory to bridge across liquid
+	// surfaces. Subsequent renderer code sees a "properly watervised"
+	// PVS and translucent water displays without X-ray void glitches.
+	mod->visdata_expanded = NULL;
+	mod->pvsbytes = 0;
+	Mod_BuildExpandedVis ();
 
 	mod->numframes = 2;		// regular and alternate animation
 

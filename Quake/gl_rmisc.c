@@ -372,6 +372,12 @@ static void R_ParseWorldspawn (void)
 	char key[128], value[4096];
 	const char *data;
 
+	// PPC port (Round v6) — keep user's r_wateralpha values verbatim.
+	// `Mod_FindContentsTransparent` set worldmodel->contentstransparent
+	// at load; R_MarkSurfaces uses that flag to switch to NoVisPVS on
+	// un-vis'd maps when the user has translucent liquids enabled, so
+	// the extra leaves needed to fill behind translucent water are
+	// always rendered. No need to force opacity here.
 	map_wateralpha = r_wateralpha.value;
 	map_lavaalpha = r_lavaalpha.value;
 	map_telealpha = r_telealpha.value;

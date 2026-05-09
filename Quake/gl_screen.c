@@ -795,14 +795,35 @@ void SCR_ScreenShot_f (void)
 		return;
 	}
 	
-// find a file name to save it to
+// find a file name to save it to.
+//
+// PPC port (round v6): when `screenshot_desktop` is the active command,
+// scan ~/Desktop/quakespasm-screenshots/ for the unused index instead
+// of id1/. The original code scanned id1/ then moved the file out, so
+// every shot found id1/spasm0000.png free again and clobbered the
+// previously-moved file on Desktop. F12 in rapid succession now
+// produces spasm0000.png, spasm0001.png, … as expected.
+{
+	const char *scan_dir = com_gamedir;
+	char        scan_dir_buf[MAX_OSPATH];
+	if (q_strcasecmp(Cmd_Argv(0), "screenshot_desktop") == 0)
+	{
+		const char *home = getenv("HOME");
+		if (home && *home)
+		{
+			q_snprintf (scan_dir_buf, sizeof(scan_dir_buf),
+				"%s/Desktop/quakespasm-screenshots", home);
+			scan_dir = scan_dir_buf;
+		}
+	}
 	for (i=0; i<10000; i++)
 	{
-		q_snprintf (imagename, sizeof(imagename), "spasm%04i.%s", i, ext);	// "fitz%04i.tga"
-		q_snprintf (checkname, sizeof(checkname), "%s/%s", com_gamedir, imagename);
+		q_snprintf (imagename, sizeof(imagename), "spasm%04i.%s", i, ext);
+		q_snprintf (checkname, sizeof(checkname), "%s/%s", scan_dir, imagename);
 		if (Sys_FileType(checkname) == FS_ENT_NONE)
 			break;	// file doesn't exist
 	}
+}
 	if (i == 10000)
 	{
 		Con_Printf ("SCR_ScreenShot_f: Couldn't find an unused filename\n");

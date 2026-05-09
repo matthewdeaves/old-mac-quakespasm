@@ -494,6 +494,24 @@ typedef struct qmodel_s
 
 	int			bspversion;
 	qboolean	haslitwater;
+	int			contentstransparent;	// PPC port (Round v6) — Spike's watervis classifier.
+								// Bitmask of SURF_DRAWWATER|SURF_DRAWLAVA|SURF_DRAWSLIME|SURF_DRAWTELE.
+								// Bit is set when the BSP's PVS already bridges across that
+								// content type (rare for id1 maps, common for watervis-patched
+								// packs and modern community maps). Set by
+								// Mod_FindContentsTransparent at brush-model load.
+
+	byte		*visdata_expanded;	// PPC port (Round v6) — in-engine watervis.
+								// When non-NULL, replaces the BSP's compressed PVS with an
+								// uncompressed table that bridges across water/lava/slime
+								// surfaces — the runtime equivalent of Bengt Jardrup's
+								// `vispatch`. Layout: numleafs rows of pvsbytes each; row i
+								// is leaf (i+1)'s PVS. Mod_LeafPVS returns a pointer straight
+								// into here when set. Built by Mod_BuildExpandedVis when the
+								// BSP wasn't watervis'd at compile time but contains liquid
+								// surfaces — gives perfect see-through water without the
+								// PVS-leak void/X-ray artifacts on id1 maps.
+	int			pvsbytes;		// (numleafs+7)/8 — row stride for visdata_expanded
 //
 // alias model
 //
