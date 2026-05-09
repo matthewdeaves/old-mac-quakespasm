@@ -174,6 +174,14 @@ The fat universal `Quakespasm.app` bundle is published as a tagged release so an
 
 ## License
 
-Upstream QuakeSpasm is GPL-2.0 — see [`LICENSE.txt`](LICENSE.txt). All port work in this fork follows the same license.
+This fork is licensed under **GPL-2.0-or-later**, inherited verbatim from upstream QuakeSpasm. See [`LICENSE.txt`](LICENSE.txt) for the full text.
 
-The Round v6 watervis NoVis trigger and the Round v7 emissive-fullbright dynamic-light pipeline are believed to be original; they're contributed under GPL-2.0 to be picked up by any downstream QuakeSpasm derivative that finds them useful.
+The license traces back through three contributor generations:
+
+- **id Software** (1996-2001) — original Quake source release
+- **John Fitzgibbons** / FitzQuake (2002-2009) — the QuakeSpasm starting point
+- **QuakeSpasm developers** (2010-present) — Spike, Eric Wasylishen, Ozkan Sezer and others, the active upstream at [sezero/quakespasm](https://github.com/sezero/quakespasm)
+
+Every source file carries the chained copyright header above its body. Every patch in this fork is contributed under the same GPL-2.0-or-later terms — the round v6 watervis NoVis trigger and the round v7 emissive-fullbright dynamic-light pipeline are believed to be original to this fork and are licensed for any downstream QuakeSpasm derivative to pick up.
+
+The bundled `MacOSX/SDL.framework` is SDL 1.2.15 — zlib license, see [SDL's site](https://www.libsdl.org/license-zlib.php). The codec dylibs (libvorbis, libmad, etc.) carry their own upstream licenses; see [`MacOSX/codecs/lib/`](MacOSX/codecs/lib/).
