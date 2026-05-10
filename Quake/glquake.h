@@ -138,6 +138,7 @@ extern	cvar_t	r_lightmapwide;
 extern	cvar_t	r_shadows;
 extern	cvar_t	r_shadow_distance;
 extern	cvar_t	r_dynamic_distance;	/* Round v5 B1 -- dlight distance gate */
+extern	cvar_t	gl_lightmap_subrect;	/* Round v8 item 1 -- subrect lightmap upload */
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_lavaalpha;
 extern	cvar_t	r_telealpha;

@@ -87,6 +87,15 @@ cvar_t	r_dynamic = {"r_dynamic","1",CVAR_ARCHIVE};
 // G4/G4mini/Lion left at 0 -- they have headroom and the player
 // cares more about full-range dynamic lighting there.
 cvar_t	r_dynamic_distance = {"r_dynamic_distance","0",CVAR_ARCHIVE};
+// PPC port -- Round v8 item 1 -- lightmap subrect upload.
+// Engine already tracks lm->rectchange.{l,t,w,h} in R_RenderDynamicLightmaps;
+// the per-frame glTexSubImage2D in R_UploadLightmap historically ignored l/w
+// and uploaded the full LMBLOCK_WIDTH row regardless of dirty extent. Honoring
+// the rect cuts upload bytes by ~16x for typical 16x16 dlight touches. AGP
+// bandwidth is the bottleneck on Rage 128 (G3); pure win there. Visually
+// identical because we upload the same pixel data, just framed tighter.
+// Default 1; gate to 0 for runtime A/B if a driver mis-handles ROW_LENGTH.
+cvar_t	gl_lightmap_subrect = {"gl_lightmap_subrect","1",CVAR_ARCHIVE};
 cvar_t	r_novis = {"r_novis","0",CVAR_ARCHIVE};
 
 cvar_t	gl_finish = {"gl_finish","0",CVAR_NONE};

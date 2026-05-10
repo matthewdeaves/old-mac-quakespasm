@@ -177,6 +177,7 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_shadows);
 	Cvar_RegisterVariable (&r_shadow_distance); // PPC port -- Pass C HIGH
 	Cvar_RegisterVariable (&r_dynamic_distance); // PPC port -- Round v5 B1
+	Cvar_RegisterVariable (&gl_lightmap_subrect); // PPC port -- Round v8 item 1
 	Cvar_RegisterVariable (&r_wateralpha);
 	Cvar_SetCallback (&r_wateralpha, R_SetWateralpha_f);
 	Cvar_RegisterVariable (&r_litwater);
@@ -267,6 +268,43 @@ void R_Init (void)
 		{
 			water_hoist_disabled = true;
 			Con_Warning ("Round v7 phase 6 water-state-hoist disabled by -nodgp-water-hoist\n");
+		}
+	}
+
+	// PPC port -- Round v8 item 2: -nomtexhoist falls back to per-chain
+	// GL_EnableMultitexture/GL_DisableMultitexture toggles in
+	// R_DrawTextureChains_Multitexture (legacy non-array path). Default-on
+	// (one-enable-before-loop is the new shipping path).
+	{
+		extern qboolean mtexhoist_disabled;
+		if (COM_CheckParm("-nomtexhoist"))
+		{
+			mtexhoist_disabled = true;
+			Con_Warning ("Round v8 item 2 multitex hoist disabled by -nomtexhoist\n");
+		}
+	}
+
+	// PPC port -- Round v8 item 3: -nodirtylmlist disables the
+	// dirty-lightmap index list and falls back to the linear walk over
+	// all `lightmap_count` lightmaps every frame in R_UploadLightmaps.
+	{
+		extern qboolean dirtylmlist_disabled;
+		if (COM_CheckParm("-nodirtylmlist"))
+		{
+			dirtylmlist_disabled = true;
+			Con_Warning ("Round v8 item 3 dirty-lightmap list disabled by -nodirtylmlist\n");
+		}
+	}
+
+	// PPC port -- Round v8 item 4: -nolmunroll disables the 2-texel
+	// scalar unroll in R_BuildLightMap and falls back to the per-texel
+	// scalar loop. G3-relevant only (G4 takes AltiVec path when enabled).
+	{
+		extern qboolean lmunroll_disabled;
+		if (COM_CheckParm("-nolmunroll"))
+		{
+			lmunroll_disabled = true;
+			Con_Warning ("Round v8 item 4 lightmap unroll disabled by -nolmunroll\n");
 		}
 	}
 

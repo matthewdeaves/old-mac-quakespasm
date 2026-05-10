@@ -113,7 +113,7 @@ perf knob must be flippable at runtime (cvar) or at launch
 contributions without a rebuild. See "Toggleable knobs" below for the
 current inventory.
 
-## Toggleable knobs (current inventory, 2026-05-08)
+## Toggleable knobs (current inventory, 2026-05-10)
 
 Every per-target visual / perf decision shipped to date can be flipped
 without rebuild — most via cvars, some via launch-time `-flag` parsed
@@ -168,6 +168,15 @@ wants to A/B alias-side AltiVec specifically.
 pre-§14.3 glBegin/glEnd path. Default is the new client-array path
 (submission-overhead reduction; smoke neutral on standard demos
 because they barely exercise warp updates).
+
+**Round v8 lightmap+multitex hygiene knobs (2026-05-10):**
+
+| Knob                     | Type    | Default | What it gates                                                    | File parsed |
+|--------------------------|---------|---------|------------------------------------------------------------------|-------------|
+| `gl_lightmap_subrect`    | cvar (CVAR_ARCHIVE) | 1 (on) | **Round v8 item 1 -- subrect lightmap upload.** Pre-v8 the per-frame `glTexSubImage2D` in `R_UploadLightmap` ignored the dirty rect's `l`/`w` and uploaded the full LMBLOCK_WIDTH (256-pixel) row regardless of the actual touched extent. Honoring `rectchange.l/w` plus `glPixelStorei(GL_UNPACK_ROW_LENGTH, LMBLOCK_WIDTH)` cuts upload bytes by ~16× for typical 16×16 dlight touches. Visually identical (same pixel data, narrower frame). G3-headline lever -- pure AGP bandwidth win exactly where R128 is bottlenecked. | `gl_rmisc.c` `R_Init` |
+| `-nomtexhoist`           | cmdline | enabled | **Round v8 item 2 -- multitex enable/disable hoist.** Default-on path enables TMU1 once before `R_DrawTextureChains_Multitexture`'s texture loop and disables it once after, instead of toggling per chain (~30-50× per frame in pre-v8). Hygiene cleanup; sub-1% on R128 (driver shrugs at no-op enables). Pass `-nomtexhoist` to revert to per-chain toggles. | `gl_rmisc.c` `R_Init` |
+| `-nodirtylmlist`         | cmdline | enabled | **Round v8 item 3 -- dirty-lightmap list.** Default-on path tracks dirty lightmap indices in an int[] populated at the modified-edge in `R_RenderDynamicLightmaps` so `R_UploadLightmaps` walks only dirty entries instead of all `lightmap_count`. Sub-1% on G3 (pre-v8 walk is L1-resident). Pass `-nodirtylmlist` to revert to the linear walk. | `gl_rmisc.c` `R_Init` |
+| `-nolmunroll`            | cmdline | enabled | **Round v8 item 4 -- 2-texel scalar unroll in `R_BuildLightMap`.** G3-only relevant (G4 takes the `__ALTIVEC__` path when not opt-out). Batches 6 byte loads ahead of 6 mul-adds to expose ILP to PPC 7 50's integer pipeline. Up to ~2% best case on dlight-heavy demos. Pass `-nolmunroll` to revert to the per-texel form. | `gl_rmisc.c` `R_Init` |
 
 **Pass B B6 retest hatch:** `-r128-cva` (G3 only — Rage 128 detection)
 overrides the default skip of `glLockArraysEXT` on R128 so we can

@@ -28,6 +28,14 @@ extern cvar_t gl_fullbrights, r_drawflat, gl_overbright, r_oldwater, r_oldskylea
 
 byte *SV_FatPVS (vec3_t org, qmodel_t *worldmodel);
 
+// PPC port -- Round v8 item 2 -- multitex enable/disable hoist.
+// Set true by `-nomtexhoist` cmdline parsed in gl_rmisc.c R_Init. When
+// false (default) the legacy non-array path of R_DrawTextureChains_Multitexture
+// enables TMU1 once before the texture loop and disables it once after,
+// instead of toggling per texture chain. Hygiene cleanup for state-thrash;
+// expected sub-1% on R128 (driver shrugs at no-op enables) but real cycles.
+qboolean mtexhoist_disabled = false;
+
 //==============================================================================
 //
 // SETUP CHAINS
@@ -465,13 +473,24 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 	qboolean	bound;
 	const qboolean array_path = (gl_apple_var_arrays_mtex && gl_apple_var_able && gl_bmodel_var_pool);
 
+	// PPC port -- Round v8 item 2 -- enable TMU1 once before the texture
+	// loop on the legacy path too (array_path always did). The pre-v8 code
+	// called GL_EnableMultitexture / GL_DisableMultitexture inside the loop
+	// per texture chain (~30-50x per frame). Hoist saves the no-op
+	// glEnable/glDisable + GL_SelectTexture pairs; only "select TMU1" is
+	// retained per chain for binding the lightmap. Cmdline -nomtexhoist
+	// reverts to per-chain toggles for bisection.
+	const qboolean mtex_hoisted = !mtexhoist_disabled;
+	const qboolean enable_once  = array_path || (!array_path && mtex_hoisted);
+
 	if (array_path)
 	{
 		// Lightmap texcoords live at +5 in VERTEXSIZE -- TEXTURE1.
 		// Diffuse texcoords at +3 -- TEXTURE0.
 		R_BindBrushChain_Multi ();
-		GL_EnableMultitexture ();    // selects TEXTURE1 for state binding
 	}
+	if (enable_once)
+		GL_EnableMultitexture ();    // selects TEXTURE1 + glEnable(TEXTURE_2D)
 
 	for (i=0 ; i<model->numtextures ; i++)
 	{
@@ -491,10 +510,12 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 				if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 					glEnable (GL_ALPHA_TEST); // Flip alpha test back on
 
-				if (!array_path)
-					GL_EnableMultitexture();   // selects TEXTURE1 for the binds below
-				else
+				// PPC port -- v8 item 2: when hoisted, TMU1 is already
+				// enabled; just re-select it for the lightmap bind below.
+				if (enable_once)
 					GL_SelectTexture (GL_TEXTURE1_ARB);
+				else
+					GL_EnableMultitexture();   // legacy: enable+select TMU1
 
 				bound = true;
 			}
@@ -517,18 +538,19 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 			}
 			rs_brushpasses++;
 		}
-		if (!array_path)
-			GL_DisableMultitexture(); // selects TEXTURE0
+		// PPC port -- v8 item 2: legacy path no longer disables TMU1
+		// per-texture when hoist is active; we disable once after the loop.
+		if (!array_path && !mtex_hoisted)
+			GL_DisableMultitexture(); // legacy fallback: per-chain disable
 
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
 	}
 
+	if (enable_once)
+		GL_DisableMultitexture ();   // selects TEXTURE0 for rest of pipeline
 	if (array_path)
-	{
-		GL_DisableMultitexture ();   // selects TEXTURE0 for the rest of the pipeline
 		R_UnbindBrushChain_Multi ();
-	}
 }
 
 /*

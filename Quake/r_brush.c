@@ -44,6 +44,27 @@ int		lightmap_count;
 static int	allocated[LMBLOCK_WIDTH];
 static int	last_lightmap_allocated;
 
+// PPC port -- Round v8 item 3 -- dirty-lightmap list. Pre-v8 the upload
+// pass walked all `lightmap_count` lightmaps every frame to find ones with
+// `modified == true`. On large maps that's hundreds of byte reads where
+// typically <10 are dirty. Maintaining a small append-only int[] of dirty
+// indices, populated at the modified-edge in R_RenderDynamicLightmaps
+// (below), lets R_UploadLightmaps walk only the dirty entries. Sub-1% on
+// G3 in practice (the byte walk is L1-resident) but cheap to do alongside
+// item 1's R_UploadLightmaps changes. Cmdline -nodirtylmlist falls back.
+static int      *dirty_lightmaps     = NULL;
+static int       dirty_lightmaps_cap = 0;
+static int       n_dirty_lightmaps   = 0;
+qboolean         dirtylmlist_disabled = false;	/* set by -nodirtylmlist */
+
+// PPC port -- Round v8 item 4 -- 2-texel scalar unroll of R_BuildLightMap's
+// compose loop. G3-relevant only (G4 takes the __ALTIVEC__ path above when
+// not -altivec-lm-disabled). The pre-v8 inner loop did three serial
+// dependent load/mul/add per texel; the unrolled form batches 6 byte loads
+// ahead of 6 mul-adds, exposing more ILP to the PPC 7 50 pipeline.
+// Cmdline -nolmunroll falls back to the per-texel form.
+qboolean         lmunroll_disabled = false;	/* set by -nolmunroll */
+
 // PPC port -- Phase 4.4: aligned to 16 so the AltiVec compose loop in
 // R_BuildLightMap can use vec_ld/vec_st without lvsl gymnastics. Cost is
 // at most 12 bytes of padding on the .bss; saves a vec_perm per
@@ -453,6 +474,13 @@ dynamic:
 		if (r_dynamic.value)
 		{
 			struct lightmap_s *lm = &lightmaps[fa->lightmaptexturenum];
+			// PPC port -- Round v8 item 3 -- push to dirty-list on the
+			// modified-edge (false -> true). modified is only cleared
+			// inside R_UploadLightmap; pushing here gives one entry per
+			// dirty lightmap per frame with no duplicates.
+			if (!lm->modified && !dirtylmlist_disabled && dirty_lightmaps
+			    && n_dirty_lightmaps < dirty_lightmaps_cap)
+				dirty_lightmaps[n_dirty_lightmaps++] = fa->lightmaptexturenum;
 			lm->modified = true;
 			theRect = &lm->rectchange;
 			if (fa->light_t < theRect->t) {
@@ -508,6 +536,17 @@ int AllocBlock (int w, int h, int *x, int *y)
 			lightmaps = new_lightmaps;
 			memset(&lightmaps[texnum], 0, sizeof(lightmaps[texnum]));
 			lightmaps[texnum].data = (byte *) calloc(1, 4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT);
+			// PPC port -- Round v8 item 3 -- grow dirty-list capacity in
+			// lockstep. dirty_lightmaps holds at most lightmap_count
+			// distinct indices per frame, so the cap == lightmap_count.
+			if (lightmap_count > dirty_lightmaps_cap)
+			{
+				int *new_dirty = (int *) realloc(dirty_lightmaps, sizeof(int) * lightmap_count);
+				if (!new_dirty)
+					Sys_Error ("AllocBlock: realloc dirty_lightmaps failed (%d)", lightmap_count);
+				dirty_lightmaps = new_dirty;
+				dirty_lightmaps_cap = lightmap_count;
+			}
 			//as we're only tracking one texture, we don't need multiple copies of allocated any more.
 			memset(allocated, 0, sizeof(allocated));
 		}
@@ -696,6 +735,11 @@ void GL_BuildLightmaps (void)
 	lightmaps = NULL;
 	last_lightmap_allocated = 0;
 	lightmap_count = 0;
+
+	// PPC port -- Round v8 item 3 -- drop any leftover dirty entries from
+	// the prior level. AllocBlock re-grows dirty_lightmaps_cap below as
+	// new lightmaps are allocated for the new map.
+	n_dirty_lightmaps = 0;
 
 	// PPC port (Phase 2.1) -- BGRA + UNSIGNED_INT_8_8_8_8_REV is Apple's
 	// documented GL fast path on PPC; RGBA + UNSIGNED_BYTE forces a CPU
@@ -1301,11 +1345,42 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				}
 				else
 #endif
-				for (i=0 ; i<size ; i++)
 				{
-					*bl++ += *lightmap++ * scale;
-					*bl++ += *lightmap++ * scale;
-					*bl++ += *lightmap++ * scale;
+					// PPC port -- Round v8 item 4 -- 2-texel scalar
+					// unroll. PPC 7 50 (G3) lacks AltiVec so this is
+					// the only path on yosemite. Batching 6 loads ahead
+					// of 6 mul-adds exposes ILP to the integer pipe.
+					int rem = size;
+					if (!lmunroll_disabled)
+					{
+						while (rem >= 2)
+						{
+							unsigned int l0 = lightmap[0];
+							unsigned int l1 = lightmap[1];
+							unsigned int l2 = lightmap[2];
+							unsigned int l3 = lightmap[3];
+							unsigned int l4 = lightmap[4];
+							unsigned int l5 = lightmap[5];
+							bl[0] += l0 * scale;
+							bl[1] += l1 * scale;
+							bl[2] += l2 * scale;
+							bl[3] += l3 * scale;
+							bl[4] += l4 * scale;
+							bl[5] += l5 * scale;
+							bl       += 6;
+							lightmap += 6;
+							rem      -= 2;
+						}
+					}
+					while (rem > 0)
+					{
+						bl[0] += lightmap[0] * scale;
+						bl[1] += lightmap[1] * scale;
+						bl[2] += lightmap[2] * scale;
+						bl       += 3;
+						lightmap += 3;
+						rem--;
+					}
 				}
 				//johnfitz
 			}
@@ -1435,6 +1510,14 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 R_UploadLightmap -- johnfitz -- uploads the modified lightmap to opengl if necessary
 
 assumes lightmap texture is already bound
+
+PPC port -- Round v8 item 1 -- subrect upload. The pre-v8 path always
+uploaded LMBLOCK_WIDTH-wide rows, ignoring rectchange.l/w. With the
+gl_lightmap_subrect cvar (default 1) we honor the dirty rect's left/width
+fields too. Bandwidth saved on a typical 16x16 dlight touch: ~16x.
+The ROW_LENGTH=LMBLOCK_WIDTH state needed for a sub-rect read out of the
+contiguous lightmap buffer is set once per frame in R_UploadLightmaps
+(below) so this function does not toggle pixel-store state per call.
 ===============
 */
 static void R_UploadLightmap(int lmap)
@@ -1449,8 +1532,23 @@ static void R_UploadLightmap(int lmap)
 
 	lm->modified = false;
 
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, lm->rectchange.t, LMBLOCK_WIDTH, lm->rectchange.h, gl_lightmap_format,
-			type, lm->data + lm->rectchange.t*LMBLOCK_WIDTH*lightmap_bytes);
+	if (gl_lightmap_subrect.value)
+	{
+		// Subrect path: honor l/w; data pointer offset by both row and column.
+		// Caller has set GL_UNPACK_ROW_LENGTH = LMBLOCK_WIDTH so the driver
+		// strides correctly when w < LMBLOCK_WIDTH.
+		glTexSubImage2D(GL_TEXTURE_2D, 0,
+				lm->rectchange.l, lm->rectchange.t,
+				lm->rectchange.w, lm->rectchange.h,
+				gl_lightmap_format, type,
+				lm->data + (lm->rectchange.t * LMBLOCK_WIDTH + lm->rectchange.l) * lightmap_bytes);
+	}
+	else
+	{
+		// Legacy full-row path (pre-v8) -- xoffset=0, width=LMBLOCK_WIDTH.
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, lm->rectchange.t, LMBLOCK_WIDTH, lm->rectchange.h, gl_lightmap_format,
+				type, lm->data + lm->rectchange.t*LMBLOCK_WIDTH*lightmap_bytes);
+	}
 	lm->rectchange.l = LMBLOCK_WIDTH;
 	lm->rectchange.t = LMBLOCK_HEIGHT;
 	lm->rectchange.h = 0;
@@ -1462,15 +1560,46 @@ static void R_UploadLightmap(int lmap)
 void R_UploadLightmaps (void)
 {
 	int lmap;
+	const qboolean subrect = !!gl_lightmap_subrect.value;
+	const qboolean use_dirtylist = !dirtylmlist_disabled && dirty_lightmaps != NULL;
 
-	for (lmap = 0; lmap < lightmap_count; lmap++)
+	// PPC port -- Round v8 item 1 -- set ROW_LENGTH once around the whole
+	// upload pass. ROW_LENGTH is global pixel-store state shared with all
+	// glTex*Image2D unpacking, so we restore to 0 (= "rows are width
+	// pixels wide") at the end so any non-lightmap upload that follows
+	// (e.g. gl_texmgr re-uploads on screenshot save) is unaffected.
+	if (subrect)
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, LMBLOCK_WIDTH);
+
+	if (use_dirtylist)
 	{
-		if (!lightmaps[lmap].modified)
-			continue;
-
-		GL_Bind (lightmaps[lmap].texture);
-		R_UploadLightmap(lmap);
+		// PPC port -- Round v8 item 3 -- walk only the dirty entries.
+		int n;
+		for (n = 0; n < n_dirty_lightmaps; n++)
+		{
+			lmap = dirty_lightmaps[n];
+			if (!lightmaps[lmap].modified)
+				continue;	// defensive: should not occur (cleared only in R_UploadLightmap)
+			GL_Bind (lightmaps[lmap].texture);
+			R_UploadLightmap(lmap);
+		}
+		n_dirty_lightmaps = 0;
 	}
+	else
+	{
+		// Legacy linear walk (set by -nodirtylmlist).
+		for (lmap = 0; lmap < lightmap_count; lmap++)
+		{
+			if (!lightmaps[lmap].modified)
+				continue;
+
+			GL_Bind (lightmaps[lmap].texture);
+			R_UploadLightmap(lmap);
+		}
+	}
+
+	if (subrect)
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
 
 /*
@@ -1514,4 +1643,18 @@ void R_RebuildAllLightmaps (void)
 		glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, gl_lightmap_format,
 				 type, lightmaps[i].data);
 	}
+
+	// PPC port -- Round v8 item 3 -- the wholesale rebuild above bypassed
+	// the per-frame dirty-edge tracking. Drop any pending dirty indices
+	// and clear the modified bytes so the next frame's R_UploadLightmaps
+	// doesn't re-upload work we just covered.
+	for (i = 0; i < lightmap_count; i++)
+	{
+		lightmaps[i].modified = false;
+		lightmaps[i].rectchange.l = LMBLOCK_WIDTH;
+		lightmaps[i].rectchange.t = LMBLOCK_HEIGHT;
+		lightmaps[i].rectchange.w = 0;
+		lightmaps[i].rectchange.h = 0;
+	}
+	n_dirty_lightmaps = 0;
 }
