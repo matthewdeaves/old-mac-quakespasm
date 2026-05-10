@@ -16,6 +16,91 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-10 — Round v9 + v10 misattribution: a "code regression" that wasn't
+
+**What happened.** Round v9 wrap full grid showed catastrophic demo3
+regression across every PPC + Lion machine (yosemite -24.5%, sawtooth
+-23.3%, quicksilver -28.6%, mini-g4 -32.9%, mini-intel -18.0%) plus
+demo1 -15% on iMac. Round v9's only landed item was the Ironwail flat-
+array efrags pattern (commit 6f3976f8). Reverted at 13b6876a on the
+strength of "bench shows demo3 regression on every machine".
+
+**Round v10 take 2 (flat efrags + per-leaf cull) was implemented to fix
+the v9 demo3 regression** — the hypothesis being that v9's
+R_StoreStaticEntities tested only PVS, not per-leaf frustum, so it
+added bonus alias-lerp setup on entities the legacy efrag walk would
+have culled. Take 2 hooked into R_MarkSurfaces' existing leaf cull
+loop and tested a per-leaf-visible bitmask in R_StoreStaticEntities.
+
+**Bisect outcome.** v10 take 2 binary on yosemite demo3 1024: 15.00 fps
+flat path / 15.10 fps `-noflatefrags` legacy path. Same number. v10
+wasn't the fix because there was nothing in v9 to fix.
+
+**Real cause.** Demo3 regression was an **autoexec change** on the
+PPC machines, not a code change. The autoexec-yosemite.cfg history:
+
+  7a545e03 (2026-05-09 07:29): added r_lavaalpha 0.6 / r_telealpha 0.6 /
+                                r_slimealpha 0.6 → benched 20.25 fps OK
+  ...
+  969ff... (later 2026-05-09):  autoexec: enable Tier A emissive lights
+                                across all 6 machines
+
+Today's f2df151d-rebuilt bench (same code as yesterday's 19.80 fps
+baseline, today's autoexec) → 14.45 fps. The same bench with
+id1/autoexec.cfg renamed → 19.45 fps. The cost was in autoexec, not
+code. Bisect on autoexec lines pointed to `r_lavaalpha 0.6` as the
+single largest contributor (-26 % alone). Tele + slime alpha together
+also regressed.
+
+Why did 7a545e03 bench at 20.25 fps with the same content? **The
+yosemite hardware/state reads ~5 fps slower today** in the same
+configuration. Possibly thermal accumulation across multiple bench
+sessions, possibly capacitor age (1999 silicon), possibly a stuck OS
+state that even reboots don't fully clear. Either way the real-world
+fps today doesn't match the bench from 2026-05-09 morning, so the
+historical value isn't a good comparison target.
+
+**Fix.** f1fea29f drops r_lavaalpha / r_telealpha / r_slimealpha from
+the G3 autoexec, keeps r_wateralpha (water see-through is the most-
+common transparent-liquid effect in regular play and was already in
+baseline at 0.6). Yosemite demo3 1024 recovered to 20.60 fps.
+
+**Lessons.**
+- Bench delta MUST first be checked against the autoexec diff. The
+  per-machine cfg files are CVAR-ARCHIVE state that compounds across
+  rounds — adding a cvar in autoexec for one round can regress fps on
+  later rounds without any code change.
+- "Same code, same machine, same bench script" is not enough. The
+  cvar set in effect is part of the bench. Verify by running with
+  `id1/autoexec.cfg` removed before blaming code.
+- v9 item 1 was reverted on a misattribution. The Ironwail flat-array
+  pattern's actual fps impact on this codebase was **neutral** on G3
+  (15.10 legacy vs 15.00 flat at the time, both regressed by autoexec).
+  It might have been a small win without the autoexec confound but
+  also might have been net neutral; we don't know. Filed if a future
+  round wants to revisit, but only after locking down the autoexec-
+  cost question first.
+- v10 take 2 was implemented + bench'd cleanly + reverted because it
+  delivered no win on G3 (-2.5%) or mini-intel (flat). Consistent with
+  the "no fix needed for v9" finding. Net cost: ~1 round of work.
+- Yosemite needs **more frequent reboots** during long bench cycles.
+  User confirmed empirically. Several mid-session benches today read
+  inconsistently between 14.4 and 20.6 fps for the same effective
+  config; reboot fixed each time.
+
+**If we revisit:**
+- A `r_lavaalpha_distance` cvar (mirroring `r_dynamic_distance` from
+  round v5) would let close-up lava blend transparently while far-
+  field lava stays opaque. ~1 round of code work; recovers the visual
+  effect on G3 without the full-scene fillrate cost. Worth doing if a
+  round explicitly targets G3 visual polish.
+- The autoexec drift detection problem is real: at minimum, deploy.sh
+  could echo a SHA of the deployed `id1/autoexec.cfg` so bench rows
+  carry that fingerprint alongside the binary commit hash. CSV schema
+  bump candidate.
+
+---
+
 ## 2026-05-09 — Round v6 wrap mini-g4 stale-binary CSV pollution
 
 **What happened.** Round v6 wrap full-grid bench appended mini-g4 rows
