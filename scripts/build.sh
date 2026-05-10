@@ -51,6 +51,16 @@ case "$TARGET" in
     # the 10.3.9 SDK. Already documented in CLAUDE.md as harmless;
     # silencing here so any future real link warning stands out.
     EXTRA_LDFLAGS='-Wl,-w'
+    # PPC port -- profiling pass: BUILD_PG=1 adds -pg to compile +
+    # link so the binary writes gmon.out on clean exit. -O3 is kept
+    # so we profile what we ship; -pg adds ~3-5% overhead per call
+    # via mcount instrumentation. Use `+timedemo demoN +quit` to get
+    # a clean exit (SIGKILL won't write gmon.out).
+    if [ "${BUILD_PG:-0}" = "1" ]; then
+      CPUFLAGS="$CPUFLAGS -pg"
+      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -pg"
+      echo "[build] BUILD_PG=1 → adding -pg (gprof instrumentation)"
+    fi
     ;;
   g4)
     MACH_TYPE=ppc
