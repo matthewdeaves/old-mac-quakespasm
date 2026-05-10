@@ -125,9 +125,9 @@ a complete map.
 | Flag             | Phase  | Default     | What it gates                                  | File parsed |
 |------------------|--------|-------------|------------------------------------------------|-------------|
 | `-noaltivec-snd` | 4.2    | enabled     | 16-bit sound mixer (`SND_PaintChannelFrom16`)  | `snd_dma.c` `S_Init` |
-| `-altivec-lm`    | 4.4    | **disabled** (opt-in) | Lightmap compose loop (`R_BuildLightMap`) — regressed -0.5..-2.3% in smoke; round v3 retest 2026-05-08 (Task #9) confirmed net-zero on demo3 1024 (quicksilver -0.4% noise, mini-g4 fillrate-bound). Preserved in tree. See PPC_PLAN.md §13.2 status. | `gl_rmisc.c` `R_Init` |
+| `-noaltivec-lm`  | 4.4    | **enabled** (v8.1 flipped 2026-05-10) | Lightmap compose loop (`R_BuildLightMap`). Was opt-in until v8.1; round v3 retest 2026-05-08 reclassified as net-zero (not regressed) so the conservative default became defeating-the-point. v8.1 made it the G4 default — pass `-noaltivec-lm` to disable. The legacy `-altivec-lm` remains as a backward-compat no-op. | `gl_rmisc.c` `R_Init` |
 | `-noaltivec-mip` | 4.5    | enabled     | Mipmap chain build (`TexMgr_MipMap{W,H}`) — load-time only | `gl_texmgr.c` `TexMgr_Init` |
-| `-altivec-dlights` | §14.3 item 4 | **disabled** (opt-in) | Per-texel attenuation in `R_AddDynamicLights` — neutral in smoke (gate restricts AltiVec to ~30% of pixels; stack-spill erodes FP-mul win). Round v3 retest 2026-05-08 confirmed neutral alongside `-altivec-lm`. Preserved in tree. | `gl_rmisc.c` `R_Init` |
+| `-noaltivec-dlights` | §14.3 item 4 | **enabled** (v8.1 flipped 2026-05-10) | Per-texel attenuation in `R_AddDynamicLights`. Was opt-in until v8.1; round v3 retest 2026-05-08 confirmed neutral. Flipped to default-enabled alongside `-noaltivec-lm`. The legacy `-altivec-dlights` remains as a backward-compat no-op. | `gl_rmisc.c` `R_Init` |
 
 **Diagnostics (cmdline + cvar, both targets):**
 

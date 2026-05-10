@@ -82,15 +82,34 @@ static unsigned	blocklights[LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3] __attribute__((align
 // sizes. Pass `-altivec-lm` on the launch command line to opt in for
 // further experimentation.
 //
-// This default is a deliberate fail-closed: the v2 Phase 5 SGIS
+// This default WAS deliberate fail-closed: the v2 Phase 5 SGIS
 // regression cost a full bench cycle and was reverted entirely, so for
-// 4.4 we keep the experimental code reachable but inert.
-qboolean lm_altivec_disabled = true;
+// 4.4 we kept the experimental code reachable but inert.
+//
+// Round v8.1 (2026-05-10): default flipped to ENABLED on G4 builds. The
+// "regressed -0.5..-2.3%" data was from Phase 4.4's initial smoke; the
+// round v3 retest 2026-05-08 (PPC_PLAN.md §13.2 status) reclassified it
+// as net-zero on G4 (quicksilver -0.4% noise, mini-g4 fillrate-bound).
+// Forcing G4 to a scalar lightmap path defeats the point of having a
+// G4-targeted binary; AltiVec is what makes a G4 binary worth shipping
+// over the G3 binary. With v8 item 4 (scalar unroll) in tree, the off
+// default also makes G4 take a code path with no AltiVec benefit AND
+// the scalar unroll's longer dependency chains, which may pessimize on
+// PPC 7400 (sawtooth). Flipping makes G4 use what its hardware supports.
+// Pass `-noaltivec-lm` to disable for bisection. G3 unaffected (this
+// declaration is inside `#ifdef __ALTIVEC__` which is only defined for
+// the g4-targeted binary slice).
+qboolean lm_altivec_disabled = false;
 
-// PPC port -- §14.3 item 4: -altivec-dlights opt-in (default off, mirrors
-// Phase 4.4 conservative shape). Parsed in R_Init (gl_rmisc.c). Set to
-// false to enable the AltiVec R_AddDynamicLights inner-loop path.
-qboolean dlights_altivec_disabled = true;
+// PPC port -- §14.3 item 4: AltiVec R_AddDynamicLights inner-loop path.
+// Parsed in R_Init (gl_rmisc.c). Set to false to enable the AltiVec path.
+//
+// Round v8.1 (2026-05-10): default flipped from true to false alongside
+// lm_altivec_disabled. The round v3 retest 2026-05-08 confirmed neutral
+// on G4 (gate restricts AltiVec to ~30% of pixels; stack-spill erodes
+// FP-mul win). "Use what the hardware supports" beats "preserve the
+// conservative inert default". Pass `-noaltivec-dlights` to disable.
+qboolean dlights_altivec_disabled = false;
 #endif
 
 

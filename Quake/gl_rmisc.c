@@ -310,29 +310,42 @@ void R_Init (void)
 
 #ifdef __ALTIVEC__
 	// PPC port -- Phase 4.4: AltiVec lightmap compose loop in
-	// R_BuildLightMap. Default-DISABLED (regressed -0.5..-2.3% on G4
-	// smoke; see r_brush.c:40-58 for the experiment record). Pass
-	// -altivec-lm on the launch command line to opt in.
+	// R_BuildLightMap. Round v8.1 (2026-05-10) flipped default to
+	// ENABLED on G4 builds — see r_brush.c:88 for the rationale. The
+	// historical -altivec-lm opt-in remains for backward compat with
+	// any scripts that pass it (now a no-op since default is enabled).
+	// -noaltivec-lm is the new opt-OUT for bisection.
 	{
 		extern qboolean lm_altivec_disabled;
 		if (COM_CheckParm("-altivec-lm"))
 		{
+			// no-op: default is now enabled. Log so anyone debugging
+			// stale launch args knows the flag had no effect.
 			lm_altivec_disabled = false;
-			Con_Warning ("Phase 4.4 AltiVec lightmap compose ENABLED at command line (experimental)\n");
+			Con_Warning ("-altivec-lm is a no-op since v8.1 (default is enabled)\n");
+		}
+		if (COM_CheckParm("-noaltivec-lm"))
+		{
+			lm_altivec_disabled = true;
+			Con_Warning ("Phase 4.4 AltiVec lightmap compose DISABLED by -noaltivec-lm\n");
 		}
 	}
 
 	// PPC port -- §14.3 item 4: AltiVec R_AddDynamicLights inner loop.
-	// Default-DISABLED (Phase 4.4 same-shape regressed; conservative
-	// shape until we measure positive on G4 demo3). Pass
-	// -altivec-dlights to opt in for a measurement run; flip the
-	// default in r_brush.c if smoke shows net positive.
+	// Round v8.1 (2026-05-10) flipped default to ENABLED on G4 builds.
+	// See r_brush.c:101 for rationale. -altivec-dlights kept as no-op;
+	// -noaltivec-dlights is the new opt-OUT for bisection.
 	{
 		extern qboolean dlights_altivec_disabled;
 		if (COM_CheckParm("-altivec-dlights"))
 		{
 			dlights_altivec_disabled = false;
-			Con_Warning ("§14.3 AltiVec R_AddDynamicLights ENABLED at command line (experimental)\n");
+			Con_Warning ("-altivec-dlights is a no-op since v8.1 (default is enabled)\n");
+		}
+		if (COM_CheckParm("-noaltivec-dlights"))
+		{
+			dlights_altivec_disabled = true;
+			Con_Warning ("§14.3 AltiVec R_AddDynamicLights DISABLED by -noaltivec-dlights\n");
 		}
 	}
 #endif
