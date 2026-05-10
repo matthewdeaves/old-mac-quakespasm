@@ -145,8 +145,6 @@ void R_ViewChanged (vrect_t *pvrect, int lineadj, float aspect);
 
 void R_CheckEfrags (void); //johnfitz
 void R_AddEfrags (entity_t *ent);
-void R_StoreStaticEntities (byte *vis);	/* PPC port v9 item 1 -- Ironwail flat-array efrags */
-void R_ResetFlatEfrags (void);		/* PPC port v9 item 1 */
 
 void R_NewMap (void);
 

@@ -308,20 +308,6 @@ void R_Init (void)
 		}
 	}
 
-	// PPC port -- Round v9 item 1: -noflatefrags disables the
-	// Ironwail-inspired flat-array static-entity efrag walker and
-	// falls back to the legacy per-leaf efrag_t linked-list walk.
-	// The legacy linked list is still built at load time so the
-	// fallback path remains intact for bisection.
-	{
-		extern qboolean flat_efrags_disabled;
-		if (COM_CheckParm("-noflatefrags"))
-		{
-			flat_efrags_disabled = true;
-			Con_Warning ("Round v9 item 1 flat-array efrags disabled by -noflatefrags\n");
-		}
-	}
-
 #ifdef __ALTIVEC__
 	// PPC port -- Phase 4.4: AltiVec lightmap compose loop in
 	// R_BuildLightMap. Round v8.1 (2026-05-10) flipped default to
@@ -519,11 +505,6 @@ void R_NewMap (void)
 // FIXME: is this one short?
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 		cl.worldmodel->leafs[i].efrags = NULL;
-
-	// PPC port -- v9 item 1: also reset the flat-array efrag records
-	// so the new level starts with empty flat state. R_AddEfrags from
-	// the upcoming CL_ParseStatic re-fills it as statics are parsed.
-	R_ResetFlatEfrags ();
 
 	r_viewleaf = NULL;
 	R_ClearParticles ();
