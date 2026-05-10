@@ -28,7 +28,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC_PNG="${1:-$REPO_ROOT/MacOSX/quake_icon_holes_filled.png}"
+SRC_PNG="${1:-$REPO_ROOT/MacOSX/newiconfinal.png}"
 OUT_ICNS="${2:-$REPO_ROOT/MacOSX/QuakeSpasm.icns}"
 BUILD_HOST="${BUILD_HOST:-mini-intel}"
 
