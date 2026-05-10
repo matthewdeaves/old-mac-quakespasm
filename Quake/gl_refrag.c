@@ -25,6 +25,54 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static mnode_t	*r_pefragtopnode;
 
+// PPC port -- Round v9 item 1 (Ironwail flat-array efrags pattern,
+// IRONWAIL_REVIEW.md candidate 1). The legacy efrag system stores a
+// per-leaf linked list of (entity, leafnext) pairs; per-frame, the
+// BSP walker calls R_StoreEfrags for every visible leaf to chase
+// pointers and collect static entities into cl_visedicts. Honest
+// expectation on id1 maps (~50-200 statics) is sub-1 % fps; the real
+// wins are heap reduction and a stronger CPU cache profile on dense
+// custom maps.
+//
+// New layout: each static entity records (firstleaf, numleaves) into
+// cl_flat_efrag_records[]. The leaf indices live consecutively in
+// cl_flat_efrag_pool[]. R_StoreStaticEntities walks the records once
+// per frame, vis-byte-tests each leaf, and adds the entity to
+// cl_visedicts on first hit.
+//
+// Legacy linked list is also still built so -noflatefrags can fall
+// back. Memory cost of the shadow array is small (~5 leaves per
+// entity * 4 bytes * 200 entities = 4 KB) and load-time cost is
+// trivial (one int store per leaf hit during R_SplitEntityOnNode).
+
+typedef struct {
+	entity_t	*ent;
+	int		firstleaf;	// index into cl_flat_efrag_pool
+	int		numleaves;
+} flat_efrag_record_t;
+
+static flat_efrag_record_t cl_flat_efrag_records[MAX_STATIC_ENTITIES];
+static int                 cl_num_flat_efrag_records = 0;
+
+// Pool sized at compile time; ~16 K ints = 64 KB BSS. id1 maps with
+// ~200 statics * ~5 leaves average = ~1000 entries, so 16x headroom.
+// Sys_Error on overflow; a pathological custom map would need this
+// raised. (MAX_STATIC_ENTITIES is 4096, FLAT_EFRAG_WORK_MAX is 256,
+// absolute upper bound is 1 M ints — but that is far beyond any
+// realistic map and would imply raising both knobs together.)
+#define FLAT_EFRAG_POOL_MAX	16384
+static int                 cl_flat_efrag_pool[FLAT_EFRAG_POOL_MAX];
+static int                 cl_flat_efrag_pool_used = 0;
+
+// Working buffer used by R_SplitEntityOnNode for the entity currently
+// being split. Bounded by typical leaf-touch counts; Sys_Error if a
+// pathological entity blows past it.
+#define FLAT_EFRAG_WORK_MAX	256
+static int                 cl_flat_efrag_work[FLAT_EFRAG_WORK_MAX];
+static int                 cl_flat_efrag_work_used = 0;
+
+qboolean flat_efrags_disabled = false;	/* set by -noflatefrags */
+
 
 /*
 ===============================================================================
@@ -104,6 +152,8 @@ void R_SplitEntityOnNode (mnode_t *node)
 
 	if ( node->contents < 0)
 	{
+		int		leafidx;
+
 		if (!r_pefragtopnode)
 			r_pefragtopnode = node;
 
@@ -116,6 +166,22 @@ void R_SplitEntityOnNode (mnode_t *node)
 	// set the leaf links
 		ef->leafnext = leaf->efrags;
 		leaf->efrags = ef;
+
+	// PPC port -- v9 item 1: also push the leaf's PVS bit to the
+	// working buffer so R_AddEfrags can commit a flat-array record.
+	// PVS bit position N corresponds to leafs[N+1] (leaf 0 is the
+	// "outside the map" sentinel, never visited via BSP). Storing the
+	// PVS bit (rather than the array index) makes the per-frame test
+	// `vis[bit>>3] & (1<<(bit&7))` direct.
+		leafidx = (int)(leaf - cl.worldmodel->leafs) - 1;
+		if (leafidx >= 0)
+		{
+			if (cl_flat_efrag_work_used < FLAT_EFRAG_WORK_MAX)
+				cl_flat_efrag_work[cl_flat_efrag_work_used++] = leafidx;
+			else
+				Sys_Error ("R_SplitEntityOnNode: entity touches > %d leaves; raise FLAT_EFRAG_WORK_MAX",
+				           FLAT_EFRAG_WORK_MAX);
+		}
 
 		return;
 	}
@@ -188,13 +254,96 @@ void R_AddEfrags (entity_t *ent)
 		VectorAdd (ent->origin, entmodel->maxs, r_emaxs);
 	}
 
+	// PPC port -- v9 item 1: reset the working buffer; R_SplitEntityOnNode
+	// fills it with this entity's touched leaves.
+	cl_flat_efrag_work_used = 0;
+
 	R_SplitEntityOnNode (cl.worldmodel->nodes);
 
 	ent->topnode = r_pefragtopnode;
 
+	// PPC port -- v9 item 1: commit working buffer to the flat pool.
+	// Pool is a fixed-size static array; Sys_Error on overflow (no
+	// realistic map should hit it; raise FLAT_EFRAG_POOL_MAX if it does).
+	if (cl_flat_efrag_work_used > 0 && cl_num_flat_efrag_records < MAX_STATIC_ENTITIES)
+	{
+		flat_efrag_record_t *rec;
+
+		if (cl_flat_efrag_pool_used + cl_flat_efrag_work_used > FLAT_EFRAG_POOL_MAX)
+			Sys_Error ("flat efrag pool overflow (%d + %d > %d); raise FLAT_EFRAG_POOL_MAX",
+			           cl_flat_efrag_pool_used, cl_flat_efrag_work_used, FLAT_EFRAG_POOL_MAX);
+
+		rec = &cl_flat_efrag_records[cl_num_flat_efrag_records++];
+		rec->ent       = ent;
+		rec->firstleaf = cl_flat_efrag_pool_used;
+		rec->numleaves = cl_flat_efrag_work_used;
+		memcpy (cl_flat_efrag_pool + cl_flat_efrag_pool_used,
+		        cl_flat_efrag_work,
+		        cl_flat_efrag_work_used * sizeof(int));
+		cl_flat_efrag_pool_used += cl_flat_efrag_work_used;
+	}
+
 	R_CheckEfrags (); //johnfitz
 }
 
+/*
+===================
+R_ResetFlatEfrags -- PPC port v9 item 1
+
+Called from R_NewMap so the next level starts with empty flat-array
+records. The hunk-allocated pool is reset implicitly because Hunk_Free
+runs on level transition (or because the pool was Hunk_AllocName'd
+into the high hunk); we just reset the counters.
+===================
+*/
+void R_ResetFlatEfrags (void)
+{
+	cl_num_flat_efrag_records = 0;
+	cl_flat_efrag_pool_used   = 0;
+	cl_flat_efrag_work_used   = 0;
+}
+
+/*
+================
+R_StoreStaticEntities -- PPC port v9 item 1
+
+Single sequential pass over the flat-array static-entity records.
+Replaces the per-leaf R_StoreEfrags walks called from R_MarkSurfaces.
+For each static entity, scan its leaf list against vis[]; on first
+visible leaf, add to cl_visedicts and break. Cache-friendly read
+pattern (linear over cl_flat_efrag_records and cl_flat_efrag_pool)
+contrasts with the legacy linked-list pointer chase.
+================
+*/
+void R_StoreStaticEntities (byte *vis)
+{
+	int n;
+
+	for (n = 0; n < cl_num_flat_efrag_records; n++)
+	{
+		flat_efrag_record_t *rec = &cl_flat_efrag_records[n];
+		entity_t            *ent = rec->ent;
+		int                  i;
+		int                  endleaf;
+
+		if (ent->visframe == r_framecount)
+			continue;	// already added this frame
+		if (cl_numvisedicts >= MAX_VISEDICTS)
+			break;
+
+		endleaf = rec->firstleaf + rec->numleaves;
+		for (i = rec->firstleaf; i < endleaf; i++)
+		{
+			int bit = cl_flat_efrag_pool[i];
+			if (vis[bit >> 3] & (1 << (bit & 7)))
+			{
+				cl_visedicts[cl_numvisedicts++] = ent;
+				ent->visframe = r_framecount;
+				break;
+			}
+		}
+	}
+}
 
 /*
 ================

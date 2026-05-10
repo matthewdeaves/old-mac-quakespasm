@@ -167,37 +167,55 @@ void R_MarkSurfaces (void)
 		if (cl.worldmodel->textures[i])
 			cl.worldmodel->textures[i]->texturechains[chain_world] = NULL;
 
-	// iterate through leaves, marking surfaces
-	leaf = &cl.worldmodel->leafs[1];
-	for (i=0 ; i<cl.worldmodel->numleafs ; i++, leaf++)
+	// PPC port -- v9 item 1 -- if the flat-array static-entity walker
+	// is enabled (default), skip the per-leaf R_StoreEfrags call inside
+	// the leaf loop and call R_StoreStaticEntities once after the loop.
+	// One sequential pass over the static entities and their leaf-index
+	// pool is cache-friendlier than chasing pointers through per-leaf
+	// efrag_t lists scattered across the hunk.
 	{
-		if (vis[i>>3] & (1<<(i&7)))
-		{
-			if (R_CullBox(leaf->minmaxs, leaf->minmaxs + 3))
-				continue;
+		extern qboolean flat_efrags_disabled;
+		const qboolean flat_path = !flat_efrags_disabled;
 
-			if (r_oldskyleaf.value || leaf->contents != CONTENTS_SKY)
-				for (j=0, mark = leaf->firstmarksurface; j<leaf->nummarksurfaces; j++, mark++)
-				{
-					surf = *mark;
-					if (surf->visframe != r_visframecount)
+		// iterate through leaves, marking surfaces
+		leaf = &cl.worldmodel->leafs[1];
+		for (i=0 ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+			if (vis[i>>3] & (1<<(i&7)))
+			{
+				if (R_CullBox(leaf->minmaxs, leaf->minmaxs + 3))
+					continue;
+
+				if (r_oldskyleaf.value || leaf->contents != CONTENTS_SKY)
+					for (j=0, mark = leaf->firstmarksurface; j<leaf->nummarksurfaces; j++, mark++)
 					{
-						surf->visframe = r_visframecount;
-						if (!R_CullBox(surf->mins, surf->maxs) && !R_BackFaceCull (surf))
+						surf = *mark;
+						if (surf->visframe != r_visframecount)
 						{
-							rs_brushpolys++; //count wpolys here
-							R_ChainSurface(surf, chain_world);
-							R_RenderDynamicLightmaps(surf);
-							if (surf->texinfo->texture->warpimage)
-								surf->texinfo->texture->update_warp = true;
+							surf->visframe = r_visframecount;
+							if (!R_CullBox(surf->mins, surf->maxs) && !R_BackFaceCull (surf))
+							{
+								rs_brushpolys++; //count wpolys here
+								R_ChainSurface(surf, chain_world);
+								R_RenderDynamicLightmaps(surf);
+								if (surf->texinfo->texture->warpimage)
+									surf->texinfo->texture->update_warp = true;
+							}
 						}
 					}
-				}
 
-			// add static models
-			if (leaf->efrags)
-				R_StoreEfrags (&leaf->efrags);
+				// add static models (legacy per-leaf path)
+				if (!flat_path && leaf->efrags)
+					R_StoreEfrags (&leaf->efrags);
+			}
 		}
+
+		// add static models (flat path: single sequential pass).
+		// The flat walker only consults vis[] for visibility; it does
+		// NOT re-check R_CullBox per leaf, but the legacy path also
+		// doesn't (R_CullBox is on the leaf, not the entity).
+		if (flat_path)
+			R_StoreStaticEntities (vis);
 	}
 }
 
