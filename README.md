@@ -108,18 +108,31 @@ The matrix covers **four GPU eras**: fixed-function (Rage 128, GeForce2 MX), ear
 
 ## Latest fps across all six machines
 
-Round v7 wrap (`f2df151d`) — full grid `timedemo demo1/2/3` × 1024×768 + 640×480, 3 runs each, median of run 2 + 3 (drop the warmup):
+Round v8 wrap (`84d35972`) — full grid `timedemo demo1/2/3` × 1024×768 + 640×480, 3 runs each, median of run 2 + 3 (drop the warmup):
 
 | Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
 |---|---:|---:|---:|---:|---:|---:|
-| Yosemite (G3 / Rage 128) | 16.85 | 15.15 | **19.80** | 35.10 | 33.30 | 36.65 |
-| Sawtooth (G4 / GeForce2 MX) | 42.65 | 35.40 | 46.75 | 55.90 | 55.10 | 57.30 |
-| Quicksilver (G4 / Radeon 9000) | 64.20 | 62.45 | 86.15 | 71.95 | 72.10 | 98.25 |
-| Mac mini G4 (G4 / Radeon 9200) | 49.40 | 39.30 | **68.20** | 86.50 | 74.80 | 114.35 |
-| Mac mini Intel (Lion / GMA 950) | 73.05 | 54.55 | 44.70 | 165.35 | 132.15 | 189.00 |
-| iMac 27" (Sequoia / Radeon Pro 580X) | 1835.25 | 1853.25 | 1731.70 | 2048.60 | 2018.55 | 1807.00 |
+| Yosemite (G3 / Rage 128) | 17.35 | 15.85 | **20.70** | 35.65 | 33.95 | 37.50 |
+| Sawtooth (G4 / GeForce2 MX) | 40.30 | 32.70 | 35.75 | 55.85 | 50.05 | 43.70 |
+| Quicksilver (G4 / Radeon 9000) | 64.60 | 61.45 | 61.05 | 68.90 | 67.55 | 68.30 |
+| Mac mini G4 (G4 / Radeon 9200) | 50.30 | 38.55 | **45.30** | 89.90 | 76.65 | 77.80 |
+| Mac mini Intel (Lion / GMA 950) | 75.95 | 56.25 | 36.85 | 169.50 | 133.30 | 142.05 |
+| iMac 27" (Sequoia / Radeon Pro 580X) | 1619.05 | 1536.70 | 1314.90 | 1799.55 | 1792.55 | 1520.30 |
 
-**Bold** cells are headline — yosemite holding 19.80 fps demo3 1024 with the full visual stack on, and mini-g4 demo3 1024 at 68.20 fps after the round-v7 sky hoist (the Radeon 9200's ATI driver win).
+**Bold** cells are headline — **yosemite demo3 1024 lifted from 19.80 → 20.70 fps** after the round-v8 lightmap+multitex hygiene cluster + lava/tele/slime alpha drop on G3 (Rage 128 fillrate-bound on lava-heavy maps). Mac mini G4 demo3 stays in the 45 fps range with the v7 sky hoist still doing its work.
+
+### Round v7 → v8 deltas (1024 cells)
+
+| Machine | demo1 v7 → v8 | demo2 v7 → v8 | demo3 v7 → v8 |
+|---|:---:|:---:|:---:|
+| Yosemite     | 16.85 → 17.35 (+3.0%)  | 15.15 → 15.85 (+4.6%)  | 19.80 → **20.70** (+4.5%) |
+| Sawtooth     | 42.65 → 40.30 (−5.5%)  | 35.40 → 32.70 (−7.6%)  | 46.75 → 35.75 (−23.5%) |
+| Quicksilver  | 64.20 → 64.60 (+0.6%)  | 62.45 → 61.45 (−1.6%)  | 86.15 → 61.05 (−29.1%) |
+| Mac mini G4  | 49.40 → 50.30 (+1.8%)  | 39.30 → 38.55 (−1.9%)  | 68.20 → 45.30 (−33.6%) |
+| Mac mini Intel | 73.05 → 75.95 (+4.0%) | 54.55 → 56.25 (+3.1%)  | 44.70 → 36.85 (−17.6%) |
+| iMac 27"     | 1835.25 → 1619.05 (−11.8%) | 1853.25 → 1536.70 (−17.1%) | 1731.70 → 1314.90 (−24.1%) |
+
+Mixed picture across the matrix: yosemite (G3) is up across all three demos (the round-v8 lightmap-hygiene cluster + autoexec fix landed cleanly). Demo3 regressed everywhere except yosemite — the v5-wrap polish enabled `r_lavaalpha 0.6` / `r_telealpha 0.6` / `r_slimealpha 0.6` across the bench fleet, and demo3 (e1m6 "The Door To Chthon") is heavy on lava and slime. On G3 the cost was acute enough to break the 20-fps floor (forced the alpha drop on yosemite); on the other machines the visual is preserved at the cost of fps headroom that demo3 still passes comfortably. See [`MISTAKES.md`](MISTAKES.md) for the v9 misattribution postmortem that surfaced this.
 
 ## What each machine actually renders
 
