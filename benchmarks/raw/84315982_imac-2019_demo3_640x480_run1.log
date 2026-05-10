@@ -1,0 +1,74 @@
+LOG started on: 05/10/2026 11:16:26 
+Playing registered version.
+Console initialized.
+UDP Initialized
+Exe: 11:12:17 May 10 2026
+256.0 megabyte heap
+Video mode 640x480x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: ATI Technologies Inc.
+GL_RENDERER: ATI Radeon Pro 580X OpenGL Engine
+GL_VERSION: 2.1 ATI-7.0.24
+FOUND: ARB_vertex_buffer_object
+FOUND: EXT_compiled_vertex_array
+FOUND: APPLE_client_storage
+FOUND: APPLE_texture_range
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 8
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SWAP_CONTROL
+FOUND: EXT_texture_filter_anisotropic
+FOUND: EXT_texture_lod_bias
+FOUND: ARB_texture_non_power_of_two
+FOUND: GLSL
+Enabled: GLSL gamma
+Enabled: GLSL alias model rendering
+Enabled: EXT_packed_pixels
+FOUND: glGenerateMipmap
+SDL detected 1 CD-ROM drive 
+CDAudio initialized (SDL, using Mac OS X CD-ROM Device)
+CDAudio_Init: No CD in drive
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '.'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Unknown command "explicit"
+Unknown command "negligible"
+Unknown command "vid_restart`"
+Unknown command "let"
+Unknown command "vid_wait"
+Playing demo from demo3.dem.
+3 demo(s) in loop
+
+
+
+The Door To Chthon
+Using protocol 15
+Warning: Mod_DecompressVis: output overrun on model "maps/e1m6.bsp"
+R_BuildEmissiveLights: 1 seeds for maps/e1m6.bsp
+R_BuildEmissiveLights seed textures: z_exit 
+R_BuildEmissiveLights skipped (fullbright but unmatched): rune_a metal6_3 rune2_4 rune2_1 key03_2 rune2_2 
+You got the shells
+You got the rockets
+You get 2 rockets  
+You receive 25 health
+You got the Rocket Launcher
+You receive 25 health
+You get 2 rockets  
+You got armor
+You got the rockets
+You receive 100 health
+You get 2 rockets  
+You got the nails
+You got the silver runekey
+
+        Your way has been lit...
+
+1090 frames   0.7 seconds 1533.1 fps
