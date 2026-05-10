@@ -157,8 +157,38 @@ else
 fi
 
 echo "[deploy] ship to $HOST:~/Desktop/quake/"
-rsync -av --partial $RSYNC_EXTRA -e 'ssh -o ServerAliveInterval=15' \
+# --checksum: force file-content comparison instead of trusting size+mtime.
+# Saw at least one stale-icon case on sawtooth where rsync's size+mtime
+# heuristic skipped a real update (298 KB stale icns left in place
+# despite the local 2.6 MB version having a different mtime). On a
+# 12 MB bundle the checksum cost is negligible (seconds at most) and it
+# is the only way to guarantee the deployed bytes match the local repo.
+rsync -av --partial --checksum $RSYNC_EXTRA -e 'ssh -o ServerAliveInterval=15' \
   "$STAGE/" "$HOST:Desktop/quake/" | tail -8
+
+# Post-deploy verification: md5 the binary and the icon on the target
+# and compare to the local source. Catches silent rsync-skipped files
+# (we saw this with --partial leaving a 298 KB stale icns on sawtooth).
+LOCAL_BIN_MD5=$(md5sum "$BIN" | awk '{print $1}')
+LOCAL_ICN_MD5=$(md5sum "$REPO_ROOT/MacOSX/QuakeSpasm.icns" | awk '{print $1}')
+REMOTE_VERIFY=$(ssh "$HOST" '
+  if command -v md5 >/dev/null 2>&1; then
+    BIN_MD5=$(md5 -q ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null)
+    ICN_MD5=$(md5 -q ~/Desktop/quake/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null)
+  else
+    BIN_MD5=$(md5sum ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | awk "{print \$1}")
+    ICN_MD5=$(md5sum ~/Desktop/quake/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null | awk "{print \$1}")
+  fi
+  echo "$BIN_MD5 $ICN_MD5"
+' 2>/dev/null)
+REMOTE_BIN_MD5=$(echo "$REMOTE_VERIFY" | awk '{print $1}')
+REMOTE_ICN_MD5=$(echo "$REMOTE_VERIFY" | awk '{print $2}')
+if [ "$LOCAL_BIN_MD5" != "$REMOTE_BIN_MD5" ]; then
+  echo "[deploy] WARN: binary md5 mismatch on $HOST (local $LOCAL_BIN_MD5 vs remote $REMOTE_BIN_MD5)"
+fi
+if [ "$LOCAL_ICN_MD5" != "$REMOTE_ICN_MD5" ]; then
+  echo "[deploy] WARN: icon md5 mismatch on $HOST (local $LOCAL_ICN_MD5 vs remote $REMOTE_ICN_MD5)"
+fi
 
 # In fat mode, also delete any prior id1/autoexec.cfg from a previous
 # per-target deploy. The per-arch hook in host.c runs LAST so it would
