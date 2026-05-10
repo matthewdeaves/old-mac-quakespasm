@@ -1,0 +1,80 @@
+LOG started on: 05/10/2026 10:39:16 
+Playing registered version.
+Console initialized.
+UDP Initialized
+Exe: 10:32:41 May 10 2026
+256.0 megabyte heap
+Video mode 1024x768x32 60Hz (24-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: Intel Inc.
+GL_RENDERER: Intel GMA 950 OpenGL Engine
+GL_VERSION: 1.4 APPLE-7.4.1
+Warning: OpenGL version < 1.5, skipping ARB_vertex_buffer_object check
+FOUND: APPLE_client_storage
+FOUND: APPLE_texture_range
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 8
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SWAP_CONTROL
+FOUND: EXT_texture_filter_anisotropic
+FOUND: EXT_texture_lod_bias
+FOUND: ARB_texture_non_power_of_two
+Warning: OpenGL version < 2, GLSL not available
+Warning: GLSL gamma not available, using hardware gamma
+Warning: GLSL alias model rendering not available, using Fitz renderer
+FOUND: glGenerateMipmapEXT
+SDL detected 1 CD-ROM drive 
+CDAudio initialized (SDL, using Mac OS X CD-ROM Device)
+CDAudio_Init: No CD in drive
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '.'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Unknown command "engine"
+Unknown command "expected"
+Unknown command "smooths"
+Unknown command "flag"
+Unknown command "Lion"
+Unknown command "matches"
+Unknown command "no"
+Unknown command "each"
+Unknown command "the"
+Unknown command "vid_wait"
+Playing demo from demo1.dem.
+3 demo(s) in loop
+
+
+
+the Necropolis
+Using protocol 15
+Warning: Mod_DecompressVis: output overrun on model "maps/e1m3.bsp"
+R_BuildEmissiveLights: 1 seeds for maps/e1m3.bsp
+R_BuildEmissiveLights seed textures: z_exit 
+R_BuildEmissiveLights skipped (fullbright but unmatched): 
+You got the shells
+You got the Grenade Launcher
+You receive 25 health
+You get 2 rockets  
+You got the rockets
+You got the nailgun
+You got the nails
+You got the nails
+You receive 15 health
+You receive 15 health
+You got the rockets
+You get 2 rockets  
+You got the nails
+You got the nails
+You receive 25 health
+
+         You need the gold key
+
+You got the gold key
+969 frames  12.7 seconds  76.2 fps
