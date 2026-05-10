@@ -7,7 +7,7 @@
     <key>CFBundleExecutable</key>
     <string>quakespasm</string>
     <key>CFBundleIconFile</key>
-    <string>QuakeSpasm</string>
+    <string>QuakeSpasm.icns</string>
     <key>CFBundleIdentifier</key>
     <string>net.sf.quakespasm.QuakeSpasm</string>
     <key>CFBundleInfoDictionaryVersion</key>
