@@ -85,7 +85,17 @@ scp -q "$BUILD_HOST:/tmp/QuakeSpasm-iconutil.icns" "$WORK/iconutil.icns"
 
 # Step 3: splice in legacy 48/128 chunks (iconutil emits is32/il32 but
 #         drops ih32/it32; Tiger 10.4 Finder uses those at large sizes).
-echo "[rebuild-icon] step 3/3: splice legacy ih32/h8mk/it32/t8mk for Tiger"
+#         Also splice in the Panther-era 1-bit ICN# / ics# chunks that
+#         iconutil never produces — Panther 10.3 Finder may walk these
+#         first when CFBundleIconFile resolves.
+#         Then REORDER the chunks so legacy chunks come BEFORE TOC and
+#         the ic07-ic14 modern PNG chunks. Tiger walks chunks linearly
+#         and stops at the first match for the requested display size;
+#         a leading TOC + giant PNG chunks can otherwise cause Tiger
+#         Finder to fall back to the default app icon. Modern macOS
+#         doesn't care about chunk order — it uses TOC offsets when
+#         present and walks linearly otherwise.
+echo "[rebuild-icon] step 3/3: splice legacy + reorder for Tiger/Panther"
 python3 <<EOF
 import struct
 from PIL import Image
@@ -121,6 +131,25 @@ def mask_chunk(img, size):
     img = img.resize((size, size), Image.LANCZOS).convert("RGBA")
     return bytes(p[3] for p in img.getdata())
 
+def bw_pair(img, size):
+    """1-bit bitmap + mask, classic Mac ICN# / ics# format."""
+    img = img.resize((size, size), Image.LANCZOS).convert("RGBA")
+    pix = list(img.getdata())
+    bits = bytearray(); mask = bytearray()
+    bb = 0; mb = 0; nb = 0
+    for r,g,b,a in pix:
+        gray = (r*299 + g*587 + b*114) // 1000
+        if a > 16:
+            bb = (bb << 1) | (1 if gray < 128 else 0)
+            mb = (mb << 1) | 1
+        else:
+            bb = (bb << 1); mb = (mb << 1)
+        nb += 1
+        if nb == 8:
+            bits.append(bb); mask.append(mb)
+            bb = mb = nb = 0
+    return bytes(bits), bytes(mask)
+
 def chunk(four_cc, payload):
     return four_cc + struct.pack(">I", 8 + len(payload)) + payload
 
@@ -129,14 +158,59 @@ with open("$WORK/iconutil.icns","rb") as f:
 assert icnu[:4] == b"icns"
 
 src = Image.open("$SRC_PNG").convert("RGBA")
-extras  = chunk(b"ih32", rgb_chunk(src, 48,  False))
-extras += chunk(b"h8mk", mask_chunk(src, 48))
-extras += chunk(b"it32", rgb_chunk(src, 128, True))
-extras += chunk(b"t8mk", mask_chunk(src, 128))
 
-new_body  = icnu[8:] + extras
-new_total = 8 + len(new_body)
-out_bytes = b"icns" + struct.pack(">I", new_total) + new_body
+# Walk what iconutil produced
+existing = []
+off = 8
+while off < len(icnu):
+    typ = icnu[off:off+4]
+    sz = struct.unpack(">I", icnu[off+4:off+8])[0]
+    existing.append((typ, icnu[off:off+sz]))
+    off += sz
+
+existing_types = {c[0] for c in existing}
+
+# Build all the chunks we want (favouring iconutil's where it produced one).
+all_chunks = {}
+
+# 1-bit Panther chunks (iconutil doesn't emit these)
+ib32, im32 = bw_pair(src, 32)
+ib16, im16 = bw_pair(src, 16)
+all_chunks[b"ICN#"] = chunk(b"ICN#", ib32 + im32)
+all_chunks[b"ics#"] = chunk(b"ics#", ib16 + im16)
+
+# Legacy color chunks 16/32 (iconutil emits these — keep its versions)
+for c in existing:
+    if c[0] in (b"is32", b"s8mk", b"il32", b"l8mk"):
+        all_chunks[c[0]] = c[1]
+
+# Larger legacy color chunks 48/128 (iconutil omits — we synthesize)
+all_chunks[b"ih32"] = chunk(b"ih32", rgb_chunk(src, 48,  False))
+all_chunks[b"h8mk"] = chunk(b"h8mk", mask_chunk(src, 48))
+all_chunks[b"it32"] = chunk(b"it32", rgb_chunk(src, 128, True))
+all_chunks[b"t8mk"] = chunk(b"t8mk", mask_chunk(src, 128))
+
+# Modern PNG chunks (iconutil's output) and the TOC
+for c in existing:
+    if c[0] in (b"ic07", b"ic08", b"ic09", b"ic10", b"ic11", b"ic12", b"ic13", b"ic14", b"TOC "):
+        all_chunks[c[0]] = c[1]
+
+# Order: legacy 1-bit + 32-bit + masks (Panther/Tiger walk these first),
+# then modern PNG chunks (Lion+ Retina), then TOC last (modern macOS
+# rebuilds offsets from chunks anyway when TOC is missing/wrong).
+LEGACY_ORDER = [b"ICN#", b"ics#",
+                b"is32", b"s8mk", b"il32", b"l8mk",
+                b"ih32", b"h8mk", b"it32", b"t8mk"]
+MODERN_PNG   = [b"ic07", b"ic08", b"ic09", b"ic10",
+                b"ic11", b"ic12", b"ic13", b"ic14"]
+
+body = b""
+for typ in LEGACY_ORDER + MODERN_PNG + [b"TOC "]:
+    if typ in all_chunks:
+        body += all_chunks[typ]
+
+new_total = 8 + len(body)
+out_bytes = b"icns" + struct.pack(">I", new_total) + body
 
 with open("$OUT_ICNS","wb") as f:
     f.write(out_bytes)
