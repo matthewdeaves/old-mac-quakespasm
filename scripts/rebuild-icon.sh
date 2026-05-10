@@ -150,5 +150,14 @@ while off < new_total:
     off += sz
 EOF
 
+# Step 4: refresh docs/images PNG copies for README hero strip.
+echo "[rebuild-icon] step 4/4: refresh docs/images/quakespasm-icon*.png"
+python3 <<EOF
+from PIL import Image
+src = Image.open("$SRC_PNG").convert("RGBA")
+src.resize((256, 256), Image.LANCZOS).save("$REPO_ROOT/docs/images/quakespasm-icon-256.png", optimize=True)
+src.resize((1024, 1024), Image.LANCZOS).save("$REPO_ROOT/docs/images/quakespasm-icon.png", optimize=True)
+EOF
+
 echo "[rebuild-icon] done."
 echo "[rebuild-icon] next: deploy with scripts/deploy.sh <machine> to ship the new icon"
