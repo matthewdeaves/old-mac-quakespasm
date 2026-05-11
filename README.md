@@ -18,18 +18,9 @@ A QuakeSpasm fork tuned to look as good as possible while staying playable on **
   <img src="docs/screenshots/imac-2019_spasm0010.webp" width="24%" alt="iMac 27&quot; 2019 / Radeon Pro 580X" />
 </p>
 
-## fps improvement (Yosemite B&W G3, 449 MHz / Rage 128)
+## Headline
 
-Vanilla v2-baseline (`4c165e6f`, early-port pre-Phase-0) → current Round v11.1 (`d64427db`):
-
-| Cell | Before | After | Improvement |
-|---|---:|---:|---:|
-| **demo3 1024×768** | 5.10 fps | **20.95 fps** | **+311% (4.1×)** |
-| demo1 1024×768 | 7.70 fps | 17.35 fps | +125% (2.3×) |
-
-Baselines from [`PPC_PLAN.md §17.7.1`](PPC_PLAN.md). 640×480 cells weren't formally baselined at the v2-baseline checkpoint, so they're omitted here — current numbers are in the full grid below.
-
-…with translucent water, alias drop-shadows, emissive-fullbright dynamic lights, watervis NoVis (auto-engine), classic warped water (Rage 128 framebuffer-copy refraction bug), reduced particles, coarser warp tessellation, `gl_clear 0`, and a per-frame dynamic-light distance gate. Lava / slime / teleporter alpha was dropped on G3 in [Round v8 followup](MISTAKES.md) — `r_lavaalpha 0.6` alone dropped demo3 1024 by 26% on Rage 128, pushing G3 below the 20-fps floor.
+On the 1999 B&W G3 (449 MHz PPC 750, Rage 128 16 MB AGP), the dlight-heavy `demo3` at 1024×768 went from **5.10 fps to 20.95 fps (+311 %)** across the project — with translucent water, alias drop-shadows, emissive-fullbright dynamic lights, watervis NoVis (auto-engine), classic warped water (Rage 128 framebuffer-copy refraction bug), reduced particles, coarser warp tessellation, `gl_clear 0`, and a per-frame dynamic-light distance gate. Lava / slime / teleporter alpha was dropped on G3 in [Round v8 followup](MISTAKES.md) — `r_lavaalpha 0.6` alone dropped demo3 1024 by 26 % on Rage 128, pushing G3 below the 20-fps floor. Full per-cell, per-machine breakdown below.
 
 ## The bench fleet
 
@@ -44,20 +35,26 @@ Baselines from [`PPC_PLAN.md §17.7.1`](PPC_PLAN.md). 640×480 cells weren't for
 
 Four GPU eras: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Radeon 9000/9200), Intel integrated GMA, modern AMD discrete.
 
-## Latest fps across all six machines
+## Before vs after — first compiled build → Round v11.1
 
-Round v11.1 (`d64427db`), `timedemo demo1/2/3` × 1024×768 + 640×480, median of runs 2 + 3:
+Each cell shows the earliest recorded fps for that machine + demo + resolution → the current Round v11.1 (`d64427db`) fps, with the cumulative delta. `timedemo demo1/2/3` × 1024×768 + 640×480, median of runs 2 + 3. Bold cells = ≥ +50 % cumulative gain.
 
 | Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
 |---|---:|---:|---:|---:|---:|---:|
-| Yosemite (G3 / Rage 128) | 17.35 | 15.25 | 20.95 | 34.45 | 33.40 | 36.85 |
-| Sawtooth (G4 / GeForce2 MX) | 40.25 | 32.70 | **46.90** | 55.65 | 50.15 | **57.55** |
-| Quicksilver (G4 / Radeon 9000) | 62.75 | 60.10 | **84.05** | 70.30 | 68.00 | **95.35** |
-| Mac mini G4 (G4 / Radeon 9200) | 48.45 | 37.40 | **65.60** | 86.30 | 73.85 | **113.20** |
-| Mac mini Intel (Lion / GMA 950) | 72.85 | 54.50 | **44.60** | 163.95 | 130.70 | **185.90** |
-| iMac 27" (Sequoia / Radeon Pro 580X) | 1610.95 | 1490.20 | **1575.15** | 1894.45 | 1876.20 | **1907.25** |
+| Yosemite (G3 / Rage 128) | **7.70 → 17.35 (+125%)** | 24.70 → 15.25 (−38%) | **5.10 → 20.95 (+311%)** | 23.65 → 34.45 (+46%) | **20.10 → 33.40 (+66%)** | **15.30 → 36.85 (+141%)** |
+| Sawtooth (G4 / GeForce2 MX) | 52.20 → 40.25 (−23%) | 58.00 → 32.70 (−44%) | 47.70 → 46.90 (−2%) | 87.60 → 55.65 (−36%) | 103.15 → 50.15 (−51%) | 59.10 → 57.55 (−3%) |
+| Quicksilver (G4 / Radeon 9000) | 110.05 → 62.75 (−43%) | 108.25 → 60.10 (−44%) | 90.90 → 84.05 (−8%) | 147.35 → 70.30 (−52%) | 156.60 → 68.00 (−57%) | 119.90 → 95.35 (−20%) |
+| Mac mini G4 (G4 / Radeon 9200) | 74.10 → 48.45 (−35%) | 69.70 → 37.40 (−46%) | 67.30 → 65.60 (−3%) | 146.30 → 86.30 (−41%) | 145.70 → 73.85 (−49%) | 117.55 → 113.20 (−4%) |
+| Mac mini Intel (Lion / GMA 950) | 96.60 → 72.85 (−25%) | 90.10 → 54.50 (−40%) | 44.70 → 44.60 (−0%) | 225.50 → 163.95 (−27%) | 210.25 → 130.70 (−38%) | 189.25 → 185.90 (−2%) |
+| iMac 27" (Sequoia / Radeon Pro 580X) | 2042.65 → 1610.95 (−21%) | 2017.95 → 1490.20 (−26%) | 1544.80 → 1575.15 (+2%) | 2326.60 → 1894.45 (−19%) | 2125.25 → 1876.20 (−12%) | 1714.00 → 1907.25 (+11%) |
 
-**Round v11.1 highlight:** per-frame GL state cache in `R_DrawAliasModel` (Round v11) landed **+19 % to +46 % on demo3 1024** across every cached machine. Compiled out of the G3 ppc750 slice via `QS_DISABLE_ALIAS_STATE_CACHE` — same-session A/B confirmed neutral on Yosemite. See [`CLAUDE.md` "Per-machine gating is a legitimate pattern"](CLAUDE.md) for the gating mechanism.
+> **How to read this table.** Only the **Yosemite (G3)** row shows pure perf work — the Rage 128 is permanently fillrate-bound at 449 MHz, so every round on G3 chased fps and nothing else. The headline demo3 1024 cell jumped from 5.10 fps to 20.95 fps (+311 %) across phases 0–11.1.
+>
+> The other five rows include the **cumulative fps cost of every visual upgrade** added since each machine's first build — 16× anisotropic filtering, trilinear texture mode, alias drop-shadows, translucent water/lava/slime/teleporter surfaces, emissive-fullbright dynamic lights, the `gl_zfix` z-fighting fix, and more (see [next section](#what-each-machine-renders-by-default) for the per-machine inventory). The project goal on G4 / Intel is **best-looking Quake above the playability floor** (≥ 60 fps G4 / Lion, ≥ 20 fps G3) — fps below first-build is in scope when traded for a real visual upgrade. The demo3 1024 cells stayed roughly flat on the G4 trio + Intel because **Round v11.1 paid back ~+20–45 %** on the dlight-heavy demo via the new alias state cache, recovering most of what visual upgrades had cost on that demo.
+>
+> **Round v11.1 highlight** — per-frame GL state cache in `R_DrawAliasModel` (Round v11). Landed **+19 % to +46 % on demo3 1024** across every cached machine in same-session A/B vs the Round v8 wrap (`84d35972`) baseline. Cache is compiled out of the G3 ppc750 slice via `QS_DISABLE_ALIAS_STATE_CACHE`; same-session A/B confirmed Yosemite is neutral. See [`CLAUDE.md` "Per-machine gating is a legitimate pattern"](CLAUDE.md) for the gating mechanism and [`docs/archive/PPC_PERF_R7.md`](docs/archive/PPC_PERF_R7.md) for the static-analysis-driven round before this one.
+
+Baseline sources: Yosemite demo1/3 1024 use the pre-Phase-0 vanilla v2-baseline from [`PPC_PLAN.md §17.7.1`](PPC_PLAN.md) (7.70 / 5.10 fps); every other cell uses each machine's earliest recorded `benchmarks/results.csv` row (Sawtooth = pre-perf port baseline `1615d99a`; Quicksilver + Mac mini G4 = Phase 0 `3e502882`; Mac mini Intel + iMac = Lion-target baseline `016a0ef4`).
 
 ## What each machine renders by default
 
