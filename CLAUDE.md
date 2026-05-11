@@ -113,6 +113,43 @@ perf knob must be flippable at runtime (cvar) or at launch
 contributions without a rebuild. See "Toggleable knobs" below for the
 current inventory.
 
+**Per-machine gating is a legitimate pattern.** When an optimisation
+helps some machines and hurts others, the right answer is usually
+*not* to drop the optimisation — it's to gate it so the machines that
+benefit ship it and the machines that don't fall back to the prior
+behaviour. The project has three mechanisms, listed from most to
+least restrictive:
+
+1. **Compile-time gate by build slice** — `#if (defined(__ppc__) ||
+   defined(__POWERPC__) || defined(__powerpc__)) && !defined(__VEC__)
+   && !defined(__ALTIVEC__)` selects the **G3 ppc750 slice only** of
+   the fat binary. Mirror macros for G4 (`__VEC__ || __ALTIVEC__`)
+   and x86_64 (`__x86_64__ || __amd64__`). Used when the per-call
+   overhead of the runtime check itself would matter on the slice we
+   want to skip, or when the code is fundamentally incompatible with
+   the slice (e.g. AltiVec intrinsics on G3). Example: Round v11
+   `gl_aliasstate_cache` is compiled out of the G3 slice — see
+   `r_alias.c` `QS_DISABLE_ALIAS_STATE_CACHE`. Compile-time gates
+   also remove the dangling-extern-via-`gl_rmisc.c` problem when the
+   cvar declaration disappears.
+2. **Per-machine autoexec** (`scripts/bundle/autoexec-<machine>.cfg`,
+   selected at boot via `sysctl hw.model` — see `host.c:935`) — the
+   right tool when the difference is hardware/driver (Rage 128 vs
+   GeForce2 MX vs Radeon 9000) rather than slice. Example: G3
+   yosemite's `r_oldwater 1` (R128 refraction bug) and `r_shadows 1`
+   trial. Note: `bench.sh` passes `-noarchautoexec` to keep `+cvar
+   …` extras deterministic, so autoexec-driven per-machine state is
+   NOT in effect during bench runs — use a compile-time gate or
+   `EXTRA_CVARS=` if the gate matters to the bench.
+3. **Runtime cvar / cmdline opt-out** — the everywhere-available
+   toggle for end-of-round A/B review. `-noaltivec-lm`, `-nomtexhoist`,
+   etc. Default-on is the norm; default-off is the conservative
+   landing for new code.
+
+Don't bury a beneficial change behind a runtime cvar if the
+beneficiaries are 5/6 of the matrix — gate it to the one machine that
+regresses and ship the wins.
+
 ## Toggleable knobs (current inventory, 2026-05-10)
 
 Every per-target visual / perf decision shipped to date can be flipped
@@ -178,6 +215,12 @@ because they barely exercise warp updates).
 | `-nomtexhoist`           | cmdline | enabled | **Round v8 item 2 -- multitex enable/disable hoist.** Default-on path enables TMU1 once before `R_DrawTextureChains_Multitexture`'s texture loop and disables it once after, instead of toggling per chain (~30-50× per frame in pre-v8). Hygiene cleanup; sub-1% on R128 (driver shrugs at no-op enables). Pass `-nomtexhoist` to revert to per-chain toggles. | `gl_rmisc.c` `R_Init` |
 | `-nodirtylmlist`         | cmdline | enabled | **Round v8 item 3 -- dirty-lightmap list.** Default-on path tracks dirty lightmap indices in an int[] populated at the modified-edge in `R_RenderDynamicLightmaps` so `R_UploadLightmaps` walks only dirty entries instead of all `lightmap_count`. Sub-1% on G3 (pre-v8 walk is L1-resident). Pass `-nodirtylmlist` to revert to the linear walk. | `gl_rmisc.c` `R_Init` |
 | `-nolmunroll`            | cmdline | enabled | **Round v8 item 4 -- 2-texel scalar unroll in `R_BuildLightMap`.** G3-only relevant (G4 takes the `__ALTIVEC__` path when not opt-out). Batches 6 byte loads ahead of 6 mul-adds to expose ILP to PPC 7 50's integer pipeline. Up to ~2% best case on dlight-heavy demos. Pass `-nolmunroll` to revert to the per-texel form. | `gl_rmisc.c` `R_Init` |
+
+**Round v11 alias state-cache knob (2026-05-11):**
+
+| Knob | Type | Default | What it gates | File |
+|------|------|---------|---------------|------|
+| `gl_aliasstate_cache` | cvar (CVAR_ARCHIVE) | 1 (on) on G4/Lion/iMac slices; **compile-time excluded on G3 ppc750 slice** via `QS_DISABLE_ALIAS_STATE_CACHE` in `r_alias.c` | **Round v11 — per-frame GL state cache in `R_DrawAliasModel`.** Intercepts `glTexEnvf(GL_TEXTURE_ENV_MODE, ...)`, `glDepthMask`, and `glEnable/Disable(GL_BLEND)` and no-ops calls that match the cached value. `R_DrawAliasModel` is the hottest state-change site in the engine (~50 calls per alias entity in default config, ~46 of which the cache helpers wrap); each case path's explicit "reset to REPLACE/TRUE/disable" at the end of its block is followed by the function-end cleanup label re-emitting the same defensive resets. The cache catches the cleanup-line redundancy and the rare adjacent same-value calls across case paths. TexEnvMode is tracked per-active-TMU (via `mtexenabled`) so multitex paths cache correctly. Same-session A/B bench data: sawtooth +31.5%, quicksilver +38.1%, mini-g4 +44.9%, mini-intel +21.2%, imac-2019 +16.0%, **yosemite −4.1%** (the regression that drives the compile-time exclusion on G3). Reset once per frame from `R_RenderScene` (`gl_rmain.c:1126`). Cvar registered conditionally in `gl_rmisc.c` `R_Init`. | `r_alias.c`, `gl_rmain.c`, `gl_rmisc.c` |
 
 **Pass B B6 retest hatch:** `-r128-cva` (G3 only — Rage 128 detection)
 overrides the default skip of `glLockArraysEXT` on R128 so we can

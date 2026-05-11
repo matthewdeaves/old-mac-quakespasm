@@ -1124,6 +1124,15 @@ void R_RenderScene (void)
 {
 	R_SetupScene (); //johnfitz -- this does everything that should be done once per call to RenderScene
 
+	// PPC port -- Round v11: clear the per-frame alias GL state cache so
+	// cached state never lags the GL context across vid-mode changes or
+	// cvar flips between frames. First cached call after this reset
+	// always emits the real glXxx (cache miss).
+	{
+		extern void R_AliasStateCache_FrameReset (void);
+		R_AliasStateCache_FrameReset ();
+	}
+
 	Fog_EnableGFog (); //johnfitz
 
 	// PPC port -- Phase 7: per-region timing. Macros expand to no-ops

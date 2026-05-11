@@ -58,6 +58,141 @@ static float	entalpha; //johnfitz
 
 static qboolean overbright; //johnfitz
 
+// =============================================================================
+// PPC port -- Round v11: per-frame GL state cache for R_DrawAliasModel.
+//
+// R_DrawAliasModel is the hottest GL state-change site in the engine — up
+// to ~50 driver-dispatch calls per visible alias entity in default config.
+// Many are redundant: each case path ends by resetting TEXTURE_ENV_MODE,
+// DEPTH_MASK and BLEND to known values, then the cleanup label at the
+// bottom of R_DrawAliasModel re-issues the same values defensively.
+//
+// The cache below intercepts the three highest-redundancy state classes
+// (TexEnvMode, DepthMask, BlendEnabled). Each cached setter no-ops the
+// underlying glXxx call when the requested value matches the cached one.
+// Reset once per frame from R_RenderScene so cached state can never lag
+// the GL context across vid-mode changes or cvar flips.
+//
+// TexEnvMode is per-active-TMU on multitexture-capable targets — the
+// cache tracks both TMUs separately and reads `mtexenabled` (gl_texmgr.c)
+// to know which slot to update. On G3 R128 the overbright + fullbright
+// paths are non-multitex anyway, so the [1] slot is rarely used there.
+//
+// Per-machine bench (2026-05-11 same-session A/B vs Round v8 wrap
+// baseline on demo3 1024×768):
+//
+//   sawtooth     (G4 AGP / GeForce2 MX)    +31.5%  (35.75 → 47.00)
+//   quicksilver  (G4 / Radeon 9000)        +38.1%  (61.05 → 84.30)
+//   mini-g4      (G4 mini / Radeon 9200)   +44.9%  (45.30 → 65.65)
+//   mini-intel   (Intel Lion / GMA 950)    +21.2%  (36.85 → 44.65)
+//   imac-2019    (Sequoia / Radeon Pro 580X) +16.0% (1314.90 → 1525.55)
+//   yosemite     (G3 B&W / Rage 128 / Panther)  -4.1%  (20.70 → 19.85)
+//
+// G3 alone regresses. Two contributing factors: gcc 4.0.1 on the 10.3.9
+// SDK doesn't reliably inline the static-inline cache helpers, so each
+// cached call pays a real function-call cost; and the Rage 128 / Panther
+// driver dispatch profile is different enough that the saved redundant-
+// call overhead doesn't recover the per-call check cost. The cache is
+// runtime-toggled via the gl_aliasstate_cache cvar (default 1); the
+// yosemite autoexec sets it to 0.
+//
+// The cache is compiled out of the G3 slice — see QS_DISABLE_ALIAS_STATE_CACHE
+// gate below. On other slices it's runtime-toggleable via the
+// gl_aliasstate_cache cvar (default "1" / on) for debug A/B.
+// =============================================================================
+
+// PPC G3 build = ppc + no AltiVec. Apple gcc-4.0 defines __ppc__ /
+// __POWERPC__ for PPC targets, and __VEC__ / __ALTIVEC__ only when
+// -maltivec is on (G4 ppc7400 slice). x86_64 defines neither. This
+// gate identifies exactly the regressing slice. Mirrors the macro
+// idiom used at host.c:916-921 for per-arch autoexec dispatch.
+#if (defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)) \
+ && !defined(__VEC__) && !defined(__ALTIVEC__)
+#define QS_DISABLE_ALIAS_STATE_CACHE 1
+#endif
+
+#ifndef QS_DISABLE_ALIAS_STATE_CACHE
+cvar_t gl_aliasstate_cache = {"gl_aliasstate_cache", "1", CVAR_ARCHIVE};
+
+static qboolean alias_state_cache_disabled = false; // cvar mirror, refreshed once per frame
+static int cached_texenv_mode[2];                   // [0] = TMU0, [1] = TMU1
+static int cached_depth_mask;
+static int cached_blend_enabled;
+#endif
+
+void R_AliasStateCache_FrameReset (void)
+{
+#ifndef QS_DISABLE_ALIAS_STATE_CACHE
+	alias_state_cache_disabled = (gl_aliasstate_cache.value == 0.0f);
+	cached_texenv_mode[0] = -1;
+	cached_texenv_mode[1] = -1;
+	cached_depth_mask = -1;
+	cached_blend_enabled = -1;
+#endif
+}
+
+static inline void GL_SetTexEnvMode (GLenum mode)
+{
+#ifdef QS_DISABLE_ALIAS_STATE_CACHE
+	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, (GLfloat)mode);
+#else
+	int tmu = mtexenabled ? 1 : 0;
+	if (alias_state_cache_disabled || (int)mode != cached_texenv_mode[tmu])
+	{
+		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, (GLfloat)mode);
+		cached_texenv_mode[tmu] = (int)mode;
+	}
+#endif
+}
+
+static inline void GL_SetTexEnvModeI (GLenum mode)
+{
+#ifdef QS_DISABLE_ALIAS_STATE_CACHE
+	glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+#else
+	int tmu = mtexenabled ? 1 : 0;
+	if (alias_state_cache_disabled || (int)mode != cached_texenv_mode[tmu])
+	{
+		glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+		cached_texenv_mode[tmu] = (int)mode;
+	}
+#endif
+}
+
+static inline void GL_SetDepthMask (GLboolean mask)
+{
+#ifdef QS_DISABLE_ALIAS_STATE_CACHE
+	glDepthMask (mask);
+#else
+	int v = mask ? 1 : 0;
+	if (alias_state_cache_disabled || v != cached_depth_mask)
+	{
+		glDepthMask (mask);
+		cached_depth_mask = v;
+	}
+#endif
+}
+
+static inline void GL_SetBlendEnabled (qboolean enabled)
+{
+#ifdef QS_DISABLE_ALIAS_STATE_CACHE
+	if (enabled)
+		glEnable (GL_BLEND);
+	else
+		glDisable (GL_BLEND);
+#else
+	int v = enabled ? 1 : 0;
+	if (alias_state_cache_disabled || v != cached_blend_enabled)
+	{
+		if (enabled)
+			glEnable (GL_BLEND);
+		else
+			glDisable (GL_BLEND);
+		cached_blend_enabled = v;
+	}
+#endif
+}
+
 static qboolean shading = true; //johnfitz -- if false, disable vertex shading for various reasons (fullbright, r_lightmap, showtris, etc)
 
 //johnfitz -- struct for passing lerp information to drawing functions
@@ -874,6 +1009,14 @@ void R_DrawAliasModel (entity_t *e)
 	lerpdata_t	lerpdata;
 	qboolean	alphatest = !!(e->model->flags & MF_HOLEY);
 	float		fovscale = 1.0f;
+	// PPC port -- Round v11 Stage 1: capture entry state-change decisions
+	// so cleanup mirrors them exactly. Pre-Stage-1 the cleanup label at
+	// the bottom of this function unconditionally reset glShadeModel and
+	// glHint every entity, even when the entry branches hadn't touched
+	// them — on R128 Panther that's a driver-dispatch waste per alias
+	// entity in the scene.
+	qboolean	did_set_smooth = (gl_smoothmodels.value && !r_drawflat_cheatsafe);
+	qboolean	did_set_affine = !!gl_affinemodels.value;
 
 	//
 	// setup pose/lerp data -- do it first so we don't miss updates due to culling
@@ -902,9 +1045,9 @@ void R_DrawAliasModel (entity_t *e)
 	//
 	// random stuff
 	//
-	if (gl_smoothmodels.value && !r_drawflat_cheatsafe)
+	if (did_set_smooth)
 		glShadeModel (GL_SMOOTH);
-	if (gl_affinemodels.value)
+	if (did_set_affine)
 		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 	overbright = !!gl_overbright_models.value;
 	shading = true;
@@ -921,8 +1064,8 @@ void R_DrawAliasModel (entity_t *e)
 	if (entalpha < 1)
 	{
 		if (!gl_texture_env_combine) overbright = false; //overbright can't be done in a single pass without combiners
-		glDepthMask(GL_FALSE);
-		glEnable(GL_BLEND);
+		GL_SetDepthMask(GL_FALSE);
+		GL_SetBlendEnabled(true);
 	}
 	else if (alphatest)
 		glEnable (GL_ALPHA_TEST);
@@ -973,18 +1116,18 @@ void R_DrawAliasModel (entity_t *e)
 		GL_DrawAliasFrame (paliashdr, lerpdata);
 		if (fb)
 		{
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_SetTexEnvMode(GL_MODULATE);
 			GL_Bind(fb);
-			glEnable(GL_BLEND);
+			GL_SetBlendEnabled(true);
 			glBlendFunc (GL_ONE, GL_ONE);
-			glDepthMask(GL_FALSE);
+			GL_SetDepthMask(GL_FALSE);
 			glColor3f(entalpha,entalpha,entalpha);
 			Fog_StartAdditive ();
 			GL_DrawAliasFrame (paliashdr, lerpdata);
 			Fog_StopAdditive ();
-			glDepthMask(GL_TRUE);
+			GL_SetDepthMask(GL_TRUE);
 			glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDisable(GL_BLEND);
+			GL_SetBlendEnabled(false);
 		}
 	}
 	else if (r_lightmap_cheatsafe)
@@ -1006,49 +1149,49 @@ void R_DrawAliasModel (entity_t *e)
 		if  (gl_texture_env_combine && gl_mtexable && gl_texture_env_add && fb) //case 1: everything in one pass
 		{
 			GL_Bind (tx);
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+			GL_SetTexEnvModeI(GL_COMBINE_EXT);
 			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
 			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
 			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
 			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
 			GL_EnableMultitexture(); // selects TEXTURE1
 			GL_Bind (fb);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
-			glEnable(GL_BLEND);
+			GL_SetTexEnvMode(GL_ADD);
+			GL_SetBlendEnabled(true);
 			GL_DrawAliasFrame (paliashdr, lerpdata);
-			glDisable(GL_BLEND);
+			GL_SetBlendEnabled(false);
 			GL_DisableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			GL_SetTexEnvMode(GL_REPLACE);
 		}
 		else if (gl_texture_env_combine) //case 2: overbright in one pass, then fullbright pass
 		{
 		// first pass
 			GL_Bind(tx);
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+			GL_SetTexEnvModeI(GL_COMBINE_EXT);
 			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
 			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
 			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
 			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
 			GL_DrawAliasFrame (paliashdr, lerpdata);
 			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			GL_SetTexEnvMode(GL_REPLACE);
 		// second pass
 			if (fb)
 			{
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_SetTexEnvMode(GL_MODULATE);
 				GL_Bind(fb);
-				glEnable(GL_BLEND);
+				GL_SetBlendEnabled(true);
 				glBlendFunc (GL_ONE, GL_ONE);
-				glDepthMask(GL_FALSE);
+				GL_SetDepthMask(GL_FALSE);
 				shading = false;
 				glColor3f(entalpha,entalpha,entalpha);
 				Fog_StartAdditive ();
 				GL_DrawAliasFrame (paliashdr, lerpdata);
 				Fog_StopAdditive ();
-				glDepthMask(GL_TRUE);
+				GL_SetDepthMask(GL_TRUE);
 				glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDisable(GL_BLEND);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				GL_SetBlendEnabled(false);
+				GL_SetTexEnvMode(GL_REPLACE);
 			}
 		}
 		else //case 3: overbright in two passes, then fullbright pass
@@ -1060,39 +1203,39 @@ void R_DrawAliasModel (entity_t *e)
 		// opportunity in the engine.
 		// first pass
 			GL_Bind(tx);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_SetTexEnvMode(GL_MODULATE);
 			alias_scope_want_lock = true;  // case 3 pass 1+2 share the lock
 			GL_AliasFrame_Begin (paliashdr, lerpdata);
 			GL_AliasFrame_Draw  (paliashdr);
 		// second pass -- additive with black fog, to double the object colors but not the fog color
-			glEnable(GL_BLEND);
+			GL_SetBlendEnabled(true);
 			glBlendFunc (GL_ONE, GL_ONE);
-			glDepthMask(GL_FALSE);
+			GL_SetDepthMask(GL_FALSE);
 			Fog_StartAdditive ();
 			GL_AliasFrame_Draw  (paliashdr);
 			Fog_StopAdditive ();
 			GL_AliasFrame_End   ();
-			glDepthMask(GL_TRUE);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			GL_SetDepthMask(GL_TRUE);
+			GL_SetTexEnvMode(GL_REPLACE);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDisable(GL_BLEND);
+			GL_SetBlendEnabled(false);
 		// third pass
 			if (fb)
 			{
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				GL_SetTexEnvMode(GL_MODULATE);
 				GL_Bind(fb);
-				glEnable(GL_BLEND);
+				GL_SetBlendEnabled(true);
 				glBlendFunc (GL_ONE, GL_ONE);
-				glDepthMask(GL_FALSE);
+				GL_SetDepthMask(GL_FALSE);
 				shading = false;
 				glColor3f(entalpha,entalpha,entalpha);
 				Fog_StartAdditive ();
 				GL_DrawAliasFrame (paliashdr, lerpdata);
 				Fog_StopAdditive ();
-				glDepthMask(GL_TRUE);
+				GL_SetDepthMask(GL_TRUE);
 				glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDisable(GL_BLEND);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				GL_SetBlendEnabled(false);
+				GL_SetTexEnvMode(GL_REPLACE);
 			}
 		}
 	}
@@ -1102,47 +1245,49 @@ void R_DrawAliasModel (entity_t *e)
 		{
 			GL_DisableMultitexture(); // selects TEXTURE0
 			GL_Bind (tx);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_SetTexEnvMode(GL_MODULATE);
 			GL_EnableMultitexture(); // selects TEXTURE1
 			GL_Bind (fb);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
-			glEnable(GL_BLEND);
+			GL_SetTexEnvMode(GL_ADD);
+			GL_SetBlendEnabled(true);
 			GL_DrawAliasFrame (paliashdr, lerpdata);
-			glDisable(GL_BLEND);
+			GL_SetBlendEnabled(false);
 			GL_DisableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			GL_SetTexEnvMode(GL_REPLACE);
 		}
 		else //case 5: fullbright mask without multitexture
 		{
 		// first pass
 			GL_Bind(tx);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_SetTexEnvMode(GL_MODULATE);
 			GL_DrawAliasFrame (paliashdr, lerpdata);
 		// second pass
 			if (fb)
 			{
 				GL_Bind(fb);
-				glEnable(GL_BLEND);
+				GL_SetBlendEnabled(true);
 				glBlendFunc (GL_ONE, GL_ONE);
-				glDepthMask(GL_FALSE);
+				GL_SetDepthMask(GL_FALSE);
 				shading = false;
 				glColor3f(entalpha,entalpha,entalpha);
 				Fog_StartAdditive ();
 				GL_DrawAliasFrame (paliashdr, lerpdata);
 				Fog_StopAdditive ();
-				glDepthMask(GL_TRUE);
+				GL_SetDepthMask(GL_TRUE);
 				glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDisable(GL_BLEND);
+				GL_SetBlendEnabled(false);
 			}
 		}
 	}
 
 cleanup:
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-	glShadeModel (GL_FLAT);
-	glDepthMask(GL_TRUE);
-	glDisable(GL_BLEND);
+	GL_SetTexEnvMode(GL_REPLACE);
+	if (did_set_affine)
+		glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+	if (did_set_smooth)
+		glShadeModel (GL_FLAT);
+	GL_SetDepthMask(GL_TRUE);
+	GL_SetBlendEnabled(false);
 	if (alphatest)
 		glDisable (GL_ALPHA_TEST);
 	glColor3f(1,1,1);

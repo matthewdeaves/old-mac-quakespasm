@@ -245,6 +245,18 @@ void R_Init (void)
 
 	R_PerfPrint_Init ();   // PPC port -- Phase 7: register gl_perfprint cvar + parse -perfprint
 
+	// PPC port -- Round v11: alias GL state cache cvar. Default-on. The
+	// cvar (and the cache it controls) is compiled out of the G3 slice
+	// of the fat binary — see QS_DISABLE_ALIAS_STATE_CACHE in r_alias.c
+	// for the bench data driving that decision.
+#if !((defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)) \
+   && !defined(__VEC__) && !defined(__ALTIVEC__))
+	{
+		extern cvar_t gl_aliasstate_cache;
+		Cvar_RegisterVariable (&gl_aliasstate_cache);
+	}
+#endif
+
 	// PPC port -- §14.3 item 3: -nowarpedarrays falls back to the
 	// pre-§14.3 glBegin/glEnd warp tess loop. Default-on (client-array
 	// path is the new shipping default).
