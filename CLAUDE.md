@@ -371,6 +371,73 @@ Per-target flags (full set, including the `-isysroot` and version-min):
 Cosmetic linker warnings about `-mlong-branch` from Apple's `crt1.o`/`crt2.o`
 are harmless on PPC builds. Suppress with `-Wl,-w` if noisy.
 
+## Multi-tenancy on mini-intel (shared with the Q2 sister project)
+
+`mini-intel` is the cross-build host for **both** this QuakeSpasm port
+and the Q2 sister project at `~/quake2/` (yquake2 5.11 base, same
+6-machine bench fleet). The two projects coexist on the same Lion box
+by using **separate upload directories** for source rsync and
+**workstation-local** build artifacts. Don't conflate them.
+
+| Resource | QuakeSpasm uses | Q2 uses (must) |
+|---|---|---|
+| Source rsync target on mini-intel | `mini-intel:quakespasm/` | `mini-intel:quake2/` |
+| `make` cwd on mini-intel | `mini-intel:quakespasm/Quake/` | `mini-intel:quake2/` (Q2's makefile is at the top level) |
+| Local flock for build serialization | `~/quakespasm/build/.build.lock` | `~/quake2/build/.build.lock` |
+| Local build outputs | `~/quakespasm/build/quakespasm-*` | `~/quake2/build/q2-*` |
+
+**Shared (read-only)**: `/Developer/SDKs/MacOSX10.3.9.sdk`,
+`/Developer/SDKs/MacOSX10.4u.sdk`, `/usr/bin/gcc-4.0`, `/usr/bin/clang`.
+**Never modify** anything under `/Developer/SDKs/` or the system
+toolchain — Q2 depends on the current install and re-installing Xcode
+3.2.6 + 2.5 from the vendored DMGs is a multi-hour recovery operation.
+
+**Never push binaries to mini-intel** — `scripts/build.sh` rsyncs
+sources up and scp's the compiled binary back to
+`~/quakespasm/build/quakespasm-<target>`. Build artifacts are local;
+deploy from the workstation, not from Lion.
+
+**Concurrent builds are safe given the above isolation** — each project
+flocks on its own workstation-side lock, rsyncs to its own dir on
+mini-intel, and `make -jN` operates in its own dir. The only contention
+is CPU/memory on the dual-core Core 2 Duo, which means concurrent
+compiles take ~2× wall clock but produce correct binaries. If
+mini-intel is already mid-compile for Q2 when QS wants to build, prefer
+to wait (serial is faster than 2× concurrent on a 2-core box) — but
+it's not a correctness issue.
+
+**Tell-tale of accidental conflation**: if `scripts/build.sh` ever
+rsyncs to `mini-intel:~/` (no project prefix) or to `mini-intel:quake2/`,
+the Q2 build will be overwritten and the sister project breaks.
+`scripts/build.sh` hard-codes `mini-intel:quakespasm/` — never rely on
+relative paths or environment-derived paths that could resolve elsewhere.
+
+## Bundle is portable — install the parent folder anywhere on the Mac
+
+The shipped `Quakespasm.app` is **location-agnostic** by design — the
+bundle does not need to live in `~/Desktop/quake/`. Whatever directory
+contains `Quakespasm.app/` alongside `id1/`, `hipnotic/`, `rogue/`, and
+`quakespasm.pak` is treated as the basedir at launch. Three runtime
+paths arrive at this:
+
+  1. **Finder double-click**: `MacOSX/SDLMain.m setupWorkingDirectory:`
+     uses `CFBundleCopyBundleURL` → parent dir → `chdir`. Always
+     relative to where the bundle actually lives.
+  2. **Launcher GUI → Play**: `MacOSX/AppController.m:206-210` takes
+     `gArgv[0]` (path to `Contents/MacOS/quakespasm`), strips 4 last
+     path components (`quakespasm`/`MacOS`/`Contents`/`Quakespasm.app`),
+     and `changeCurrentDirectoryPath:` to the result.
+  3. **Headless `-nolauncher` (bench.sh / screenshot.sh)**: shell `cd`s
+     into the parent dir before exec'ing the binary. The user-facing
+     contract is the same.
+
+So a user can drop `Quakespasm.app + id1/ + …` into `~/Applications/`,
+`~/Games/Quake/`, an external drive, or anywhere else, and it will
+launch correctly. Only the bench scripts pin the location to
+`~/Desktop/quake/` — that's a convention for predictable rsync paths,
+**not** a binary requirement. Verified across G3, G4, and Lion slices
+of the fat binary.
+
 ## Bundle is fully universal — same layout serves all four targets
 
 `MacOSX/SDL.framework` is fat (x86_64 + i386 + ppc) where the **ppc slice
