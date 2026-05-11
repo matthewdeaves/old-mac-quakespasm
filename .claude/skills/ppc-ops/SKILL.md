@@ -105,11 +105,18 @@ These are in the working tree. `CLAUDE.md` documents them in detail.
 
 ## Optimization roadmap
 
-See `PPC_PLAN.md` for the prioritized list. Always benchmark each change
-on **all 5 machines** — AltiVec wins can be no-ops or regressions on
-yosemite if dispatch is wrong; the three G4 machines (sawtooth,
-quicksilver, mini-g4) have very different GPU classes (GeForce2 MX vs
-Radeon 9000 vs Radeon 9200) so they disambiguate fillrate-bound vs
-CPU-bound effects within the G4 family; mini-intel is the Intel reference.
-`scripts/parallel-bench.sh` runs all five legs concurrently and is the
+There is no current plan doc. The Round v2 → v11.1 plan is archived at
+`docs/archive/PPC_PLAN_v2-v11.md` — useful for historical context, not
+a roadmap. New optimisation work starts with a fresh evidence pass
+(end-of-round bench grid, code review, static-analysis sweep) and a
+new plan written from that evidence.
+
+Always benchmark each change on **all 6 machines** — AltiVec wins can
+be no-ops or regressions on yosemite if dispatch is wrong; the three
+G4 machines (sawtooth, quicksilver, mini-g4) have very different GPU
+classes (GeForce2 MX vs Radeon 9000 vs Radeon 9200) so they
+disambiguate fillrate-bound vs CPU-bound effects within the G4 family;
+the two Intel machines (mini-intel, imac-2019) reference the GMA 950
+fillrate floor and modern discrete headroom respectively.
+`scripts/parallel-bench.sh` runs all six legs concurrently and is the
 default canonical sweep.

@@ -1360,8 +1360,8 @@ Each implemented item ships as its own commit with:
 - the perf/visual mechanism in the message,
 - a smoke bench against parent commit (per §10 methodology),
 - a runtime toggle (cvar or `-flag`) so end-of-round-end review can
-  A/B individual contributions (per CLAUDE.md "Toggleable knobs"
-  requirement).
+  A/B individual contributions (per `docs/KNOBS.md` requirement; see
+  also CLAUDE.md "Toggleability + per-machine gating").
 
 Hard-coded foundational phases (1, 1.1, 2.x, 3.x, 4.1, 4.6) might get
 runtime toggles retrofitted during Pass A/B if the agents flag a

@@ -1,21 +1,16 @@
 # scripts/ — build, deploy, bench tooling for QuakeSpasm
 
-Multi-host workflow: edit on Ubuntu → build on the cross-build host
-(`mini-intel`, the Lion box) → run on the 6 bench machines.
-SSH config aliases (`yosemite`, `sawtooth`, `quicksilver`, `mini-g4`,
-`mini-intel`, `imac-2019`) are expected in `~/.ssh/config`.
+Multi-host workflow: edit on Ubuntu → build on `mini-intel` (Lion) →
+run on the 6 bench machines. SSH config aliases (`yosemite`,
+`sawtooth`, `quicksilver`, `mini-g4`, `mini-intel`, `imac-2019`)
+expected in `~/.ssh/config`.
 
-> **Project goal** is best-looking Quake on G3/G4/Intel while keeping
-> framerate comfortably playable (≥ 60 fps on G4 + Intel, ≥ 20 fps on G3).
-> Visual upgrades that cost 10-15% fps are in scope when they leave the
-> cell above its playability threshold. **Every shipped per-target
-> visual / perf knob must be runtime-toggleable** (cvar or `-flag`) so
-> end-of-round code review can A/B individual contributions without
-> rebuild. Full toggle inventory lives in `CLAUDE.md` under
-> "Toggleable knobs". Per-machine shipping defaults live in
-> `scripts/bundle/autoexec-<machine>.cfg`.
+Project goal, toggleability requirement, and the full perf-knob
+inventory live in `/CLAUDE.md` and `docs/KNOBS.md`. Per-machine
+shipping defaults: `scripts/bundle/autoexec-<machine>.cfg`.
+For LLM-facing per-script notes see `scripts/CLAUDE.md`.
 
-**Bench machines (5 machines, 3 distinct binaries):**
+**Bench machines (6 machines, 3 distinct binaries):**
 
 | machine     | hardware                                                              | binary                |
 |-------------|-----------------------------------------------------------------------|-----------------------|
@@ -26,13 +21,15 @@ SSH config aliases (`yosemite`, `sawtooth`, `quicksilver`, `mini-g4`,
 | mini-intel  | Macmini2,1   C2D 2.33 GHz, GMA 950 64 MB shared, Lion 10.7.5          | `quakespasm-lion`     |
 | imac-2019   | iMac19,1     i5-9600K 3.70 GHz (6c), Radeon Pro 580X 8 GB, Sequoia 15.7.5 | `quakespasm-lion` |
 
-`mini-intel` is both the cross-build host AND a runnable bench reference of its
-own. The matrix spans the GPU axis from fixed-function (Rage 128, GeForce2 MX)
-to programmable-pre-shader-2.0 (Radeon 9000/9200) to early-Intel-integrated
-(GMA 950) — useful for separating GPU-bound from CPU-bound effects.
+`mini-intel` is both the cross-build host AND a runnable bench reference.
+The matrix spans the GPU axis from fixed-function (Rage 128, GeForce2 MX)
+through programmable-pre-shader-2.0 (Radeon 9000/9200) and early Intel
+integrated (GMA 950) to modern discrete (Radeon Pro 580X) — useful for
+separating GPU-bound from CPU-bound effects.
 
-The three G4 machines share `build/quakespasm-g4` (`-mcpu=7400 -maltivec` is
-correct for all three; the 7450 + 7447A run 7400 baseline code happily).
+The three G4 machines share `build/quakespasm-g4` (`-mcpu=7400 -maltivec`
+is correct for all three; the 7450 + 7447A run 7400 baseline happily).
+The two Intel machines share `build/quakespasm-lion`.
 
 ## Quick start
 
@@ -43,30 +40,30 @@ scripts/build.sh g4
 scripts/build.sh lion
 
 # Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host).
-# All three G4 machines reuse build/quakespasm-g4 — no separate build per host.
+# G4 trio reuses build/quakespasm-g4; Intel pair reuses build/quakespasm-lion.
 scripts/deploy.sh yosemite
 scripts/deploy.sh sawtooth
 scripts/deploy.sh quicksilver
 scripts/deploy.sh mini-g4
 scripts/deploy.sh mini-intel
+scripts/deploy.sh imac-2019
 
 # Run a single bench
 scripts/bench.sh quicksilver demo1 1024x768
-scripts/bench.sh mini-g4     demo1 1024x768
-scripts/bench.sh mini-intel  demo1 1024x768
+scripts/bench.sh imac-2019   demo1 1024x768
 
 # Run the full baseline matrix (3 demos × 2 res × 3 runs each)
-scripts/full-bench.sh ppc      # 4 PPC machines (skip mini-intel)
-scripts/full-bench.sh all      # all 5 machines
-scripts/full-bench.sh sawtooth # one machine
+scripts/full-bench.sh ppc        # 4 PPC machines
+scripts/full-bench.sh intel      # 2 Intel machines
+scripts/full-bench.sh all        # all 6 machines
+scripts/full-bench.sh sawtooth   # one machine
 
 # Same matrix in parallel (≈ wall time of the slowest leg = yosemite).
-# Default runs all 5 machines; --no-<machine> skips a leg if it's offline.
+# Default runs all 6 machines; --no-<machine> skips a leg if it's offline.
 scripts/parallel-bench.sh
-scripts/parallel-bench.sh --no-mini-intel
-scripts/parallel-bench.sh --no-mini-g4
+scripts/parallel-bench.sh --no-mini-intel --no-imac-2019
 
-# Quick iteration loop: demo1 only at both res, all 5 machines in parallel (~3-4 min)
+# Quick iteration loop: demo1 only at both res, all 6 machines parallel (~3-4 min)
 scripts/parallel-bench.sh --quick
 
 # Bench HEAD and commit the resulting CSV rows + raw logs in one shot.
@@ -96,59 +93,59 @@ before that commit use the old names, rows after use the new names.
 | `build.sh <g3\|g4\|lion>` | rsync sources to mini-intel, compile (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. The `g3/g4/lion` arg names a CHIP FAMILY, not a machine — one g4 binary serves three machines. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<machine>:~/Desktop/quake/`. The case statement maps machine→binary internally. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
-| `full-bench.sh [<machine>\|ppc\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the four PPC machines, `all` = all 5 (default). |
-| `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 5 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |
+| `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 4 PPC machines, `intel` = the 2 Intel machines, `all` = all 6 (default). |
+| `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 6 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |
 | `bench-and-commit.sh "<phase>"` | bench HEAD + commit the data in one shot. Refuses dirty trees, pins HEAD, then `parallel-bench.sh "$@"`, stages CSV + new raw logs, lands `bench: <phase> (HEAD <hash>)` commit with median fps summary. The canonical second-of-two commits per phase. |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
 | `make-icon.py [source.png]` | regenerate `MacOSX/QuakeSpasm.icns` from a source PNG (default: `MacOSX/newiconfinal.png`). **Legacy-only ICNS chunks** (Panther/Tiger compat — see file header for why iconutil is wrong). Default also refreshes `docs/images/quakespasm-icon{,-256}.png` (README hero strip); `--no-readme-refresh` to skip. `--keep-bg` to skip auto bg-removal if the source already has alpha (canonical Photoshop-touch-up workflow). Requires `~/quakespasm/.venv` (Pillow + numpy + scipy). |
-| `install-host-tools.sh [hosts...]` | push `scripts/host-bin/*` to `~/bin/` on every bench Mac. Idempotent. Default hosts: `yosemite sawtooth quicksilver mini-g4 mini-intel`. Re-run after editing the source scripts in `scripts/host-bin/` or adding a new bench machine. |
+| `install-host-tools.sh [hosts...]` | push `scripts/host-bin/*` to `~/bin/` on every bench Mac. Idempotent. Default hosts: `yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019`. Re-run after editing the source scripts in `scripts/host-bin/` or adding a new bench machine. |
 | `host-bin/qsreboot.sh` | runs **on the Mac**. SSH-side reboot. Tier 1: `sudo -n /sbin/reboot` (definite kernel reboot, works through wedged Finder / corrupt Rage 128 LUT). Tier 2: Finder Apple Event. Use as `ssh <machine> '~/bin/qsreboot.sh'`. |
 | `host-bin/qsreboot-setup.sh` | runs **on the Mac**. ONE-TIME `sudo ~/bin/qsreboot-setup.sh` per machine to install the NOPASSWD sudoers entry that enables Tier 1 above. Backs up `/etc/sudoers`, validates with `visudo -c`, restores backup on failure. Idempotent re-runs. |
 
 ## Parallel-safety notes
 
-`parallel-bench.sh` runs up to five `bench.sh` instances concurrently
-(yosemite, sawtooth, quicksilver, mini-g4, mini-intel). Two races to know
-about:
+`parallel-bench.sh` runs up to six `bench.sh` instances concurrently.
+Two races to know about:
 
-- **CSV header init.** `bench.sh` creates the CSV with a header on first use.
-  Five parallel procs racing on a missing CSV could each write a header.
+- **CSV header init.** `bench.sh` creates the CSV with a header on first
+  use. Parallel procs racing on a missing CSV could each write a header.
   Worked around with bash `noclobber` (`set -C`, atomic `O_CREAT|O_EXCL`).
 - **CSV row appends.** `>>` is atomic on Linux/macOS for writes ≤ PIPE_BUF
-  (4 KB). Our rows are ~80 bytes, well under, so rows from the five machines
+  (4 KB). Our rows are ~80 bytes, well under, so rows from the six legs
   never interleave inside a line.
 
 Raw log filenames include the machine name
 (`<commit>_<machine>_<demo>_<res>_runN.log`) so they never collide.
-SSH connections to the five hosts are independent.
+SSH connections to the six hosts are independent.
 
 ## Bundle layout (what `deploy.sh` builds)
+
+Brief:
 
 ```
 Quakespasm.app/
   Contents/
     Info.plist             scripts/bundle/Info.plist
     MacOS/
-      quakespasm           build/quakespasm-<chip>  (g3/g4/lion)
-      lib*.dylib           MacOSX/codecs/lib/*.dylib (10 codec libs, fat ppc+i386+x86_64)
-      SDL.framework/       MacOSX/SDL.framework (fat ppc+i386+x86_64; ppc slice
-                           is the Panther-compatible 10.3.9 SDK build, so a
-                           single framework serves all 5 machines)
+      quakespasm           build/quakespasm-<chip>  (g3/g4/lion or fat)
+      lib*.dylib           MacOSX/codecs/lib/*.dylib (fat ppc+i386+x86_64)
+      SDL.framework/       MacOSX/SDL.framework (fat; ppc slice is Panther-built)
     Resources/
-      QuakeSpasm.icns      MacOSX/QuakeSpasm.icns
-      English.lproj/       MacOSX/English.lproj (Launcher.nib + InfoPlist.strings)
+      QuakeSpasm.icns
+      English.lproj/       Launcher.nib + InfoPlist.strings
 ```
 
-The bundle is identical for all five machines except for the binary itself.
-The codec dylibs and the bundled `SDL.framework` are pre-built fat — they
-include `ppc`, `i386`, **and** `x86_64` slices, so the same bundle layout
-serves all machines.
+Bundle is byte-for-byte identical across machines when using the
+fat binary (`scripts/deploy.sh fat <machine>`). Full Info.plist
+key list, install_name_tool fixup, and the fat-SDL build recipe
+live in `MacOSX/CLAUDE.md`.
 
 ## Why all the SSH knob-twiddling
 
-mini-intel's OpenSSH 5.6 and yosemite's older one don't speak modern algorithms.
-The SSH config entries pin the legacy crypto. The `bench.sh` and `deploy.sh`
-scripts inherit that — no inline `-o` flags needed.
+mini-intel's OpenSSH 5.6 and yosemite's older one don't speak modern
+algorithms. The SSH config entries pin the legacy crypto (`ssh-rsa`
+host keys + pubkeys, pre-2014 KEX, RSA `id_rsa_tiger` — not ed25519).
+`bench.sh` / `deploy.sh` inherit that; no inline `-o` flags needed.
 
-For yosemite specifically, rsync runs in `--protocol=29` mode because Panther
-ships rsync 2.5.x.
+For yosemite specifically, rsync runs in `--protocol=29` mode because
+Panther ships rsync 2.5.x.

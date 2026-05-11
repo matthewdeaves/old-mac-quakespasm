@@ -127,27 +127,27 @@ cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 #
 # per-target mode (legacy, single-arch binary):
 #   id1/autoexec.cfg = scripts/bundle/autoexec-<target>.cfg verbatim.
-#   quake.rc's `exec autoexec.cfg` picks it up directly.
+#   quake.rc's `exec autoexec.cfg` picks it up via Quake's gamedir fs.
 #
 # fat mode (universal binary):
-#   id1/autoexec-ppc750.cfg, autoexec-ppc7400.cfg, autoexec-x86_64.cfg
-#   are all shipped. The engine hook in host.c picks the right one at
-#   boot via compile-time __VEC__ / __ppc__ / __x86_64__ macros. We do
-#   NOT ship id1/autoexec.cfg in fat mode — keeping it out avoids a
-#   confusing "which file wins" question for users who edit them later.
+#   Per-arch + per-machine cfgs ship INSIDE the .app bundle's
+#   Contents/Resources/ directory. host.c's CFBundle-based hook
+#   (QS_ExecConfigFromBundle) reads them at boot — compile-time
+#   __VEC__/__ppc__/__x86_64__ picks the per-arch baseline; runtime
+#   sysctl hw.model picks the per-machine overlay. End-user install
+#   is then just "drop Quakespasm.app + your own id1/pak0.pak next to
+#   each other" — the bundled per-target settings travel with the .app.
 mkdir -p "$STAGE/id1"
 if [ "$MODE" = "fat" ]; then
-  # Per-arch baseline (selected by host.c via __VEC__/__ppc__/__x86_64__).
-  cp "$REPO_ROOT/scripts/bundle/autoexec-ppc750.cfg"  "$STAGE/id1/"
-  cp "$REPO_ROOT/scripts/bundle/autoexec-ppc7400.cfg" "$STAGE/id1/"
-  cp "$REPO_ROOT/scripts/bundle/autoexec-x86_64.cfg"  "$STAGE/id1/"
-  # Round v6: per-machine layer (selected by host.c via hw.model sysctl).
-  # The fat binary's per-arch dispatch can't separate mini-intel (GMA 950)
-  # from iMac19,1 (Radeon Pro 580X / 5K Retina), nor among the three G4s.
-  # Layering autoexec-<machine>.cfg on top of the per-arch baseline gives
-  # each known model its hand-tuned visual stack + resolution. Files:
+  RESOURCES="$STAGE/Quakespasm.app/Contents/Resources"
+  mkdir -p "$RESOURCES"
+  # Per-arch baselines (selected by host.c via __VEC__/__ppc__/__x86_64__).
+  cp "$REPO_ROOT/scripts/bundle/autoexec-ppc750.cfg"  "$RESOURCES/"
+  cp "$REPO_ROOT/scripts/bundle/autoexec-ppc7400.cfg" "$RESOURCES/"
+  cp "$REPO_ROOT/scripts/bundle/autoexec-x86_64.cfg"  "$RESOURCES/"
+  # Per-machine overlays (selected by host.c via hw.model sysctl).
   for cfg in yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
-    cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$STAGE/id1/"
+    cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
   done
 else
   AUTOEXEC="$REPO_ROOT/scripts/bundle/autoexec-$TARGET.cfg"
@@ -157,6 +157,23 @@ else
 fi
 
 echo "[deploy] ship to $HOST:~/Desktop/quake/"
+# Migration: earlier builds shipped the per-arch + per-machine cfgs to
+# id1/ (engine used `exec FILE.cfg` via the gamedir filesystem). They
+# now live inside Quakespasm.app/Contents/Resources/ (engine reads via
+# CFBundle). Remove the stale id1/ copies on the target so user-visible
+# clutter is gone and there's no ambiguity about which file wins. Best
+# effort — failure on a fresh target with no id1/ is fine.
+if [ "$MODE" = "fat" ]; then
+  ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec-ppc750.cfg \
+                     ~/Desktop/quake/id1/autoexec-ppc7400.cfg \
+                     ~/Desktop/quake/id1/autoexec-x86_64.cfg \
+                     ~/Desktop/quake/id1/autoexec-yosemite.cfg \
+                     ~/Desktop/quake/id1/autoexec-sawtooth.cfg \
+                     ~/Desktop/quake/id1/autoexec-quicksilver.cfg \
+                     ~/Desktop/quake/id1/autoexec-mini-g4.cfg \
+                     ~/Desktop/quake/id1/autoexec-mini-intel.cfg \
+                     ~/Desktop/quake/id1/autoexec-imac-2019.cfg 2>/dev/null' || true
+fi
 # --checksum: force file-content comparison instead of trusting size+mtime.
 # Saw at least one stale-icon case on sawtooth where rsync's size+mtime
 # heuristic skipped a real update (298 KB stale icns left in place

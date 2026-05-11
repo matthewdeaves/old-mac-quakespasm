@@ -124,8 +124,8 @@ true v6 baseline of 53.40, i.e. **-5.8%** instead of "-30%".
 
 **Cleanup.** Deleted the 12 stale rows from `benchmarks/results.csv`,
 re-ran a full mini-g4 grid at v6 head to capture the correct baseline,
-relabeled raw logs accordingly. PPC_PLAN.md §17.7 documents the
-correction.
+relabeled raw logs accordingly. `docs/archive/PPC_PLAN_v2-v11.md §17.7`
+documents the correction.
 
 **Lessons.**
 - After ANY mid-bench binary refresh, re-bench EVERY affected machine

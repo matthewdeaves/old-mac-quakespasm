@@ -29,6 +29,80 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef __APPLE__
 // PPC port: per-machine autoexec dispatch in Host_Init queries hw.model.
 #include <sys/sysctl.h>
+// Per-arch + per-machine cfgs ship inside Quakespasm.app/Contents/Resources/
+// so the .app is a drop-in unit. CFBundle locates them at runtime.
+#include <CoreFoundation/CoreFoundation.h>
+
+/*
+ ================
+ QS_ExecConfigFromBundle
+
+ Reads <basename>.cfg from the main bundle's Resources/ directory and
+ queues its contents to the cmd buffer (same effect as `exec FILE.cfg`
+ would have via the gamedir filesystem, but without requiring the cfg
+ to live in id1/). Returns false silently if the bundle, the file, or
+ the read fail — same fall-through semantics as a missing exec target.
+
+ Why CFBundle instead of a path derived from argv[0]: argv[0] can be a
+ relative path or symlink; -basedir overrides cwd; the bench scripts
+ invoke the binary directly. CFBundleGetMainBundle uses the executable's
+ own image path to locate the enclosing .app, which is robust across
+ all three launch modes (Finder, launcher GUI, headless -nolauncher).
+ ================
+*/
+static qboolean QS_ExecConfigFromBundle (const char *basename)
+{
+	CFBundleRef bundle = CFBundleGetMainBundle ();
+	if (!bundle)
+		return false;
+
+	CFStringRef cfname = CFStringCreateWithCString (NULL, basename, kCFStringEncodingUTF8);
+	if (!cfname)
+		return false;
+	CFURLRef url = CFBundleCopyResourceURL (bundle, cfname, CFSTR("cfg"), NULL);
+	CFRelease (cfname);
+	if (!url)
+		return false;
+
+	char path[1024];
+	Boolean ok = CFURLGetFileSystemRepresentation (url, true, (UInt8 *)path, sizeof(path));
+	CFRelease (url);
+	if (!ok)
+		return false;
+
+	FILE *fp = fopen (path, "rb");
+	if (!fp)
+		return false;
+
+	fseek (fp, 0, SEEK_END);
+	long len = ftell (fp);
+	fseek (fp, 0, SEEK_SET);
+	if (len <= 0 || len > 65536)
+	{
+		fclose (fp);
+		return false;
+	}
+
+	char *buf = (char *) malloc ((size_t)len + 2);
+	if (!buf)
+	{
+		fclose (fp);
+		return false;
+	}
+	size_t got = fread (buf, 1, (size_t)len, fp);
+	fclose (fp);
+	if (got != (size_t)len)
+	{
+		free (buf);
+		return false;
+	}
+	buf[len] = '\n';
+	buf[len + 1] = '\0';
+
+	Cbuf_AddText (buf);
+	free (buf);
+	return true;
+}
 #endif
 
 /*
@@ -898,47 +972,51 @@ void Host_Init (void)
 		// note: two leading newlines because the command buffer swallows one of them.
 		Cbuf_AddText ("\n\nvid_unlock\n");
 
-		// PPC port (round v4 §14.5): per-arch autoexec layered on top of
-		// quake.rc → autoexec.cfg. The `exec quake.rc` above prepends via
-		// Cbuf_InsertText, so the per-arch exec we *append* here runs LAST
-		// — its cvars win over anything from default.cfg / config.cfg /
-		// autoexec.cfg. Compile-time slice selection: ppc7400 (G4 AltiVec),
-		// ppc750 (G3), or x86_64 (Lion). Missing per-arch file is non-fatal:
-		// `exec` prints "couldn't exec FOO" to console and continues.
+		// PPC port: per-arch + per-machine autoexec layered on top of
+		// quake.rc → autoexec.cfg. The `exec quake.rc` above prepends
+		// via Cbuf_InsertText, so the per-arch + per-machine cfgs we
+		// *append* here run LAST — their cvars win over anything from
+		// default.cfg / config.cfg / user's autoexec.cfg. Source of
+		// each cfg is Quakespasm.app/Contents/Resources/ (resolved
+		// via CFBundle), so the .app is a self-contained distribution
+		// unit: end users only need it + their own id1/pak0.pak.
 		//
-		// `-noarchautoexec` cmdline flag suppresses the hook entirely —
-		// used by bench/screenshot scripts whose own cmdline `-width N`
-		// would otherwise be clobbered by the autoexec setting vid_width
-		// to 1024 (production launch default). With the flag, those tools
-		// keep full control over the cvar set.
+		// Compile-time slice selection picks the per-arch baseline:
+		// ppc7400 (G4 AltiVec), ppc750 (G3), or x86_64 (Lion+).
+		// On top of that, hw.model sysctl picks a per-machine overlay
+		// (the fat binary's per-arch dispatch can't tell mini-intel
+		// GMA 950 from iMac19,1 Radeon Pro 580X — both are x86_64;
+		// nor among the three G4s). Each known machine gets its
+		// hand-tuned visual + resolution stack; unknown models fall
+		// through silently (per-arch baseline applies).
+		//
+		// `-noarchautoexec` cmdline flag suppresses the hook entirely
+		// — used by bench/screenshot scripts whose own cmdline
+		// `-width N` would otherwise be clobbered by the autoexec
+		// setting vid_width to 1024 (production launch default).
+		// With the flag, those tools keep full control over the
+		// cvar set. The hook is __APPLE__-only because CFBundle is
+		// the resource loader; non-Apple builds skip it entirely
+		// (no per-arch cfgs ever shipped for them).
+#ifdef __APPLE__
 		if (!COM_CheckParm("-noarchautoexec"))
 		{
 #if defined(__VEC__) || defined(__ALTIVEC__)
-			Cbuf_AddText ("exec autoexec-ppc7400.cfg\n");
+			QS_ExecConfigFromBundle ("autoexec-ppc7400");
 #elif defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
-			Cbuf_AddText ("exec autoexec-ppc750.cfg\n");
+			QS_ExecConfigFromBundle ("autoexec-ppc750");
 #elif defined(__x86_64__) || defined(__amd64__)
-			Cbuf_AddText ("exec autoexec-x86_64.cfg\n");
+			QS_ExecConfigFromBundle ("autoexec-x86_64");
 #endif
 
-#ifdef __APPLE__
-			// Round v6: per-machine layer on top of the per-arch baseline
-			// above. The fat binary's per-arch dispatch can't tell
-			// mini-intel (GMA 950) from iMac19,1 (Radeon Pro 580X / 5K)
-			// — both are x86_64. hw.model disambiguates: each known
-			// machine gets its hand-tuned cfg layered on, overriding any
-			// arch-conservative default with the right resolution + visual
-			// stack for the actual hardware. Unknown models fall through
-			// silently (per-arch baseline applies). Same -noarchautoexec
-			// flag suppresses both layers for headless bench/screenshot.
 			{
 				static const struct { const char *model; const char *cfg; } qs_machine_map[] = {
-					{ "PowerMac1,1",  "autoexec-yosemite.cfg"    },
-					{ "PowerMac3,1",  "autoexec-sawtooth.cfg"    },
-					{ "PowerMac3,5",  "autoexec-quicksilver.cfg" },
-					{ "PowerMac10,1", "autoexec-mini-g4.cfg"     },
-					{ "Macmini2,1",   "autoexec-mini-intel.cfg"  },
-					{ "iMac19,1",     "autoexec-imac-2019.cfg"   },
+					{ "PowerMac1,1",  "autoexec-yosemite"    },
+					{ "PowerMac3,1",  "autoexec-sawtooth"    },
+					{ "PowerMac3,5",  "autoexec-quicksilver" },
+					{ "PowerMac10,1", "autoexec-mini-g4"     },
+					{ "Macmini2,1",   "autoexec-mini-intel"  },
+					{ "iMac19,1",     "autoexec-imac-2019"   },
 				};
 				char model[64];
 				size_t mlen = sizeof(model);
@@ -950,16 +1028,14 @@ void Host_Init (void)
 					{
 						if (!strcmp(model, qs_machine_map[i].model))
 						{
-							char buf[80];
-							q_snprintf (buf, sizeof(buf), "exec %s\n", qs_machine_map[i].cfg);
-							Cbuf_AddText (buf);
+							QS_ExecConfigFromBundle (qs_machine_map[i].cfg);
 							break;
 						}
 					}
 				}
 			}
-#endif
 		}
+#endif
 	}
 
 	if (cls.state == ca_dedicated)

@@ -37,4 +37,4 @@ Captures the round v2 epilogue's −10.6% demo3 640 trade-off in its
 path; what's left is per-call cost. Coalescing dirty rects per frame
 into fewer `glTexSubImage2D` calls is the v3 lever for this.
 
-See PPC_PLAN.md §13 for the v3 plan derived from this profile.
+See `docs/archive/PPC_PLAN_v2-v11.md §13` for the v3 plan derived from this profile.

@@ -54,11 +54,11 @@ Each cell shows the **first-build baseline fps** for that machine + demo + resol
 > - **Mac mini Intel** (GMA 950, 2007): trilinear + 16× anisotropy + drop-shadows + translucent liquids. Shared-memory GMA 950 saturates fillrate at 1024; the 5K-res-capable iMac doesn't.
 > - **iMac 27"** (Radeon Pro 580X, 2019): not a playability concern — the negatives are headroom we're spending on visuals at >1500 fps because there's plenty.
 >
-> Project goal on G4 / Intel: **best-looking Quake above the playability floor** (≥ 60 fps G4 / Lion, ≥ 20 fps G3). Every feature is runtime-toggleable (cvar or `-flag`) so you can A/B individual contributions on your own hardware; see [`CLAUDE.md` "Toggleable knobs"](CLAUDE.md).
+> Project goal on G4 / Intel: **best-looking Quake above the playability floor** (≥ 60 fps G4 / Lion, ≥ 20 fps G3). Every feature is runtime-toggleable (cvar or `-flag`) so you can A/B individual contributions on your own hardware; see [`docs/KNOBS.md`](docs/KNOBS.md) for the full inventory.
 >
 > **Round v11.1 highlight** — per-frame GL state cache in `R_DrawAliasModel` (Round v11). Landed **+19 % to +46 % on demo3 1024** across every cached machine in same-session A/B vs the Round v8 wrap (`84d35972`) baseline. Cache is compiled out of the G3 ppc750 slice via `QS_DISABLE_ALIAS_STATE_CACHE`; same-session A/B confirmed Yosemite is neutral. See [`CLAUDE.md` "Per-machine gating is a legitimate pattern"](CLAUDE.md) for the gating mechanism and [`docs/archive/PPC_PERF_R7.md`](docs/archive/PPC_PERF_R7.md) for the static-analysis-driven round before this one.
 
-Baseline sources (all in `benchmarks/results.csv`): **Yosemite + Quicksilver** = vanilla v2 baseline at commit `4c165e6f` (unmodified upstream + the four Panther/Tiger build patches only — see [`PPC_PLAN.md §17.7.1`](PPC_PLAN.md)). **Sawtooth** = historical backfill at `1615d99a` (first commit where the source compiled; benchmarked retroactively when sawtooth joined the matrix on 2026-05-09). **Mac mini G4 + Mac mini Intel** = each machine's earliest first-bench rows (`cea45842` / `5480d89c` and `016a0ef4` / `5480d89c` respectively — both joined the matrix in the Phase 4.x era, no further-back vanilla baseline exists). **iMac 27"** = first-bench row at `016a0ef4` (added as the 6th bench machine on 2026-05-09).
+Baseline sources (all in `benchmarks/results.csv`): **Yosemite + Quicksilver** = vanilla v2 baseline at commit `4c165e6f` (unmodified upstream + the four Panther/Tiger build patches only — see [`docs/archive/PPC_PLAN_v2-v11.md §17.7.1`](docs/archive/PPC_PLAN_v2-v11.md)). **Sawtooth** = historical backfill at `1615d99a` (first commit where the source compiled; benchmarked retroactively when sawtooth joined the matrix on 2026-05-09). **Mac mini G4 + Mac mini Intel** = each machine's earliest first-bench rows (`cea45842` / `5480d89c` and `016a0ef4` / `5480d89c` respectively — both joined the matrix in the Phase 4.x era, no further-back vanilla baseline exists). **iMac 27"** = first-bench row at `016a0ef4` (added as the 6th bench machine on 2026-05-09).
 
 ## What each machine renders by default
 
@@ -97,7 +97,7 @@ Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. E
   <img src="docs/images/architecture.svg" width="92%" alt="Architecture: arch baseline → per-machine layer → autoexec dispatch" />
 </p>
 
-Two extra `.cfg` layers execute on top of the regular `quake.rc` → `default.cfg` → `config.cfg` → `autoexec.cfg` chain: the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then the per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c:946`](Quake/host.c). The per-machine layer runs last so its cvars win over everything above.
+Two extra `.cfg` layers execute on top of the regular `quake.rc` → `default.cfg` → `config.cfg` → `autoexec.cfg` chain: the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then the per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c`](Quake/host.c) `QS_ExecConfigFromBundle`. Both layers ship inside `Quakespasm.app/Contents/Resources/` and are loaded via CFBundle, so the .app is a self-contained distribution unit. The per-machine layer runs last so its cvars win over everything above.
 
 ## How it's built
 
@@ -130,9 +130,10 @@ Modern macOS will quarantine the unsigned bundle — either right-click → Open
 
 ## Dig deeper
 
-- [**`PPC_PLAN.md`**](PPC_PLAN.md) — every phase, every decision, every reverted experiment.
+- [**`docs/archive/PPC_PLAN_v2-v11.md`**](docs/archive/PPC_PLAN_v2-v11.md) — archived working plan covering rounds v2 → v11.1: every phase, every decision, every reverted experiment.
 - [**`MISTAKES.md`**](MISTAKES.md) — append-only log of approaches that broke and why.
-- [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: SSH legacy crypto, bundle layout, toggleable-knobs inventory.
+- [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
+- [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
 
 ## License
 
