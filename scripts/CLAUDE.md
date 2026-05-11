@@ -7,9 +7,11 @@ operational gotchas that matter when editing or invoking them.
 Build TARGET names (`g3`/`g4`/`lion`) refer to chip family + SDK,
 NOT a machine. Machine names (`yosemite`/`sawtooth`/`quicksilver`/
 `mini-g4`/`mini-intel`/`imac-2019`) refer to specific bench Macs.
-The single `g4` binary serves three machines (sawtooth, quicksilver,
-mini-g4); the `lion` binary serves two (mini-intel, imac-2019). See
-`deploy.sh` for the machine→binary map.
+
+`build.sh` produces one slice; `build-fat.sh` lipo's all three slices
+into `build/quakespasm-fat`. **`deploy.sh` always ships the fat binary**
+— `build.sh` exists as the sub-step build-fat.sh calls plus for
+diagnosing one-slice compile errors; we don't deploy single-arch.
 
 ## Per-script notes
 
@@ -23,18 +25,18 @@ build.sh <g3|g4|lion>          cross-compile (g3/g4) or native x86_64 (lion)
                                must report the right CPU subtype (ppc_750 /
                                ppc_7400 / x86_64) — anything else is the race.
 
-deploy.sh <machine>            assemble Quakespasm.app from per-target slice,
-                               ship to <machine> via rsync.
-deploy.sh fat <machine>        ship build/quakespasm-fat (3-arch lipo'd binary).
-                               Per-arch + per-machine autoexec cfgs ship inside
-                               Quakespasm.app/Contents/Resources/ (loaded by
-                               host.c's QS_ExecConfigFromBundle via CFBundle):
-                               __VEC__/__ppc__/__x86_64__ picks the per-arch
-                               baseline, sysctl hw.model picks the per-machine
-                               overlay. End-user install is just .app + their
-                               id1/pak0.pak — bundled settings travel with .app.
-                               Deploy also clears stale id1/autoexec-*.cfg from
-                               previous (pre-Resources/) layouts on the target.
+deploy.sh <machine>            stage Quakespasm.app + ship to <machine> via rsync.
+                               Always ships build/quakespasm-fat (3-arch lipo'd
+                               binary). Per-arch + per-machine autoexec cfgs
+                               ship inside Quakespasm.app/Contents/Resources/
+                               (loaded by host.c's QS_ExecConfigFromBundle via
+                               CFBundle): __VEC__/__ppc__/__x86_64__ picks the
+                               per-arch baseline, sysctl hw.model picks the
+                               per-machine overlay. End-user install is just
+                               .app + their id1/pak0.pak — bundled settings
+                               travel with .app. Also clears stale
+                               id1/autoexec*.cfg from any pre-v1.4 layout on
+                               the target.
 
 bench.sh <machine> <demo> <WxH> [runs]
                                run timedemo, append to results.csv. Passes

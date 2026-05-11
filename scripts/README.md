@@ -34,13 +34,13 @@ The two Intel machines share `build/quakespasm-lion`.
 ## Quick start
 
 ```bash
-# Build binaries (PPC cross-compile on mini-intel + native x86_64 on mini-intel)
-scripts/build.sh g3
-scripts/build.sh g4
-scripts/build.sh lion
+# Build the fat binary (composes ppc750 + ppc7400 + x86_64 sub-builds
+# on mini-intel; build.sh g3/g4/lion runs internally as sub-steps).
+scripts/build-fat.sh
 
 # Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host).
-# G4 trio reuses build/quakespasm-g4; Intel pair reuses build/quakespasm-lion.
+# Same fat binary + same bundle layout shipped to every machine — host.c
+# picks the right slice + per-machine autoexec at boot via CFBundle.
 scripts/deploy.sh yosemite
 scripts/deploy.sh sawtooth
 scripts/deploy.sh quicksilver
@@ -90,8 +90,9 @@ before that commit use the old names, rows after use the new names.
 
 | script | purpose |
 |---|---|
-| `build.sh <g3\|g4\|lion>` | rsync sources to mini-intel, compile (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. The `g3/g4/lion` arg names a CHIP FAMILY, not a machine — one g4 binary serves three machines. |
-| `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (binary + codecs + SDL + nib + icon + Info.plist) and rsync to `<machine>:~/Desktop/quake/`. The case statement maps machine→binary internally. |
+| `build.sh <g3\|g4\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
+| `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh lion`, then `lipo -create` the three slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
+| `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
 | `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 4 PPC machines, `intel` = the 2 Intel machines, `all` = all 6 (default). |
 | `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 6 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |
@@ -135,10 +136,11 @@ Quakespasm.app/
       English.lproj/       Launcher.nib + InfoPlist.strings
 ```
 
-Bundle is byte-for-byte identical across machines when using the
-fat binary (`scripts/deploy.sh fat <machine>`). Full Info.plist
-key list, install_name_tool fixup, and the fat-SDL build recipe
-live in `MacOSX/CLAUDE.md`.
+Bundle is byte-for-byte identical across all six machines —
+`deploy.sh` always ships the fat binary; per-machine settings travel
+inside `Contents/Resources/`. Full Info.plist key list,
+install_name_tool fixup, and the fat-SDL build recipe live in
+`MacOSX/CLAUDE.md`.
 
 ## Why all the SSH knob-twiddling
 

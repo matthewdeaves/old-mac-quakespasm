@@ -112,7 +112,7 @@ this automatically.
         autoexec-quicksilver.cfg        ←   Both layers loaded via CFBundle
         autoexec-mini-g4.cfg            ←   by QS_ExecConfigFromBundle —
         autoexec-mini-intel.cfg         ←   self-contained .app, no id1/cfgs
-        autoexec-imac-2019.cfg          ←   needed for per-target settings.
+        autoexec-imac-2019.cfg          ←   needed for hand-tuned settings.
         English.lproj/
           Launcher.nib/
           InfoPlist.strings
@@ -151,9 +151,9 @@ a convention for predictable rsync paths, **not** a binary requirement.
 the Panther-compatible 10.3.9-SDK build**, not the 10.6-SDK build that
 ships upstream. `codecs/lib/*.dylib` are fat too. Combined with the
 fat engine binary (`build/quakespasm-fat` — ppc750 + ppc7400 + x86_64),
-`deploy.sh fat <target>` ships the same bundle byte-for-byte to G3, G4,
+`deploy.sh <target>` ships the same bundle byte-for-byte to G3, G4,
 G4mini, Lion, and iMac-2019. The only per-host action `deploy.sh`
-takes is rsync.
+takes is rsync (plus the migration cleanup of any pre-v1.4 id1/cfgs).
 
 ## install_name_tool fixup (run on Lion before shipping)
 

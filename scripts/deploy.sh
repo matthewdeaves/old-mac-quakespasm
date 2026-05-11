@@ -1,88 +1,40 @@
 #!/usr/bin/env bash
-# Assemble a Quakespasm.app bundle and deploy it to the target machine.
-# Idempotent — safe to re-run.
+# Assemble a self-contained Quakespasm.app bundle and deploy it to the
+# target machine. Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>          # per-target
-#        scripts/deploy.sh fat <yosemite|sawtooth|quicksilver|mini-g4|mini-intel>      # fat binary
+# usage: scripts/deploy.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019>
 #
-# Machine identity → binary mapping (machine names use Apple codenames /
-# form-factor; binary names use chip family):
-#   yosemite    → quakespasm-g3      (PPC 750, 10.3.9 SDK)
-#   sawtooth    → quakespasm-g4      (PPC 7400 baseline, 10.4u SDK)
-#   quicksilver → quakespasm-g4      (PPC 7450, 10.4u SDK; same binary)
-#   mini-g4     → quakespasm-g4      (PPC 7447A, 10.4u SDK; same binary)
-#   mini-intel  → quakespasm-lion    (x86_64, native Lion toolchain)
+# pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
-# pre:   per-target form: build/quakespasm-<chip> must exist
-#        fat form:        build/quakespasm-fat must exist (scripts/build-fat.sh)
-#
-# The fat form ships ONE Mach-O (3 slices: ppc750 + ppc7400 + x86_64) plus
-# all three per-arch autoexec files in id1/. The engine hook in host.c
-# selects the per-arch autoexec at boot via compile-time __VEC__ /
-# __ppc__ / __x86_64__ macros, so the fat slice running on each host
-# auto-picks its tuning.
+# Ships ONE Mach-O (3 slices: ppc750 + ppc7400 + x86_64). The .app is
+# self-contained: per-arch + per-machine autoexec configs live inside
+# Quakespasm.app/Contents/Resources/, loaded by host.c via CFBundle
+# (QS_ExecConfigFromBundle). Compile-time __VEC__/__ppc__/__x86_64__
+# picks the per-arch baseline; runtime sysctl hw.model picks the
+# per-machine overlay. End-user install is just .app + their own
+# id1/pak0.pak alongside.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Mode: "per-target" (legacy) or "fat" (universal). First arg switches.
-MODE="per-target"
-if [ "${1:-}" = "fat" ]; then
-  MODE="fat"
-  shift
-fi
-TARGET="${1:?usage: $0 [fat] <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019>}"
+TARGET="${1:?usage: $0 <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019>}"
 
 # MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
 # ppc slice is the Panther-compatible build. One framework serves all
-# five targets — no per-host SDL swap. See "How the fat SDL was built"
-# in CLAUDE.md if it ever needs regenerating from MacOSX/SDL-panther.dylib.
+# six targets — no per-host SDL swap. See "How the fat SDL was built"
+# in MacOSX/CLAUDE.md if it ever needs regenerating from
+# MacOSX/SDL-panther.dylib.
 case "$TARGET" in
   yosemite)
-    # PowerMac1,1 — only G3 / Panther target. Needs --protocol=29 because
-    # Panther ships rsync 2.5.x, older than Ubuntu's.
+    # PowerMac1,1 — G3 / Panther. Needs --protocol=29 because Panther
+    # ships rsync 2.5.x, older than Ubuntu's.
     HOST="yosemite"
     RSYNC_EXTRA="--protocol=29"
-    BIN_TARGET="g3"
     ;;
-  sawtooth)
-    # PowerMac3,1 — G4 AGP "Sawtooth" tower, 500 MHz 7400 + GeForce2 MX.
-    # Only fixed-function G4 in the matrix. Reuses the g4 binary (-mcpu=7400
-    # is the native ISA — actually a closer match than Quicksilver's 7450).
-    HOST="sawtooth"
+  sawtooth|quicksilver|mini-g4|mini-intel|imac-2019)
+    HOST="$TARGET"
     RSYNC_EXTRA=""
-    BIN_TARGET="g4"
-    ;;
-  quicksilver)
-    # PowerMac3,5 — Quicksilver G4 tower, 733 MHz 7450 + Radeon 9000 Pro.
-    HOST="quicksilver"
-    RSYNC_EXTRA=""
-    BIN_TARGET="g4"
-    ;;
-  mini-g4)
-    # PowerMac10,1 — Mac mini G4 first-gen, 1.25 GHz 7447A + Radeon 9200 32MB.
-    # Different GPU class (Radeon 9200 / 32 MB) from the Quicksilver
-    # — separate data point for CPU-bound vs fillrate-bound diagnosis.
-    HOST="mini-g4"
-    RSYNC_EXTRA=""
-    BIN_TARGET="g4"
-    ;;
-  mini-intel)
-    # Macmini2,1 — Mac mini Intel C2D 2.33 GHz + GMA 950, Lion 10.7.5.
-    # Dual-role: this is also the cross-build host for all PPC binaries.
-    HOST="mini-intel"
-    RSYNC_EXTRA=""
-    BIN_TARGET="lion"
-    ;;
-  imac-2019)
-    # iMac19,1 — iMac 27" 2019, Core i5-9600K @ 3.70 GHz + Radeon Pro
-    # 580X 8GB, macOS Sequoia 15.7.5. Same x86_64 arch as mini-intel,
-    # so reuses build/quakespasm-lion. Vastly more capable GPU/CPU
-    # than mini-intel — expect chart-topping fps and full visual stack.
-    HOST="imac-2019"
-    RSYNC_EXTRA=""
-    BIN_TARGET="lion"
     ;;
   *)
     echo "unknown target: $TARGET" >&2
@@ -90,19 +42,10 @@ case "$TARGET" in
     ;;
 esac
 
-# Fat-mode: ship build/quakespasm-fat regardless of host.
-if [ "$MODE" = "fat" ]; then
-  BIN_TARGET="fat"
-fi
-
-BIN="$REPO_ROOT/build/quakespasm-${BIN_TARGET:-$TARGET}"
+BIN="$REPO_ROOT/build/quakespasm-fat"
 if [ ! -f "$BIN" ]; then
   echo "binary not found: $BIN" >&2
-  if [ "$MODE" = "fat" ]; then
-    echo "run: scripts/build-fat.sh" >&2
-  else
-    echo "run: scripts/build.sh ${BIN_TARGET:-$TARGET}" >&2
-  fi
+  echo "run: scripts/build-fat.sh" >&2
   exit 1
 fi
 
@@ -110,12 +53,13 @@ STAGE=$(mktemp -d -t qs-deploy.XXXXXX)
 trap "rm -rf '$STAGE'" EXIT
 
 echo "[deploy] stage Quakespasm.app bundle"
+RESOURCES="$STAGE/Quakespasm.app/Contents/Resources"
 mkdir -p "$STAGE/Quakespasm.app/Contents/MacOS"
-mkdir -p "$STAGE/Quakespasm.app/Contents/Resources"
+mkdir -p "$RESOURCES"
 
 cp "$REPO_ROOT/scripts/bundle/Info.plist" "$STAGE/Quakespasm.app/Contents/Info.plist"
-cp "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$STAGE/Quakespasm.app/Contents/Resources/"
-cp -r "$REPO_ROOT/MacOSX/English.lproj"   "$STAGE/Quakespasm.app/Contents/Resources/"
+cp "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$RESOURCES/"
+cp -r "$REPO_ROOT/MacOSX/English.lproj"   "$RESOURCES/"
 cp "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$STAGE/Quakespasm.app/Contents/MacOS/"
 cp -r "$REPO_ROOT/MacOSX/SDL.framework"   "$STAGE/Quakespasm.app/Contents/MacOS/"
 
@@ -123,57 +67,29 @@ cp "$BIN" "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 chmod +x "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 
-# Autoexec layout depends on mode.
-#
-# per-target mode (legacy, single-arch binary):
-#   id1/autoexec.cfg = scripts/bundle/autoexec-<target>.cfg verbatim.
-#   quake.rc's `exec autoexec.cfg` picks it up via Quake's gamedir fs.
-#
-# fat mode (universal binary):
-#   Per-arch + per-machine cfgs ship INSIDE the .app bundle's
-#   Contents/Resources/ directory. host.c's CFBundle-based hook
-#   (QS_ExecConfigFromBundle) reads them at boot — compile-time
-#   __VEC__/__ppc__/__x86_64__ picks the per-arch baseline; runtime
-#   sysctl hw.model picks the per-machine overlay. End-user install
-#   is then just "drop Quakespasm.app + your own id1/pak0.pak next to
-#   each other" — the bundled per-target settings travel with the .app.
-mkdir -p "$STAGE/id1"
-if [ "$MODE" = "fat" ]; then
-  RESOURCES="$STAGE/Quakespasm.app/Contents/Resources"
-  mkdir -p "$RESOURCES"
-  # Per-arch baselines (selected by host.c via __VEC__/__ppc__/__x86_64__).
-  cp "$REPO_ROOT/scripts/bundle/autoexec-ppc750.cfg"  "$RESOURCES/"
-  cp "$REPO_ROOT/scripts/bundle/autoexec-ppc7400.cfg" "$RESOURCES/"
-  cp "$REPO_ROOT/scripts/bundle/autoexec-x86_64.cfg"  "$RESOURCES/"
-  # Per-machine overlays (selected by host.c via hw.model sysctl).
-  for cfg in yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
-    cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
-  done
-else
-  AUTOEXEC="$REPO_ROOT/scripts/bundle/autoexec-$TARGET.cfg"
-  if [ -f "$AUTOEXEC" ]; then
-    cp "$AUTOEXEC" "$STAGE/id1/autoexec.cfg"
-  fi
-fi
+# Per-arch baselines + per-machine overlays. host.c picks the right
+# baseline at compile time and the right overlay at runtime via sysctl
+# hw.model. All ship inside the .app so the bundle is self-contained.
+for cfg in ppc750 ppc7400 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
+  cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
+done
 
 echo "[deploy] ship to $HOST:~/Desktop/quake/"
-# Migration: earlier builds shipped the per-arch + per-machine cfgs to
-# id1/ (engine used `exec FILE.cfg` via the gamedir filesystem). They
-# now live inside Quakespasm.app/Contents/Resources/ (engine reads via
-# CFBundle). Remove the stale id1/ copies on the target so user-visible
-# clutter is gone and there's no ambiguity about which file wins. Best
-# effort — failure on a fresh target with no id1/ is fine.
-if [ "$MODE" = "fat" ]; then
-  ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec-ppc750.cfg \
-                     ~/Desktop/quake/id1/autoexec-ppc7400.cfg \
-                     ~/Desktop/quake/id1/autoexec-x86_64.cfg \
-                     ~/Desktop/quake/id1/autoexec-yosemite.cfg \
-                     ~/Desktop/quake/id1/autoexec-sawtooth.cfg \
-                     ~/Desktop/quake/id1/autoexec-quicksilver.cfg \
-                     ~/Desktop/quake/id1/autoexec-mini-g4.cfg \
-                     ~/Desktop/quake/id1/autoexec-mini-intel.cfg \
-                     ~/Desktop/quake/id1/autoexec-imac-2019.cfg 2>/dev/null' || true
-fi
+# Migration: pre-v1.4 builds shipped autoexec cfgs to id1/. Remove any
+# stragglers on the target so user-visible id1/ stays clean (engine
+# now loads from Resources/ via CFBundle). Best effort — failure on a
+# fresh target with no id1/ is fine.
+ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg \
+                   ~/Desktop/quake/id1/autoexec-ppc750.cfg \
+                   ~/Desktop/quake/id1/autoexec-ppc7400.cfg \
+                   ~/Desktop/quake/id1/autoexec-x86_64.cfg \
+                   ~/Desktop/quake/id1/autoexec-yosemite.cfg \
+                   ~/Desktop/quake/id1/autoexec-sawtooth.cfg \
+                   ~/Desktop/quake/id1/autoexec-quicksilver.cfg \
+                   ~/Desktop/quake/id1/autoexec-mini-g4.cfg \
+                   ~/Desktop/quake/id1/autoexec-mini-intel.cfg \
+                   ~/Desktop/quake/id1/autoexec-imac-2019.cfg 2>/dev/null' || true
+
 # --checksum: force file-content comparison instead of trusting size+mtime.
 # Saw at least one stale-icon case on sawtooth where rsync's size+mtime
 # heuristic skipped a real update (298 KB stale icns left in place
@@ -205,14 +121,6 @@ if [ "$LOCAL_BIN_MD5" != "$REMOTE_BIN_MD5" ]; then
 fi
 if [ "$LOCAL_ICN_MD5" != "$REMOTE_ICN_MD5" ]; then
   echo "[deploy] WARN: icon md5 mismatch on $HOST (local $LOCAL_ICN_MD5 vs remote $REMOTE_ICN_MD5)"
-fi
-
-# In fat mode, also delete any prior id1/autoexec.cfg from a previous
-# per-target deploy. The per-arch hook in host.c runs LAST so it would
-# still override, but a stale autoexec.cfg can confuse validation by
-# setting cvars that match the per-arch defaults coincidentally.
-if [ "$MODE" = "fat" ]; then
-  ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg' || true
 fi
 
 ssh "$HOST" 'chmod +x ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null

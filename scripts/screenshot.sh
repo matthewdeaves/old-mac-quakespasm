@@ -6,7 +6,7 @@
 #
 # usage: scripts/screenshot.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019> [--width WxH] [--no-fetch]
 #
-# pre:   Deploy a fat bundle first via `scripts/deploy.sh fat <host>`.
+# pre:   Deploy the bundle first via `scripts/deploy.sh <host>`.
 #        Host must reach login (ssh works).
 # post:  Per-host folder ~/Desktop/quakespasm-screens-<hostname>/ on the
 #        target machine contains spasm0000.png, spasm0001.png, … plus a

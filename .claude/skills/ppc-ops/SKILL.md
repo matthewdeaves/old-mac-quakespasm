@@ -22,16 +22,19 @@ bench pipeline. Don't reinvent it inline — invoke the scripts.
 
 ## When to use
 
-- "build for g4" / "build for g3" / "build for lion" → `scripts/build.sh <chip>`
-  (the chip name names the BINARY family, not a machine; one g4 binary
-  serves sawtooth, quicksilver, and mini-g4)
+- "build the binary" / "build fat" → `scripts/build-fat.sh`
+  (produces `build/quakespasm-fat` — the only binary we deploy. Calls
+  `build.sh g3/g4/lion` internally; those sub-builders are also useful
+  on their own when diagnosing a one-slice compile error.)
 - "deploy" / "ship to <machine>" → `scripts/deploy.sh <machine>`
-  (build first if `build/quakespasm-<chip>` doesn't exist or isn't from current HEAD)
+  (always ships the fat binary; build first if `build/quakespasm-fat`
+  doesn't exist or isn't from current HEAD)
 - "run a bench" / "timedemo" → `scripts/bench.sh <machine> <demo> <WxH>`
-- "full benchmark sweep" → `scripts/full-bench.sh all`   (all 5 machines)
-- "PPC-only sweep" → `scripts/full-bench.sh ppc`         (skip mini-intel)
+- "full benchmark sweep" → `scripts/full-bench.sh all`   (all 6 machines)
+- "PPC-only sweep" → `scripts/full-bench.sh ppc`         (4 PPC machines)
+- "Intel-only sweep" → `scripts/full-bench.sh intel`     (mini-intel + imac-2019)
 - "parallel sweep" / "smoke" → `scripts/parallel-bench.sh [--quick]`
-  (default runs all 5 legs concurrently; `--no-<machine>` to skip a leg)
+  (default runs all 6 legs concurrently; `--no-<machine>` to skip a leg)
 - "bench + commit" (post-phase canonical) → `scripts/bench-and-commit.sh "<phase desc>"`
 - "set up a fresh build host" → `scripts/setup-lion.sh`
 
@@ -49,9 +52,10 @@ once to know the contract.
 
 ## SSH aliases used
 
-All five configured in `~/.ssh/config` with legacy crypto algorithms
+All six configured in `~/.ssh/config` with legacy crypto algorithms
 (ssh-rsa, dh-group1-sha1, aes128-cbc on Panther) and `id_rsa_tiger` as
-the keypair. Each Mac also has `~/bin/qsreboot.sh` installed via
+the keypair (imac-2019 is modern OpenSSH and doesn't need the legacy
+knobs). Each Mac also has `~/bin/qsreboot.sh` installed via
 `scripts/install-host-tools.sh` for SSH-side reboot recovery (Tier 1
 sudo NOPASSWD reboot, Tier 2 Finder Apple Event).
 

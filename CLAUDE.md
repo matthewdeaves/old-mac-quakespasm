@@ -64,9 +64,9 @@ ship the wins.
 Full contracts in `scripts/CLAUDE.md`; host matrix in `scripts/README.md`.
 Top of mind:
 
-- `scripts/build.sh <g3|g4|lion>` — cross-compile or native, on mini-intel
-- `scripts/build-fat.sh` — 3-arch (ppc750+ppc7400+x86_64) lipo'd binary
-- `scripts/deploy.sh <machine>` or `deploy.sh fat <machine>` — assemble + ship
+- `scripts/build.sh <g3|g4|lion>` — cross-compile or native, on mini-intel (per-slice; mostly called by build-fat.sh, also useful for diagnosing one-slice compile errors)
+- `scripts/build-fat.sh` — 3-arch (ppc750+ppc7400+x86_64) lipo'd binary; this is the only binary we deploy
+- `scripts/deploy.sh <machine>` — stage Quakespasm.app + ship to host. Always ships the fat binary; per-machine settings travel inside Contents/Resources/.
 - `scripts/bench.sh <machine> <demo> <WxH> [runs]` — append to results.csv
 - `scripts/parallel-bench.sh [--quick]` — full matrix concurrently
 - `scripts/bench-and-commit.sh "<msg>" [--quick]` — clean tree + bench + commit
