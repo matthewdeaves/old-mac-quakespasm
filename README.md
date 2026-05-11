@@ -20,16 +20,16 @@ A QuakeSpasm fork tuned to look as good as possible while staying playable on **
 
 ## fps improvement (Yosemite B&W G3, 449 MHz / Rage 128)
 
-Early-port build (`4c165e6f`) → current Round v8 wrap (`84d35972`):
+Vanilla v2-baseline (`4c165e6f`, early-port pre-Phase-0) → current Round v11.1 (`d64427db`):
 
 | Cell | Before | After | Improvement |
 |---|---:|---:|---:|
-| **demo3 1024×768** | 5.10 fps | **20.70 fps** | **+306% (4.1×)** |
+| **demo3 1024×768** | 5.10 fps | **20.95 fps** | **+311% (4.1×)** |
 | demo1 1024×768 | 7.70 fps | 17.35 fps | +125% (2.3×) |
-| demo3 640×480 | 15.60 fps | 37.50 fps | +140% (2.4×) |
-| demo1 640×480 | 23.90 fps | 35.65 fps | +49% |
 
-…with translucent water/lava/slime/tele, alias drop-shadows, emissive-fullbright dynamic lights, watervis NoVis, and a per-frame dynamic-light distance gate.
+Baselines from [`PPC_PLAN.md §17.7.1`](PPC_PLAN.md). 640×480 cells weren't formally baselined at the v2-baseline checkpoint, so they're omitted here — current numbers are in the full grid below.
+
+…with translucent water, alias drop-shadows, emissive-fullbright dynamic lights, watervis NoVis (auto-engine), classic warped water (Rage 128 framebuffer-copy refraction bug), reduced particles, coarser warp tessellation, `gl_clear 0`, and a per-frame dynamic-light distance gate. Lava / slime / teleporter alpha was dropped on G3 in [Round v8 followup](MISTAKES.md) — `r_lavaalpha 0.6` alone dropped demo3 1024 by 26% on Rage 128, pushing G3 below the 20-fps floor.
 
 ## The bench fleet
 
@@ -46,20 +46,22 @@ Four GPU eras: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Rad
 
 ## Latest fps across all six machines
 
-Round v8 wrap (`84d35972`), `timedemo demo1/2/3` × 1024×768 + 640×480, median of runs 2 + 3:
+Round v11.1 (`d64427db`), `timedemo demo1/2/3` × 1024×768 + 640×480, median of runs 2 + 3:
 
 | Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
 |---|---:|---:|---:|---:|---:|---:|
-| Yosemite (G3 / Rage 128) | 17.35 | 15.85 | 20.70 | 35.65 | 33.95 | 37.50 |
-| Sawtooth (G4 / GeForce2 MX) | 40.30 | 32.70 | 35.75 | 55.85 | 50.05 | 43.70 |
-| Quicksilver (G4 / Radeon 9000) | 64.60 | 61.45 | 61.05 | 68.90 | 67.55 | 68.30 |
-| Mac mini G4 (G4 / Radeon 9200) | 50.30 | 38.55 | 45.30 | 89.90 | 76.65 | 77.80 |
-| Mac mini Intel (Lion / GMA 950) | 75.95 | 56.25 | 36.85 | 169.50 | 133.30 | 142.05 |
-| iMac 27" (Sequoia / Radeon Pro 580X) | 1619.05 | 1536.70 | 1314.90 | 1799.55 | 1792.55 | 1520.30 |
+| Yosemite (G3 / Rage 128) | 17.35 | 15.25 | 20.95 | 34.45 | 33.40 | 36.85 |
+| Sawtooth (G4 / GeForce2 MX) | 40.25 | 32.70 | **46.90** | 55.65 | 50.15 | **57.55** |
+| Quicksilver (G4 / Radeon 9000) | 62.75 | 60.10 | **84.05** | 70.30 | 68.00 | **95.35** |
+| Mac mini G4 (G4 / Radeon 9200) | 48.45 | 37.40 | **65.60** | 86.30 | 73.85 | **113.20** |
+| Mac mini Intel (Lion / GMA 950) | 72.85 | 54.50 | **44.60** | 163.95 | 130.70 | **185.90** |
+| iMac 27" (Sequoia / Radeon Pro 580X) | 1610.95 | 1490.20 | **1575.15** | 1894.45 | 1876.20 | **1907.25** |
+
+**Round v11.1 highlight:** per-frame GL state cache in `R_DrawAliasModel` (Round v11) landed **+19 % to +46 % on demo3 1024** across every cached machine. Compiled out of the G3 ppc750 slice via `QS_DISABLE_ALIAS_STATE_CACHE` — same-session A/B confirmed neutral on Yosemite. See [`CLAUDE.md` "Per-machine gating is a legitimate pattern"](CLAUDE.md) for the gating mechanism.
 
 ## What each machine renders by default
 
-Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. Every entry below is a runtime cvar — flip without rebuild.
+Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. Every entry below is a runtime cvar — flip without rebuild — *except* the Watervis NoVis row, which is auto-engine behaviour applied to non-watervised BSPs at load (see `Quake/gl_model.c:2456+`, `Quake/r_world.c:152`).
 
 |  | Yosemite | Sawtooth | Quicksilver | Mini-G4 | Mini-Intel | iMac |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -73,7 +75,7 @@ Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. E
 | Emissive-fullbright lights | ✓ r 0.5 / cap 4 | ✓ r 0.5 / cap 6 | ✓ r 1.0 / cap 12 | ✓ r 1.0 / cap 12 | ✓ r 0.75 / cap 8 | ✓ r 1.5 / cap 32 |
 | `r_dynamic_distance` | 768 | 768 | default | default | default | default |
 | `gl_clear 0` (skip backbuffer) | ✓ | — (driver quirk) | ✓ | ✓ | ✓ | ✓ |
-| `gl_texture_lodbias -1.5` | — | inert (probe) | ✓ | ✓ | — | — |
+| `gl_texture_lodbias -1.5` | ✓ | inert (probe) | ✓ | ✓ | — | — |
 | Reduced particles (`r_particles 2`) | ✓ | — | — | — | — | — |
 | Coarser warp tess (`gl_subdivide_size 256`) | ✓ | — | — | — | — | — |
 
