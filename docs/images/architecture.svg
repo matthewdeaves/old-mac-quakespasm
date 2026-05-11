@@ -135,8 +135,28 @@
   </g>
   <g transform="translate(680, 624)">
     <rect x="0" y="-14" width="396" height="28" rx="6" fill="#ffffff" stroke="#cbcbcb" stroke-width="1"/>
-    <text x="12" y="5" font-size="11" font-weight="600" fill="#3a3a3a">deploy.sh fat &lt;target&gt;</text>
-    <text x="158" y="5" font-size="11" fill="#666">— assembles Quakespasm.app, rsyncs to ~/Desktop/quake/</text>
+    <text x="12" y="5" font-size="11" font-weight="600" fill="#3a3a3a">deploy.sh &lt;machine&gt;</text>
+    <text x="138" y="5" font-size="11" fill="#666">— stages Quakespasm.app, rsyncs to ~/Desktop/quake/</text>
+  </g>
+
+  <!-- cfg dispatch annotation — explains how the fat binary picks its
+       cfg layers once it lands on a target. Spans the gap between the
+       deploy.sh band and the bench rack title row. Right edge stops at
+       ~x=1020 to stay clear of the dashed "same physical machine"
+       connector that descends from x=1260 down to the mini-intel card. -->
+  <g transform="translate(80, 660)">
+    <text x="0" y="0" font-size="10.5" fill="#444">
+      <tspan font-style="italic" font-weight="600">on .app boot:</tspan>
+      <tspan>  compile-time </tspan>
+      <tspan font-family="ui-monospace, Menlo, Consolas, monospace" fill="#1a1a1a">__VEC__/__ppc__/__x86_64__</tspan>
+      <tspan> → </tspan>
+      <tspan font-family="ui-monospace, Menlo, Consolas, monospace" fill="#1a1a1a">autoexec-{ppc7400|ppc750|x86_64}.cfg</tspan>
+      <tspan>  ·  runtime </tspan>
+      <tspan font-family="ui-monospace, Menlo, Consolas, monospace" fill="#1a1a1a">sysctl hw.model</tspan>
+      <tspan> → </tspan>
+      <tspan font-family="ui-monospace, Menlo, Consolas, monospace" fill="#1a1a1a">autoexec-&lt;machine&gt;.cfg</tspan>
+      <tspan>  · CFBundle</tspan>
+    </text>
   </g>
 
   <!-- ============================================================ -->
@@ -185,8 +205,8 @@
         <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
         <text x="14" y="206" font-size="10" fill="#888">slice: ppc7400</text>
         <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">5th machine</text>
-        <text x="14" y="252" font-size="10" fill="#888" font-style="italic">v5 coda</text>
+        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 30 fps</text>
+        <text x="14" y="252" font-size="10" fill="#888" font-style="italic">fillrate-bound</text>
       </g>
       <!-- quicksilver -->
       <g transform="translate(420,0)">
@@ -276,7 +296,7 @@
   </g>
   <!-- small dot at the connector origin to anchor the visual on the cross-build card -->
   <circle cx="1260" cy="480" r="4" fill="#3b6dd5"/>
-  <g transform="translate(1090, 614)">
+  <g transform="translate(1138, 590)">
     <rect x="0" y="-12" width="148" height="22" rx="4" fill="#eef4fc" stroke="#4c83c4" stroke-width="1"/>
     <text x="74" y="3" text-anchor="middle" font-size="11" font-style="italic" fill="#2a5cae">same physical machine</text>
   </g>

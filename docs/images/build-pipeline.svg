@@ -64,7 +64,7 @@
       <rect x="0" y="0" width="1170" height="78" rx="10" fill="#fff5e9" stroke="#e7c79c" stroke-width="1.2" filter="url(#bp-shadow)"/>
       <text x="22" y="28" font-size="14" font-weight="700" fill="#1a1a1a">Sync sources Ubuntu → mini-intel</text>
       <g font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#444">
-        <text x="22" y="56">rsync -av --delete --exclude=.git --exclude=build/ --exclude=benchmarks/ --exclude=prereqs/   ~/quakespasm/   mini-intel:quakespasm/</text>
+        <text x="22" y="56">rsync -av --partial --inplace --delete --exclude=.git --exclude='*.o' --exclude=build/ --exclude=benchmarks/ --exclude=prereqs/  ~/quakespasm/  mini-intel:quakespasm/</text>
       </g>
     </g>
   </g>
@@ -194,7 +194,7 @@
       <rect x="0" y="0" width="660" height="84" rx="10" fill="#eaf6ee" stroke="#a3cfb3" stroke-width="1.4" filter="url(#bp-shadow)"/>
       <text x="22" y="32" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="15" font-weight="700" fill="#1a1a1a">build/quakespasm-fat</text>
       <text x="22" y="54" font-size="12" fill="#444">Mach-O universal · 3 slices: ppc750 + ppc7400 + x86_64 · ~5 KB padding overhead vs sum-of-slices</text>
-      <text x="22" y="74" font-size="11.5" fill="#0f8a5f" font-weight="600"><tspan font-family="ui-monospace, Menlo, Consolas, monospace">deploy.sh fat &lt;target&gt;</tspan> ships the same Quakespasm.app to every host — dyld picks the right slice automatically</text>
+      <text x="22" y="74" font-size="11.5" fill="#0f8a5f" font-weight="600"><tspan font-family="ui-monospace, Menlo, Consolas, monospace">deploy.sh &lt;machine&gt;</tspan> ships the same Quakespasm.app to every host — dyld picks the right slice automatically</text>
     </g>
   </g>
 
