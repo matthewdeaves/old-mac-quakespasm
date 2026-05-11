@@ -111,69 +111,96 @@ static qboolean overbright; //johnfitz
 #define QS_DISABLE_ALIAS_STATE_CACHE 1
 #endif
 
+// Round v11 follow-up: force inlining and provide a branch hint for the
+// disabled flag. Apple gcc-4.0 + clang + modern gcc all honour
+// __attribute__((always_inline)) on a function that's also marked
+// inline; __builtin_expect lets the compiler arrange the cache-hit
+// path as the fall-through (no jump on cache hit). Both attributes are
+// no-ops on toolchains that don't recognise them.
+#if defined(__GNUC__) || defined(__clang__)
+#define QS_ALWAYS_INLINE static inline __attribute__((always_inline))
+#define QS_LIKELY(x)   __builtin_expect(!!(x), 1)
+#define QS_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define QS_ALWAYS_INLINE static inline
+#define QS_LIKELY(x)   (x)
+#define QS_UNLIKELY(x) (x)
+#endif
+
 #ifndef QS_DISABLE_ALIAS_STATE_CACHE
 cvar_t gl_aliasstate_cache = {"gl_aliasstate_cache", "1", CVAR_ARCHIVE};
 
-static qboolean alias_state_cache_disabled = false; // cvar mirror, refreshed once per frame
-static int cached_texenv_mode[2];                   // [0] = TMU0, [1] = TMU1
-static int cached_depth_mask;
-static int cached_blend_enabled;
+// Coalesce the per-state cache slots into a single struct so they live
+// on one cache line — the four GL helpers below all fire from the same
+// hot R_DrawAliasModel body, so keeping their state contiguous gives
+// the CPU prefetcher a single line to keep warm. Also lets us reset
+// the whole cache with one memset.
+typedef struct {
+	GLenum   texenv_mode[2]; // [0]=TMU0, [1]=TMU1; ~0u marks "unknown"
+	GLint    depth_mask;     // GL_TRUE / GL_FALSE; -1 marks "unknown"
+	GLint    blend_enabled;  // 1 / 0;             -1 marks "unknown"
+	qboolean disabled;       // cvar mirror, refreshed once per frame
+} alias_state_cache_t;
+
+static alias_state_cache_t r_alias_sc;
 #endif
 
 void R_AliasStateCache_FrameReset (void)
 {
 #ifndef QS_DISABLE_ALIAS_STATE_CACHE
-	alias_state_cache_disabled = (gl_aliasstate_cache.value == 0.0f);
-	cached_texenv_mode[0] = -1;
-	cached_texenv_mode[1] = -1;
-	cached_depth_mask = -1;
-	cached_blend_enabled = -1;
+	r_alias_sc.disabled       = (gl_aliasstate_cache.value == 0.0f);
+	r_alias_sc.texenv_mode[0] = (GLenum)~0u;
+	r_alias_sc.texenv_mode[1] = (GLenum)~0u;
+	r_alias_sc.depth_mask     = -1;
+	r_alias_sc.blend_enabled  = -1;
 #endif
 }
 
-static inline void GL_SetTexEnvMode (GLenum mode)
+QS_ALWAYS_INLINE void GL_SetTexEnvMode (GLenum mode)
 {
 #ifdef QS_DISABLE_ALIAS_STATE_CACHE
 	glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, (GLfloat)mode);
 #else
-	int tmu = mtexenabled ? 1 : 0;
-	if (alias_state_cache_disabled || (int)mode != cached_texenv_mode[tmu])
+	// `mtexenabled` is a qboolean (int), already 0 or 1 — use directly
+	// as an index. Saves the ternary's compare+select.
+	int tmu = mtexenabled;
+	if (QS_UNLIKELY (r_alias_sc.disabled) || mode != r_alias_sc.texenv_mode[tmu])
 	{
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, (GLfloat)mode);
-		cached_texenv_mode[tmu] = (int)mode;
+		r_alias_sc.texenv_mode[tmu] = mode;
 	}
 #endif
 }
 
-static inline void GL_SetTexEnvModeI (GLenum mode)
+QS_ALWAYS_INLINE void GL_SetTexEnvModeI (GLenum mode)
 {
 #ifdef QS_DISABLE_ALIAS_STATE_CACHE
 	glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
 #else
-	int tmu = mtexenabled ? 1 : 0;
-	if (alias_state_cache_disabled || (int)mode != cached_texenv_mode[tmu])
+	int tmu = mtexenabled;
+	if (QS_UNLIKELY (r_alias_sc.disabled) || mode != r_alias_sc.texenv_mode[tmu])
 	{
 		glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
-		cached_texenv_mode[tmu] = (int)mode;
+		r_alias_sc.texenv_mode[tmu] = mode;
 	}
 #endif
 }
 
-static inline void GL_SetDepthMask (GLboolean mask)
+QS_ALWAYS_INLINE void GL_SetDepthMask (GLboolean mask)
 {
 #ifdef QS_DISABLE_ALIAS_STATE_CACHE
 	glDepthMask (mask);
 #else
-	int v = mask ? 1 : 0;
-	if (alias_state_cache_disabled || v != cached_depth_mask)
+	// GLboolean is already 0/1; no need to renormalise.
+	if (QS_UNLIKELY (r_alias_sc.disabled) || (GLint)mask != r_alias_sc.depth_mask)
 	{
 		glDepthMask (mask);
-		cached_depth_mask = v;
+		r_alias_sc.depth_mask = (GLint)mask;
 	}
 #endif
 }
 
-static inline void GL_SetBlendEnabled (qboolean enabled)
+QS_ALWAYS_INLINE void GL_SetBlendEnabled (qboolean enabled)
 {
 #ifdef QS_DISABLE_ALIAS_STATE_CACHE
 	if (enabled)
@@ -181,14 +208,14 @@ static inline void GL_SetBlendEnabled (qboolean enabled)
 	else
 		glDisable (GL_BLEND);
 #else
-	int v = enabled ? 1 : 0;
-	if (alias_state_cache_disabled || v != cached_blend_enabled)
+	// qboolean is already 0/1.
+	if (QS_UNLIKELY (r_alias_sc.disabled) || (GLint)enabled != r_alias_sc.blend_enabled)
 	{
 		if (enabled)
 			glEnable (GL_BLEND);
 		else
 			glDisable (GL_BLEND);
-		cached_blend_enabled = v;
+		r_alias_sc.blend_enabled = (GLint)enabled;
 	}
 #endif
 }

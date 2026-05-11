@@ -433,6 +433,11 @@ void R_DrawParticles (void);
 void CL_RunParticles (void);
 void R_ClearParticles (void);
 
+// PPC port -- Round v11: alias entity GL state cache. Called once per
+// frame from R_RenderScene. Compiled out of the G3 ppc750 slice via
+// QS_DISABLE_ALIAS_STATE_CACHE; the function body is empty there.
+void R_AliasStateCache_FrameReset (void);
+
 void R_TranslatePlayerSkin (int playernum);
 void R_TranslateNewPlayerSkin (int playernum); //johnfitz -- this handles cases when the actual texture changes
 void R_UpdateWarpTextures (void);

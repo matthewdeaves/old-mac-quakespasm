@@ -1127,11 +1127,9 @@ void R_RenderScene (void)
 	// PPC port -- Round v11: clear the per-frame alias GL state cache so
 	// cached state never lags the GL context across vid-mode changes or
 	// cvar flips between frames. First cached call after this reset
-	// always emits the real glXxx (cache miss).
-	{
-		extern void R_AliasStateCache_FrameReset (void);
-		R_AliasStateCache_FrameReset ();
-	}
+	// always emits the real glXxx (cache miss). Prototype in glquake.h;
+	// body in r_alias.c (compiled to empty on G3 ppc750 slice).
+	R_AliasStateCache_FrameReset ();
 
 	Fog_EnableGFog (); //johnfitz
 
