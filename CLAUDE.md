@@ -41,6 +41,18 @@ scripts/parallel-bench.sh [--quick] [--no-yosemite] [--no-sawtooth]
 scripts/setup-lion.sh             bootstrap fresh cross-build host from prereqs/
                                   (env BUILD_HOST=mini-intel by default)
 scripts/parse_qconsole.py <log>   extract fps + GL info from a raw log
+scripts/make-icon.py [source.png] regenerate MacOSX/QuakeSpasm.icns from a source
+                                  PNG (default: MacOSX/newiconfinal.png). Emits
+                                  legacy-only ICNS chunks (Panther/Tiger compat;
+                                  see file header for why iconutil is wrong).
+                                  Also refreshes docs/images/quakespasm-icon{,
+                                  -256}.png by default (README hero strip);
+                                  --no-readme-refresh to skip. --keep-bg skips
+                                  auto bg-removal — use it when the source PNG
+                                  is already hand-cleaned in Photoshop (the
+                                  canonical workflow; see "Icon pipeline
+                                  philosophy" below). Requires ~/quakespasm/.venv
+                                  with Pillow + numpy + scipy.
 scripts/build-fat.sh              build a 3-arch (ppc750+ppc7400+x86_64) universal
                                   binary by composing g3/g4/lion sub-builds with
                                   lipo. Output: build/quakespasm-fat.
@@ -404,6 +416,30 @@ loads: the system `/Library/Frameworks/SDL.framework` (if present from
 Fruitz of Dojo) is 1.2.7, too old for our binary (linked against
 current_version=12.5.0). We always ship our own SDL alongside the
 binary, never rely on the system one.
+
+## Icon pipeline philosophy
+
+`scripts/make-icon.py` ships **conservative defaults**: edge-flood-fill
+bg removal that preserves all interior detail, no auto-scrubbing of
+interior bg-coloured pockets. The `--scrub-interior` knob exists for
+AI-generated artwork that has bg leaking through logo glyph gaps or
+detail-sparse areas, but the heuristics (size + score-purity + annulus
+darkness) can't reliably distinguish bg-bleed from saturated specular
+highlights on metallic surfaces.
+
+**Use Photoshop touch-up over algorithmic perfection.** The proven
+workflow for the Q1 + Q2 icons we shipped:
+
+1. Run `make-icon.py` with defaults to produce a conservative
+   transparent-bg master + (if requested via `--preview`) a
+   magenta-composited preview.
+2. User opens the master in Photoshop, paints any visible bg pockets
+   to alpha=0 using the magenta preview as a guide.
+3. User saves back as RGBA PNG, hands it back via `--keep-bg` to
+   regenerate the ICNS without re-running bg removal.
+
+Don't burn cycles trying to make `--scrub-interior` work perfectly on
+new artwork — if defaults leave visible bg pockets, ship to Photoshop.
 
 ## Tiger/Panther Cocoa requires a real .app bundle
 
