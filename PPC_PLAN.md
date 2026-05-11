@@ -1577,7 +1577,7 @@ Project goal is best-looking at playable fps, not max fps.)
 ## §17 Round v7 — small wins, sky/water hoists, emissive lights
 
 **Theme.** "Cheap-and-big optimisation wins are gone." Pre-round
-analysis (PPC_PERF_R7.md) graded most candidates sub-1% on G3.
+analysis (docs/archive/PPC_PERF_R7.md) graded most candidates sub-1% on G3.
 Strategy: pick a handful of low-risk well-understood patches,
 land them as discrete bisectable phases, validate with end-of-
 round full grid.
@@ -1604,7 +1604,7 @@ origin + colour + radius. Per frame, distance-gates against
 into `cl_dlights[]` via `CL_AllocDlight`. Rest of the dlight
 pipeline picks them up transparently.
 
-Pre-smoke review (PPC_PERF_R7_REVIEW.md) caught two blockers
+Pre-smoke review (docs/archive/PPC_PERF_R7_REVIEW.md) caught two blockers
 before commit:
 - B1: `dl->die = cl.time + 0.1f` would saturate the 64-slot
   `cl_dlights[]` pool within ~6 frames at 60 fps and stomp the
@@ -1704,7 +1704,7 @@ buy translucent water; v7 holds the line.
 ### 17.8 Filed for round v8
 
 - **Cvar-on path for Tier A emissive lights**: per-machine autoexec
-  enables (radius/max tuned per GPU class) — see PPC_PERF_R7.md
+  enables (radius/max tuned per GPU class) — see docs/archive/PPC_PERF_R7.md
   candidate 9 table for the proposed values. Smoke-validate the
   cvar-on path on G3 demo3 1024 (highest-stress dlight) before
   shipping autoexec defaults.
@@ -1712,11 +1712,11 @@ buy translucent water; v7 holds the line.
   only. Verify which demo maps actually use cloud-layer sky vs
   skybox before implementing — `Sky_LoadSkyBox` short-circuits
   Sky_DrawFace if any skybox texture is loaded.
-- **Ironwail flat-array efrags pattern**: per IRONWAIL_REVIEW.md
+- **Ironwail flat-array efrags pattern**: per docs/archive/IRONWAIL_REVIEW.md
   candidate 1, gl_refrag.c:120 / 157 + r_part.c:580. CPU-side flat
   array replaces the linked-list traversal pattern; modest win but
   matches the Tier A flat-array shape we already have.
 - **`-pg` profiling pass on yosemite + Tiger sample on G4 trio**:
-  per PPC_PERF_R7.md "measure first" recommendation. Instead of
+  per docs/archive/PPC_PERF_R7.md "measure first" recommendation. Instead of
   more static analysis, capture actual per-function hot list to
   re-rank future round candidates.
