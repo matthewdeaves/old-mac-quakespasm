@@ -35,7 +35,7 @@ Early-port build (`4c165e6f`) → current Round v8 wrap (`84d35972`):
 
 | Machine | CPU | GPU | OS | Default res |
 |---|---|---|---|---:|
-| **Yosemite** (PowerMac1,1 B&W G3, 1999) | 449 MHz PPC 750 | ATI Rage 128 16 MB | 10.3.9 Panther | 640×480 |
+| **Yosemite** (PowerMac1,1 B&W G3, 1999) | 449 MHz PPC 750 | ATI Rage 128 16 MB | 10.3.9 Panther | 800×600 |
 | **Sawtooth** (PowerMac3,1 G4 AGP, 1999) | 500 MHz PPC 7400 | NVIDIA GeForce2 MX 32 MB | 10.4.11 Tiger | 1024×768 |
 | **Quicksilver** (PowerMac3,5, 2001) | 733 MHz PPC 7450 | ATI Radeon 9000 Pro 64 MB | 10.4.11 Tiger | 1024×768 |
 | **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger | 1024×768 |
@@ -94,7 +94,7 @@ Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. E
   <img src="docs/images/architecture.svg" width="92%" alt="Architecture: arch baseline → per-machine layer → autoexec dispatch" />
 </p>
 
-Three layers of `.cfg` execute in order: per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c:946`](Quake/host.c), then the user's own `autoexec.cfg` if present.
+Two extra `.cfg` layers execute on top of the regular `quake.rc` → `default.cfg` → `config.cfg` → `autoexec.cfg` chain: the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then the per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c:946`](Quake/host.c). The per-machine layer runs last so its cvars win over everything above.
 
 ## How it's built
 
