@@ -6,7 +6,7 @@
 [![Engine: QuakeSpasm fork](https://img.shields.io/badge/Engine-QuakeSpasm%20fork-red.svg)](https://github.com/sezero/quakespasm)
 
 <p align="center">
-  <img src="docs/images/quakespasm-icon-256.png" width="120" alt="QuakeSpasm icon" />
+  <img src="docs/images/quakespasm-icon-256.png" width="200" alt="QuakeSpasm icon" />
 </p>
 
 A QuakeSpasm fork tuned to look as good as possible while staying playable on **six retro Macs spanning 1999–2019**. One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + Intel x86_64), per-machine config picked at boot via `sysctl hw.model`.
@@ -134,6 +134,10 @@ Modern macOS will quarantine the unsigned bundle — either right-click → Open
 - [**`MISTAKES.md`**](MISTAKES.md) — append-only log of approaches that broke and why.
 - [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
 - [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
+
+## Sister project
+
+- [**old-mac-quake2**](https://github.com/matthewdeaves/old-mac-quake2) — the same six-machine PPC + Intel fleet, same tooling, applied to **yquake2 5.11** as base. Shares the cross-build host, scripts, and per-machine autoexec pattern; cross-pollinates features (GL_FOG cvar layer, underwater warp magnitude dial, anisotropic caps) between the two engines.
 
 ## License
 

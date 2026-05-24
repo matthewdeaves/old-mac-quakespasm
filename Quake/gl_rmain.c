@@ -762,14 +762,23 @@ void R_SetupView (void)
 	//johnfitz -- calculate r_fovx and r_fovy here
 	r_fovx = r_refdef.fov_x;
 	r_fovy = r_refdef.fov_y;
-	if (r_waterwarp.value)
+	if (r_waterwarp.value > 0)
 	{
 		int contents = Mod_PointInLeaf (r_origin, cl.worldmodel)->contents;
 		if (contents == CONTENTS_WATER || contents == CONTENTS_SLIME || contents == CONTENTS_LAVA)
 		{
-			//variance is a percentage of width, where width = 2 * tan(fov / 2) otherwise the effect is too dramatic at high FOV and too subtle at low FOV.  what a mess!
-			r_fovx = atan(tan(DEG2RAD(r_refdef.fov_x) / 2) * (0.97 + sin(cl.time * 1.5) * 0.03)) * 2 / M_PI_DIV_180;
-			r_fovy = atan(tan(DEG2RAD(r_refdef.fov_y) / 2) * (1.03 - sin(cl.time * 1.5) * 0.03)) * 2 / M_PI_DIV_180;
+			// PPC port -- Q2-borrow round: r_waterwarp doubles as a magnitude
+			// dial (0..1). Wobble + the matching center-offset both scale
+			// with the cvar so 0.5 = half wobble (no permanent FOV squeeze).
+			//
+			// variance is a percentage of width, where width = 2*tan(fov/2)
+			// — otherwise the effect is too dramatic at high FOV and too
+			// subtle at low FOV. what a mess!
+			float mag = CLAMP (0.0f, r_waterwarp.value, 1.0f);
+			float offset = 0.03f * mag;
+			float warp = sin(cl.time * 1.5) * offset;
+			r_fovx = atan(tan(DEG2RAD(r_refdef.fov_x) / 2) * (1.0f - offset + warp)) * 2 / M_PI_DIV_180;
+			r_fovy = atan(tan(DEG2RAD(r_refdef.fov_y) / 2) * (1.0f + offset - warp)) * 2 / M_PI_DIV_180;
 		}
 	}
 	//johnfitz

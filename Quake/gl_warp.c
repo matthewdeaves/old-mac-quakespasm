@@ -32,7 +32,11 @@ extern cvar_t r_drawflat;
 //       (e.g. ATI Rage 128 + 1024x768 → bright-blue water tint bug).
 cvar_t r_oldwater = {"r_oldwater", "0", CVAR_ARCHIVE};
 cvar_t r_waterquality = {"r_waterquality", "8", CVAR_NONE};
-cvar_t r_waterwarp = {"r_waterwarp", "1", CVAR_NONE};
+// PPC port -- Q2-borrow round: CVAR_ARCHIVE so per-machine autoexec can
+// persist tuning. The warp magnitude scales by the cvar value, so
+// r_waterwarp 0.5 halves the wobble and r_waterwarp 0 disables (matches
+// Q2's gl_waterwarp 0..1 magnitude dial).
+cvar_t r_waterwarp = {"r_waterwarp", "1", CVAR_ARCHIVE};
 
 qboolean R_OldWaterEffective (void)
 {

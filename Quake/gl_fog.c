@@ -45,6 +45,20 @@ static float old_blue;
 static float fade_time; //duration of fade
 static float fade_done; //time when fade will be done
 
+// PPC port -- Q2-borrow round: cvar-driven default fog. Stock FitzQuake fog
+// is map-driven (worldspawn `_fog` key or `fog` console command). These
+// cvars provide a fallback so vanilla maps (which have no fog) pick up an
+// atmosphere set in per-machine autoexec. The fallback applies only when
+// the map / user / server hasn't explicitly set fog this map — so `fog 0`
+// in the console truly disables fog (cvar fallback won't re-engage until
+// the next map load). Reset in Fog_ParseWorldspawn.
+static qboolean fog_explicit;
+cvar_t	gl_fog = {"gl_fog", "0", CVAR_ARCHIVE};
+cvar_t	gl_fog_density = {"gl_fog_density", "0.05", CVAR_ARCHIVE};
+cvar_t	gl_fog_red = {"gl_fog_red", "0.3", CVAR_ARCHIVE};
+cvar_t	gl_fog_green = {"gl_fog_green", "0.3", CVAR_ARCHIVE};
+cvar_t	gl_fog_blue = {"gl_fog_blue", "0.3", CVAR_ARCHIVE};
+
 /*
 =============
 Fog_Update
@@ -83,6 +97,10 @@ void Fog_Update (float density, float red, float green, float blue, float time)
 	fog_blue = blue;
 	fade_time = time;
 	fade_done = cl.time + time;
+
+	// Any explicit fog update (server SVC_FOG, `fog` console command)
+	// suppresses the cvar fallback until the next map load.
+	fog_explicit = true;
 }
 
 /*
@@ -121,16 +139,22 @@ void Fog_FogCommand_f (void)
 	{
 	default:
 	case 1:
+	{
+		// Show the values actually rendering, so cvar fallback is visible.
+		float *col = Fog_GetColor();
 		Con_Printf("usage:\n");
 		Con_Printf("   fog <density>\n");
 		Con_Printf("   fog <red> <green> <blue>\n");
 		Con_Printf("   fog <density> <red> <green> <blue>\n");
 		Con_Printf("current values:\n");
-		Con_Printf("   \"density\" is \"%f\"\n", fog_density);
-		Con_Printf("   \"red\" is \"%f\"\n", fog_red);
-		Con_Printf("   \"green\" is \"%f\"\n", fog_green);
-		Con_Printf("   \"blue\" is \"%f\"\n", fog_blue);
+		Con_Printf("   \"density\" is \"%f\"\n", Fog_GetDensity());
+		Con_Printf("   \"red\" is \"%f\"\n", col[0]);
+		Con_Printf("   \"green\" is \"%f\"\n", col[1]);
+		Con_Printf("   \"blue\" is \"%f\"\n", col[2]);
+		if (!fog_explicit && fog_density == 0 && gl_fog.value)
+			Con_Printf("   (from gl_fog cvar — no map fog set)\n");
 		return;
+	}
 	case 2:
 		d = Q_atof(Cmd_Argv(1));
 		t = 0.0f;
@@ -203,6 +227,7 @@ void Fog_ParseWorldspawn (void)
 
 	fade_time = 0.0;
 	fade_done = 0.0;
+	fog_explicit = false; // new map: clear sticky "user disabled" state
 
 	data = COM_Parse(cl.worldmodel->entities);
 	if (!data)
@@ -230,6 +255,7 @@ void Fog_ParseWorldspawn (void)
 		if (!strcmp("fog", key))
 		{
 			sscanf(value, "%f %f %f %f", &fog_density, &fog_red, &fog_green, &fog_blue);
+			fog_explicit = true; // worldspawn _fog: respect even if density==0
 		}
 	}
 }
@@ -253,6 +279,15 @@ float *Fog_GetColor (void)
 		c[0] = f * old_red + (1.0 - f) * fog_red;
 		c[1] = f * old_green + (1.0 - f) * fog_green;
 		c[2] = f * old_blue + (1.0 - f) * fog_blue;
+		c[3] = 1.0;
+	}
+	else if (!fog_explicit && fog_density == 0 && gl_fog.value)
+	{
+		// Cvar-driven fallback: map has no fog, no one disabled it
+		// explicitly this map, autoexec asked for it.
+		c[0] = gl_fog_red.value;
+		c[1] = gl_fog_green.value;
+		c[2] = gl_fog_blue.value;
 		c[3] = 1.0;
 	}
 	else
@@ -291,8 +326,9 @@ float Fog_GetDensity (void)
 		f = (fade_done - cl.time) / fade_time;
 		return f * old_density + (1.0 - f) * fog_density;
 	}
-	else
-		return fog_density;
+	if (!fog_explicit && fog_density == 0 && gl_fog.value)
+		return gl_fog_density.value;
+	return fog_density;
 }
 
 /*
@@ -404,6 +440,13 @@ void Fog_Init (void)
 	Cmd_AddCommand ("fog",Fog_FogCommand_f);
 
 	//Cvar_RegisterVariable (&r_vfog);
+
+	// PPC port -- Q2-borrow round: cvar-driven default fog
+	Cvar_RegisterVariable (&gl_fog);
+	Cvar_RegisterVariable (&gl_fog_density);
+	Cvar_RegisterVariable (&gl_fog_red);
+	Cvar_RegisterVariable (&gl_fog_green);
+	Cvar_RegisterVariable (&gl_fog_blue);
 
 	//set up global fog
 	fog_density = DEFAULT_DENSITY;
