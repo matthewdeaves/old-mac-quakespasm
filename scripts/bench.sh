@@ -15,12 +15,20 @@
 #   mini-intel   Macmini2,1    C2D 2.33 GHz / GMA 950 / 10.7.5 Lion
 #
 # env: EXTRA_CVARS  optional cmdline cvar overrides spliced into the launch
-#                   line right before +timedemo. Use to bench cvar-on
-#                   states (e.g. emissive lights) without touching the
-#                   per-machine autoexec, which `-noarchautoexec` skips
-#                   anyway. Example:
-#                     EXTRA_CVARS="+set r_emissive_lights 1 +set r_emissive_lights_max 4" \
+#                   line right before +timedemo. Spliced as stuffcmds, so
+#                   these run AFTER the per-machine autoexec — use to
+#                   override individual cvars for A/B (e.g. shadows off):
+#                     EXTRA_CVARS="+r_shadows 0" \
 #                       scripts/bench.sh yosemite demo3 1024x768 3
+#
+# Per-machine autoexec: bench stages the per-arch + per-machine cfg
+# concatenation as a temp `id1/autoexec.cfg` on the target before the run
+# (loaded by quake.rc → exec autoexec.cfg). This makes bench fps reflect
+# real-world play conditions (shadows, dlights, water alpha, etc.) instead
+# of vanilla engine defaults. Resolution + per-run overrides still win
+# because they're stuffcmds (`+vid_width N`, EXTRA_CVARS), which run AFTER
+# exec autoexec.cfg. -noarchautoexec is kept so the CFBundle layer doesn't
+# double-apply on top of the staged file. Cleanup removes the temp on exit.
 #
 # output: appends row to benchmarks/results.csv,
 #         saves raw qconsole.log to benchmarks/raw/
@@ -39,12 +47,12 @@ H="${RES#*x}"
 # TARGET == SSH alias after the rename round; TIMEOUT scales with CPU class
 # (Lion finishes timedemo in seconds; the G3 needs minutes).
 case "$TARGET" in
-  yosemite)    HOST="yosemite";    TIMEOUT=240 ;;
-  sawtooth)    HOST="sawtooth";    TIMEOUT=180 ;;  # 500 MHz G4 AGP — slower than other G4s
-  quicksilver) HOST="quicksilver"; TIMEOUT=120 ;;
-  mini-g4)     HOST="mini-g4";     TIMEOUT=120 ;;
-  mini-intel)  HOST="mini-intel";  TIMEOUT=60  ;;
-  imac-2019)   HOST="imac-2019";   TIMEOUT=45  ;;  # i5-9600K + Radeon Pro 580X — fastest
+  yosemite)    HOST="yosemite";    TIMEOUT=240; ARCH_CFG="ppc750"  ;;
+  sawtooth)    HOST="sawtooth";    TIMEOUT=180; ARCH_CFG="ppc7400" ;;  # 500 MHz G4 AGP — slower than other G4s
+  quicksilver) HOST="quicksilver"; TIMEOUT=120; ARCH_CFG="ppc7400" ;;
+  mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400" ;;
+  mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64"  ;;
+  imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64"  ;;  # i5-9600K + Radeon Pro 580X — fastest
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 
@@ -62,6 +70,24 @@ mkdir -p "$RAW_DIR"
 # O_CREAT|O_EXCL), so two parallel bench.sh procs racing on a missing
 # CSV will result in exactly one header row.
 ( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV" ) 2>/dev/null || true
+
+# Stage temp id1/autoexec.cfg on the target = per-arch baseline + per-machine
+# overlay concatenated. quake.rc's `exec autoexec.cfg` runs it BEFORE
+# stuffcmds, so bench's `+vid_width N` / EXTRA_CVARS still win. -noarchautoexec
+# below suppresses the CFBundle layer so the staged cfg is the only source
+# of per-machine settings — no double-apply. EXIT trap cleans up so a normal
+# Finder launch after the bench falls back to the bundle path (no stale id1/
+# autoexec to double-apply on top of CFBundle).
+TMP_AE=$(mktemp -t qsbenchae.XXXXXX)
+cat "$REPO_ROOT/scripts/bundle/autoexec-$ARCH_CFG.cfg" \
+    "$REPO_ROOT/scripts/bundle/autoexec-$TARGET.cfg" > "$TMP_AE"
+scp -q "$TMP_AE" "$HOST:Desktop/quake/id1/autoexec.cfg" || \
+  echo "[bench] WARN: failed to stage autoexec.cfg on $HOST — bench will run vanilla" >&2
+rm -f "$TMP_AE"
+cleanup_autoexec () {
+  ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg' 2>/dev/null || true
+}
+trap cleanup_autoexec EXIT
 
 declare -a FPS
 for i in $(seq 1 $RUNS); do
@@ -87,9 +113,9 @@ for i in $(seq 1 $RUNS); do
     cd ~/Desktop/quake
     rm -f qconsole.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
-      -fullscreen -width $W -height $H \\
+      -fullscreen \\
       -noarchautoexec \\
-      +vid_wait 0 \\
+      +vid_width $W +vid_height $H +vid_wait 0 \\
       ${EXTRA_CVARS:+$EXTRA_CVARS }+timedemo $DEMO > /dev/null 2>&1 &
     PID=\$!
     j=0
