@@ -33,7 +33,7 @@ Per-machine configs live at
 |-------------------------|------------|------------|--------------|-------|
 | `r_oldwater`            | 1 (classic warp) | 0 (new shader) | (engine default) | G3 set 1 because Rage 128 R128 has a refraction bug at 640 with new shader; G4 has the headroom. Phase 0 + Round v2 epilogue. |
 | `r_particles`           | 2          | (default 1) | (default)    | G3 reduced particle quality. Phase 0. |
-| `gl_texture_anisotropy` | (default 1) | 8           | (default)    | G4 anisotropic filtering. Phase 0. |
+| `gl_texture_anisotropy` | 2 (v1.5; silent no-op on R128 driver) | 8 | (default) | G4 anisotropic filtering. Phase 0. G3 set defensively in case a future driver build exposes the ext (qconsole confirms `texture_filter_anisotropic not supported` on current Panther driver). |
 | `r_shadows`             | (default 0) | 1           | (default)    | G4 alias drop-shadow. §13.6, costs -11% but stays > 60 fps. Defensively re-cleared in autoexec because CVAR_ARCHIVE makes a stale `1` from any past session sticky. |
 | `gl_texturemode`        | (default GL_LINEAR_MIPMAP_NEAREST) | `GL_LINEAR_MIPMAP_LINEAR` (trilinear) | (default) | G4 trilinear pairs with anisotropy 8. §13.6. |
 | `r_shadow_distance`     | (default 0 = unlimited) | 512 | 512 | Pass C HIGH (Round v3 Task #10): elide shadow draws past N units from viewer. Engine default 0 preserves upstream; G4 sets 512 for ~4-7% on dlight-heavy demos. Lion mirror added Round v5 wrap pass 2 (2026-05-09) to free GMA 950 fillrate on demo3 1024 (was fillrate-bound at 44.90 fps with shadows + trilinear + aniso). Squared compare in `R_DrawShadows`. |
@@ -57,6 +57,13 @@ Per-machine configs live at
 | Knob | Type | Default | What it gates | File |
 |------|------|---------|---------------|------|
 | `gl_aliasstate_cache` | cvar (CVAR_ARCHIVE) | 1 (on) on G4/Lion/iMac slices; **compile-time excluded on G3 ppc750 slice** via `QS_DISABLE_ALIAS_STATE_CACHE` in `r_alias.c` | **Round v11 — per-frame GL state cache in `R_DrawAliasModel`.** Intercepts `glTexEnvf(GL_TEXTURE_ENV_MODE, ...)`, `glDepthMask`, and `glEnable/Disable(GL_BLEND)` and no-ops calls that match the cached value. `R_DrawAliasModel` is the hottest state-change site in the engine (~50 calls per alias entity in default config, ~46 of which the cache helpers wrap); each case path's explicit "reset to REPLACE/TRUE/disable" at the end of its block is followed by the function-end cleanup label re-emitting the same defensive resets. The cache catches the cleanup-line redundancy and the rare adjacent same-value calls across case paths. TexEnvMode is tracked per-active-TMU (via `mtexenabled`) so multitex paths cache correctly. Same-session A/B bench data: sawtooth +31.5%, quicksilver +38.1%, mini-g4 +44.9%, mini-intel +21.2%, imac-2019 +16.0%, **yosemite −4.1%** (the regression that drives the compile-time exclusion on G3). Reset once per frame from `R_RenderScene` (`gl_rmain.c:1126`). Cvar registered conditionally in `gl_rmisc.c` `R_Init`. | `r_alias.c`, `gl_rmain.c`, `gl_rmisc.c` |
+
+## v1.5 Q2-borrow round (2026-05-24)
+
+| Knob | Type | Default | What it gates | File |
+|------|------|---------|---------------|------|
+| `gl_fog` | cvar (CVAR_ARCHIVE) | 0 (off) | **Cvar-driven default fog** for maps that don't ship `_fog` in worldspawn. When enabled and the loaded map has no fog AND nobody has typed `fog <args>` this map, the engine uses `gl_fog_density` / `gl_fog_red` / `gl_fog_green` / `gl_fog_blue` (also CVAR_ARCHIVE, defaults `0.05 / 0.3 / 0.3 / 0.3`). Map-shipped fog and the `fog` console command always win when present; `fog 0` from console truly disables (tracked via `fog_explicit` flag reset on map load). Adapted from yquake2-ppc commit `c3d1de3`. | `gl_fog.c` `Fog_Init` |
+| `r_waterwarp` | cvar (was `CVAR_NONE` → `CVAR_ARCHIVE`) | 1 (full magnitude) | Underwater FOV sine-wobble. Now doubles as a magnitude scale (clamped 0..1): `r_waterwarp 0.5` halves the wobble, `0` disables. Formula matches the original FitzQuake effect at the default value. Persistence flip lets per-machine autoexec dial it down without rebuild. | `gl_warp.c`, `gl_rmain.c` |
 
 ## §14.3 hygiene flag
 

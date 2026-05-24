@@ -60,6 +60,22 @@ Each cell shows the **first-build baseline fps** for that machine + demo + resol
 
 Baseline sources (all in `benchmarks/results.csv`): **Yosemite + Quicksilver** = vanilla v2 baseline at commit `4c165e6f` (unmodified upstream + the four Panther/Tiger build patches only — see [`docs/archive/PPC_PLAN_v2-v11.md §17.7.1`](docs/archive/PPC_PLAN_v2-v11.md)). **Sawtooth** = historical backfill at `1615d99a` (first commit where the source compiled; benchmarked retroactively when sawtooth joined the matrix on 2026-05-09). **Mac mini G4 + Mac mini Intel** = each machine's earliest first-bench rows (`cea45842` / `5480d89c` and `016a0ef4` / `5480d89c` respectively — both joined the matrix in the Phase 4.x era, no further-back vanilla baseline exists). **iMac 27"** = first-bench row at `016a0ef4` (added as the 6th bench machine on 2026-05-09).
 
+## v1.5 real-conditions baseline (2026-05-24)
+
+The v11.1 "after" cells above were measured with `bench.sh` passing `-noarchautoexec` — which correctly skipped the CFBundle per-machine layer, but ALSO meant the per-machine visual stack didn't apply during bench. Numbers came out artificially high (vanilla engine defaults, not what the deployed .app actually renders). v1.5's `bench.sh` stages the per-arch + per-machine autoexec on the target before each run, so cells below reflect real play conditions (translucent water, shadows, dlights, trilinear, etc. as per the "What each machine renders" table). Methodology fix in commit `e33f39be`; bench rows in `2987b71d`.
+
+| Machine | demo1 1024×768 | demo1 640×480 |
+|---|---:|---:|
+| Yosemite (G3 / Rage 128)        | 17.55  | 36.50 |
+| Sawtooth (G4 / GeForce2 MX)     | 40.45  | 55.80 |
+| Quicksilver (G4 / Radeon 9000)  | 65.75  | 71.35 |
+| Mac mini G4 (G4 / Radeon 9200)  | 51.40  | 89.65 |
+| Mac mini Intel (Lion / GMA 950) | 76.25  | 172.45 |
+
+All four G4 / Lion machines are actually **faster** under the new methodology, not slower — the per-machine autoexec ships more performance optimizations (`r_dynamic_distance`, `gl_clear 0`, etc.) than visual costs.
+
+**Yosemite ship-resolution playability** (800×600 — the default `vid_width`/`vid_height` the yosemite autoexec sets, since 1024 is a stress test on Rage 128): demo1 27.15 fps / demo2 25.40 fps / demo3 30.05 fps. All comfortably above the 20-fps floor with translucent water + alias drop-shadows + emissive-fullbright dynamic lights + classic warp + trilinear filtering all on.
+
 ## What each machine renders by default
 
 Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. Every entry below is a runtime cvar — flip without rebuild — *except* the Watervis NoVis row, which is auto-engine behaviour applied to non-watervised BSPs at load (see `Quake/gl_model.c:2456+`, `Quake/r_world.c:152`).
