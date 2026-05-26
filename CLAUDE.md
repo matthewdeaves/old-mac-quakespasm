@@ -11,7 +11,9 @@ new plan written from that evidence. Sub-area detail:
 - `scripts/CLAUDE.md` — script contracts, reboot recovery, icon pipeline
 - `MacOSX/CLAUDE.md` — bundle layout, Tiger/Panther Cocoa, required patches, fat-SDL recipe
 - `scripts/README.md` — end-user-facing tooling + host matrix
+- `docs/README.md` — documentation index (live refs, archive, research, ideas)
 - `docs/KNOBS.md` — toggleable cvar / cmdline knob inventory
+- `docs/ideas/` — forward-looking design captures (not roadmap, not built)
 - `docs/archive/PPC_PLAN_v2-v11.md` — archived working plan (rounds v2 → v11.1)
 - `MISTAKES.md` — append-only log of approaches that broke. **Read before
   lighting up an idea that smells "easy" or "load-time only / zero risk".**
