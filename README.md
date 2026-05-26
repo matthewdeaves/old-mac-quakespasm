@@ -151,9 +151,10 @@ Modern macOS will quarantine the unsigned bundle — either right-click → Open
 - [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
 - [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
 
-## Sister project
+## Sister projects
 
 - [**old-mac-quake2**](https://github.com/matthewdeaves/old-mac-quake2) — the same six-machine PPC + Intel fleet, same tooling, applied to **yquake2 5.11** as base. Shares the cross-build host, scripts, and per-machine autoexec pattern; cross-pollinates features (GL_FOG cvar layer, underwater warp magnitude dial, anisotropic caps) between the two engines.
+- [**old-mac-quake3**](https://github.com/matthewdeaves/old-mac-quake3) — **Quake III Arena** on the same fleet (early WIP). Pinned to the last SDL 1.2 commit of ioquake3 so it runs on Panther/Tiger, where modern SDL2 ioquake3 can't. Same fat-binary (ppc750 + ppc7400 + x86_64) and cross-build approach; build + first bench baseline done (Q3 runs on a 449 MHz G3!), per-machine tuning not started yet.
 
 ## License
 
