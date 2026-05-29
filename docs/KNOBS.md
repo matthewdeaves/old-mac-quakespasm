@@ -72,6 +72,22 @@ Per-machine configs live at
 | `vid_bpp` | cvar (CVAR_ARCHIVE) | **32** quicksilver + imac-2019; **16** (engine default) everywhere else | Colour depth, but really the depth/stencil allocation: `vid_bpp 16` → 16-bit z-buffer + **0 stencil** (so `r_shadows`' stencil self-intersection mask is inert — gl_rmain.c:1081 `if (gl_stencilbits)`); `vid_bpp 32` → 24-bit z-buffer + 8-bit stencil. Set 32 on quicksilver (Radeon 9000, verified +stencil shadows + 24-bit depth for ~3%, holds 60 floor) and imac-2019 (unverified — machine was offline). **NOT** on mini-g4 (Radeon 9200 hard-wedges intermittently on the 32bpp boot vid_restart — see MISTAKES.md 2026-05-29), nor on the fillrate-bound G3/sawtooth/mini-intel. Needs a boot `vid_restart` in the per-machine autoexec to apply (VID_Init runs before the autoexec). | `scripts/bundle/autoexec-{quicksilver,imac-2019}.cfg` |
 | `vid_fsaa` | cvar (CVAR_ARCHIVE) | **8** imac-2019 only; 0 elsewhere | MSAA sample count. Only imac-2019's Radeon Pro 580X gets it (8x — "spend the headroom"); the PPC GPUs lack `ARB_multisample` (sawtooth, G3) or are fillrate-bound near floor (Radeons/GMA950). **Required engine fix:** `VID_Restart` (gl_vidsdl.c) now re-reads the file-scope `fsaa` global from `vid_fsaa` before `VID_SetMode` — upstream only set it in VID_Init / `-fsaa` cmdline, so a `vid_fsaa` in autoexec + `vid_restart` was silently ignored. Inert where `vid_fsaa` is 0. | `gl_vidsdl.c` `VID_Restart`; `scripts/bundle/autoexec-imac-2019.cfg` |
 
+## Smooth lightstyle interpolation (2026-05-29, code-review finding #5)
+
+`r_lerplightstyles` (cvar, CVAR_ARCHIVE, default 0) interpolates the 10 Hz
+lightstyle step in `R_AnimateLight` (`gl_rlight.c`) so torches / pulsing
+lights ramp smoothly instead of stepping. Deliberate hard flicker
+(fluorescent buzz, strobes) is preserved by an engine guard: steps larger
+than `R_LERPLIGHT_MAXDELTA` (8, in a..z units) are kept sharp. Costs a
+per-frame lightmap rebuild on every surface touching an animated style
+(`d_lightstylevalue` changes every frame instead of every 0.1 s —
+`r_brush.c:494` cached_light compare), so it's enabled only where the GPU
+has bandwidth headroom: **on** quicksilver / mini-g4 / imac-2019 autoexec,
+**off** (defensive 0) in the ppc7400 / x86_64 / ppc750 baselines so it
+never drifts onto sawtooth / mini-intel / G3. Same-session A/B 2026-05-29:
+quicksilver demo2 1024 62.9 vs 63.5 / demo3 61.4 vs 62.5 (~1.5%, holds 60
+floor); mini-g4 within noise (~0%). Registered in `gl_rmisc.c` `R_Init`.
+
 ## G3 client-array brush pool (2026-05-29, code-review finding #4)
 
 `-g3clbrush` (cmdline, G3/Rage128 only — inert where `gl_apple_var_able`)

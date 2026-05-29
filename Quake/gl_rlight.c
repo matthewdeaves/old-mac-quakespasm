@@ -26,6 +26,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static int	r_dlightframecount;
 
 extern cvar_t r_flatlightstyles; //johnfitz
+extern cvar_t r_lerplightstyles; // PPC port -- finding #5
+
+// PPC port -- finding #5: lightstyle steps larger than this (in a..z
+// units, full range 0..25) are kept SHARP rather than interpolated, so
+// intentional hard flicker (fluorescent buzz "ma...", strobes) survives
+// while smooth ramps (flame/pulse, delta 1-4) get smoothed. 8 sits above
+// the flame band and below the ~12 on/off band.
+#define R_LERPLIGHT_MAXDELTA 8
 
 /*
 ==================
@@ -52,6 +60,28 @@ void R_AnimateLight (void)
 			k = cl_lightstyle[j].peak - 'a';
 		else if (r_flatlightstyles.value == 1)
 			k = cl_lightstyle[j].average - 'a';
+		// PPC port -- finding #5: r_lerplightstyles smooths the 10Hz step
+		// by interpolating between the current and next entry in the
+		// lightstyle map by the fractional part of cl.time*10. The
+		// MAXDELTA guard keeps deliberate hard flicker sharp. Costs a
+		// per-frame lightmap rebuild on every surface touching an animated
+		// style (d_lightstylevalue changes each frame instead of every
+		// 0.1s -- see r_brush.c:494 cached_light compare), so it ships
+		// only on machines with GPU/bandwidth headroom (Radeon G4s + iMac
+		// via autoexec), default off everywhere else.
+		else if (r_lerplightstyles.value && cl_lightstyle[j].length > 1)
+		{
+			float frac = (cl.time*10) - (float)i;	// 0..1 within the 0.1s step
+			int a = cl_lightstyle[j].map[ i      % cl_lightstyle[j].length] - 'a';
+			int b = cl_lightstyle[j].map[(i + 1) % cl_lightstyle[j].length] - 'a';
+			int delta = b - a;
+			if (delta < 0) delta = -delta;
+			if (delta > R_LERPLIGHT_MAXDELTA)
+				d_lightstylevalue[j] = a * 22;		// keep the hard step
+			else
+				d_lightstylevalue[j] = (int)((a + (b - a) * frac) * 22.0f + 0.5f);
+			continue;
+		}
 		else
 		{
 			k = i % cl_lightstyle[j].length;
