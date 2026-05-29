@@ -16,6 +16,63 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-29 — Code-review cheap win: vid_bpp 32 hard-wedged mini-g4 (Radeon 9200)
+
+**What we tried.** Code-review finding #1: every target defaults to
+`vid_bpp 16`, which forces `stencilbits=0` (gl_vidsdl.c:609-618), so
+`r_shadows`' stencil self-intersection mask (`if (gl_stencilbits)`,
+gl_rmain.c:1081) never runs and shadows render the doubled-alpha way.
+Fix: set `vid_bpp 32` (→ 24-bit depth + 8-bit stencil) in the per-machine
+autoexec for the machines with GPU headroom, plus a one-line `VID_Restart`
+fsaa-refresh fix so a paired `vid_fsaa` could also take effect. Each
+machine config set `vid_bpp 32` + `vid_restart` at boot.
+
+**What went wrong.** First bench launch on **mini-g4 (Radeon 9200 /
+Tiger)** HARD-WEDGED the GPU during boot video-mode init: qconsole.log
+stopped right after "256 megabyte heap" and before the "Video mode" line,
+SSH went unreachable (whole OS hung, not just the display), and the
+machine auto-rebooted. **quicksilver (Radeon 9000) ran the identical
+32bpp + vid_restart path through ~7 launches with zero issues** and a
+clean +stencil/24-bit-depth result (verified 16-bit-z at vid_bpp 16 vs
+24-bit-z at 32), so the binary/config pattern is fine — it's
+9200-driver-specific.
+
+**Muddier on retest.** After reverting the mini-g4 autoexec, the machine
+still booted 32bpp (its config.cfg had saved `vid_bpp "32"` from the
+wedged session — `deploy.sh` does NOT seed config.cfg) and this time ran
+demo2/demo1 FINE at 24-bit-z. And with config.cfg forced to 16, mini-g4's
+depth negotiation came back **inconsistent between launches** (demo1 run1
+= 16-bit z-buffer, run2 = 24-bit, same config). So the 9200's mode/depth
+negotiation is simply flaky, and the wedge is **intermittent** — which is
+worse to ship than a deterministic failure. Cause is ambiguous between
+the 32bpp mode itself and the *extra* boot `vid_restart` the machine
+config added (the per-arch ppc7400.cfg already does one boot vid_restart;
+the machine line made it two).
+
+**Disposition.** Gate mini-g4 to the engine-default 16bpp (no `vid_bpp`
+line, no machine vid_restart). Keep `vid_bpp 32` on quicksilver (9000,
+verified stable, ~3% cost, holds 60 floor) and ship it unverified on
+imac-2019 (modern Radeon Pro 580X — a 2004-era driver wedge does not
+apply; and the real iMac win there is `vid_fsaa 8` MSAA). Per-machine
+gating doc: gate to the regressor, ship the wins.
+
+**Lessons.**
+- `vid_bpp`'s `x32` in the "Video mode" log is the *colour* depth (often
+  forced to the desktop's 32-bit by VID_ValidMode fallback regardless of
+  the cvar); the meaningful field is "(N-bit z-buffer)" — 16-bit z = no
+  stencil, 24-bit z = stencil 8. Read that, not the `xNN`.
+- An autoexec-driven boot `vid_restart` is NOT free on old GPU drivers —
+  it tears down + recreates the GL context during early init and the
+  Radeon 9200 can hang the whole OS doing it. Don't add a second boot
+  restart on PPC machines without per-machine bench proof.
+- `deploy.sh` does not seed config.cfg, so a cvar the engine saved during
+  a test run (here vid_bpp 32) persists on the target and silently
+  changes the next launch. Reset config.cfg explicitly when reverting.
+- A modern bench machine being offline (imac-2019 here) means the headline
+  visual win ships unverified — flag it loudly in the cfg + commit msg.
+
+---
+
 ## 2026-05-10 — Round v9 + v10 misattribution: a "code regression" that wasn't
 
 **What happened.** Round v9 wrap full grid showed catastrophic demo3

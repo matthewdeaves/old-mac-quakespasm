@@ -65,6 +65,13 @@ Per-machine configs live at
 | `gl_fog` | cvar (CVAR_ARCHIVE) | 0 (off) | **Cvar-driven default fog** for maps that don't ship `_fog` in worldspawn. When enabled and the loaded map has no fog AND nobody has typed `fog <args>` this map, the engine uses `gl_fog_density` / `gl_fog_red` / `gl_fog_green` / `gl_fog_blue` (also CVAR_ARCHIVE, defaults `0.05 / 0.3 / 0.3 / 0.3`). Map-shipped fog and the `fog` console command always win when present; `fog 0` from console truly disables (tracked via `fog_explicit` flag reset on map load). Adapted from yquake2-ppc commit `c3d1de3`. | `gl_fog.c` `Fog_Init` |
 | `r_waterwarp` | cvar (was `CVAR_NONE` → `CVAR_ARCHIVE`) | 1 (full magnitude) | Underwater FOV sine-wobble. Now doubles as a magnitude scale (clamped 0..1): `r_waterwarp 0.5` halves the wobble, `0` disables. Formula matches the original FitzQuake effect at the default value. Persistence flip lets per-machine autoexec dial it down without rebuild. | `gl_warp.c`, `gl_rmain.c` |
 
+## Framebuffer depth + MSAA per-machine (2026-05-29, code-review cheap wins)
+
+| Knob | Type | Per-machine default | What it gates | File |
+|------|------|---------------------|---------------|------|
+| `vid_bpp` | cvar (CVAR_ARCHIVE) | **32** quicksilver + imac-2019; **16** (engine default) everywhere else | Colour depth, but really the depth/stencil allocation: `vid_bpp 16` → 16-bit z-buffer + **0 stencil** (so `r_shadows`' stencil self-intersection mask is inert — gl_rmain.c:1081 `if (gl_stencilbits)`); `vid_bpp 32` → 24-bit z-buffer + 8-bit stencil. Set 32 on quicksilver (Radeon 9000, verified +stencil shadows + 24-bit depth for ~3%, holds 60 floor) and imac-2019 (unverified — machine was offline). **NOT** on mini-g4 (Radeon 9200 hard-wedges intermittently on the 32bpp boot vid_restart — see MISTAKES.md 2026-05-29), nor on the fillrate-bound G3/sawtooth/mini-intel. Needs a boot `vid_restart` in the per-machine autoexec to apply (VID_Init runs before the autoexec). | `scripts/bundle/autoexec-{quicksilver,imac-2019}.cfg` |
+| `vid_fsaa` | cvar (CVAR_ARCHIVE) | **8** imac-2019 only; 0 elsewhere | MSAA sample count. Only imac-2019's Radeon Pro 580X gets it (8x — "spend the headroom"); the PPC GPUs lack `ARB_multisample` (sawtooth, G3) or are fillrate-bound near floor (Radeons/GMA950). **Required engine fix:** `VID_Restart` (gl_vidsdl.c) now re-reads the file-scope `fsaa` global from `vid_fsaa` before `VID_SetMode` — upstream only set it in VID_Init / `-fsaa` cmdline, so a `vid_fsaa` in autoexec + `vid_restart` was silently ignored. Inert where `vid_fsaa` is 0. | `gl_vidsdl.c` `VID_Restart`; `scripts/bundle/autoexec-imac-2019.cfg` |
+
 ## §14.3 hygiene flag
 
 `-nowarpedarrays` falls the `R_UpdateWarpTextures` water-warp

@@ -803,6 +803,17 @@ static void VID_Restart (void)
 	bpp = (int)vid_bpp.value;
 	fullscreen = vid_fullscreen.value ? true : false;
 
+	// PPC port -- refresh the file-scope `fsaa` global from the cvar here.
+	// VID_SetMode (below) reads `fsaa` to request SDL_GL_MULTISAMPLESAMPLES,
+	// but upstream only ever assigns it in VID_Init / the -fsaa cmdline path,
+	// so a `vid_restart` (manual, or autoexec-driven at boot — see host.c
+	// init order: VID_Init runs before the per-machine autoexec) would keep
+	// the stale value and silently ignore a vid_fsaa change. With this line
+	// `vid_fsaa N` in a per-machine autoexec takes effect on the boot
+	// vid_restart, same as vid_bpp/vid_width already do. Inert where vid_fsaa
+	// is 0 (every target except imac-2019).
+	fsaa = (int)vid_fsaa.value;
+
 //
 // validate new mode
 //
