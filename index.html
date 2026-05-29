@@ -59,16 +59,16 @@
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font: 16px/1.65 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    margin: 0; font: 18px/1.7 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
     background: #12110f; color: #e8e4dc; -webkit-font-smoothing: antialiased;
   }
   a { color: #e0a45a; text-decoration: none; }
   a:hover { text-decoration: underline; }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
-  header { text-align: center; padding: 56px 20px 36px; background: radial-gradient(ellipse at top, #2a2620, #12110f 70%); }
-  header img.icon { width: 132px; height: 132px; image-rendering: auto; }
-  h1 { font-size: 2.1rem; margin: 18px 0 8px; letter-spacing: -0.5px; }
-  .tagline { font-size: 1.12rem; color: #c9c2b4; max-width: 640px; margin: 0 auto; }
+  .wrap { width: 100%; max-width: 1500px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 80px); }
+  header { text-align: center; padding: 64px clamp(20px, 5vw, 80px) 44px; background: radial-gradient(ellipse at top, #2a2620, #12110f 70%); }
+  header img.icon { width: 144px; height: 144px; image-rendering: auto; }
+  h1 { font-size: clamp(2.2rem, 4vw, 3rem); margin: 20px 0 10px; letter-spacing: -0.5px; }
+  .tagline { font-size: clamp(1.12rem, 1.6vw, 1.35rem); color: #c9c2b4; max-width: 880px; margin: 0 auto; }
   .badges { margin: 22px 0 6px; }
   .btn {
     display: inline-block; margin: 6px; padding: 11px 20px; border-radius: 7px;
@@ -76,9 +76,9 @@
   }
   .btn.primary { background: #3a8f3a; color: #fff; }
   .btn.ghost { background: #2a2620; color: #e8e4dc; border: 1px solid #463f33; }
-  h2 { font-size: 1.5rem; margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #2c2820; }
-  h3 { font-size: 1.12rem; margin: 26px 0 8px; color: #f0d9b8; }
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+  h2 { font-size: clamp(1.5rem, 2.2vw, 1.9rem); margin: 52px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #2c2820; }
+  h3 { font-size: 1.18rem; margin: 26px 0 8px; color: #f0d9b8; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 1rem; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #2c2820; vertical-align: top; }
   th { color: #f0d9b8; font-weight: 600; }
   .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0; }
