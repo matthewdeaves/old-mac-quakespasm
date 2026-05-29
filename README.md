@@ -4,6 +4,7 @@
 [![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#the-bench-fleet)
 [![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#the-bench-fleet)
 [![Engine: QuakeSpasm fork](https://img.shields.io/badge/Engine-QuakeSpasm%20fork-red.svg)](https://github.com/sezero/quakespasm)
+[![Download: latest .dmg](https://img.shields.io/badge/Download-latest%20.dmg-brightgreen.svg)](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
 
 <p align="center">
   <img src="docs/images/quakespasm-icon-256.png" width="200" alt="QuakeSpasm icon" />
@@ -143,9 +144,11 @@ Every phase that lands gets a smoke bench (demo1 × 2 res × 3 runs) committed a
 
 ## Running it
 
-Drop the release `.app` next to your own `id1/pak0.pak` (shareware) or `id1/pak0.pak` + `id1/pak1.pak` (registered — buy on [Steam](https://store.steampowered.com/app/2310/QUAKE/) / [GOG](https://www.gog.com/en/game/quake_the_offering)) at `~/Desktop/quake/` and double-click. The binary is x86_64 + PPC G3 + PPC G4; pre-Lion Intel Macs (32-bit kernel) are not supported.
+**Download the latest disk image from [Releases](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)** (`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac — it's built on Panther so it mounts on everything from Mac OS X 10.3.9 through modern macOS, and the `.app` inside is a fat binary (PPC G3 + PPC G4 + Intel x86_64) that runs natively on each.
 
-Modern macOS will quarantine the unsigned bundle — either right-click → Open, or `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app`.
+Open the `.dmg`, then drag both `Quakespasm.app` and `quakespasm.pak` into a folder (e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak` (shareware) or `pak0.pak` + `pak1.pak` (registered — buy on [Steam](https://store.steampowered.com/app/2310/QUAKE/) / [GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click `Quakespasm.app`. (Pre-Lion 32-bit-kernel Intel Macs are not supported.)
+
+Modern macOS will quarantine the unsigned bundle — either right-click → Open, or `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app`. Panther / Tiger / Lion don't need this.
 
 ## Dig deeper
 
