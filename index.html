@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Primary SEO -->
+<title>Old Mac QuakeSpasm — Quake for PowerPC G3/G4/G5 &amp; Intel Macs</title>
+<meta name="description" content="Play Quake natively on vintage PowerPC G3, G4, G5 and early Intel Macs. A QuakeSpasm source port tuned for Mac OS X Panther, Tiger and Lion with automatic per-machine hardware tuning. One fat universal binary, free download.">
+<link rel="canonical" href="https://matthewdeaves.github.io/old-mac-quakespasm/">
+<meta name="author" content="Matthew Deaves">
+<meta name="robots" content="index, follow">
+<meta name="keywords" content="Quake, QuakeSpasm, PowerPC, PPC, Mac OS X, vintage Mac, retro gaming, universal binary, AltiVec, G3, G4, G5, Panther, Tiger, Leopard, Lion, ATI Rage 128, GeForce2 MX, Radeon 9000, Radeon 9200, GMA 950, PowerMac, Mac mini G4">
+
+<!-- Open Graph (Discord / Reddit / Facebook / forums) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Old Mac QuakeSpasm">
+<meta property="og:title" content="Old Mac QuakeSpasm — Quake for vintage PowerPC &amp; Intel Macs">
+<meta property="og:description" content="Heavily optimized QuakeSpasm port for PowerPC G3/G4/G5 and early Intel Macs. Runs on Mac OS X Panther through modern macOS, auto-tuned per machine. Free DMG download.">
+<meta property="og:url" content="https://matthewdeaves.github.io/old-mac-quakespasm/">
+<meta property="og:image" content="https://matthewdeaves.github.io/old-mac-quakespasm/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Old Mac QuakeSpasm — Quake on vintage PowerPC and Intel Macs">
+
+<!-- Twitter / X card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Old Mac QuakeSpasm — Quake for vintage PowerPC &amp; Intel Macs">
+<meta name="twitter:description" content="Heavily optimized QuakeSpasm port for PowerPC G3/G4/G5 and early Intel Macs. Mac OS X Panther through modern macOS. Free download.">
+<meta name="twitter:image" content="https://matthewdeaves.github.io/old-mac-quakespasm/assets/og-image.jpg">
+
+<!-- ====================================================================
+     Google Search Console verification: paste the verification <meta>
+     tag Google gives you on the line below, then redeploy this branch.
+     ==================================================================== -->
+<!-- <meta name="google-site-verification" content="PASTE_TOKEN_HERE"> -->
+
+<link rel="icon" type="image/png" href="assets/icon.png">
+
+<!-- Structured data: helps Google understand this is downloadable software -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Old Mac QuakeSpasm",
+  "description": "A QuakeSpasm source port of Quake tuned for vintage PowerPC G3, G4, G5 and early Intel Macs running Mac OS X Panther, Tiger and Lion. One fat universal binary (PPC + Intel) with automatic per-machine hardware tuning.",
+  "applicationCategory": "Game",
+  "operatingSystem": "Mac OS X 10.3.9 Panther, 10.4 Tiger, 10.5 Leopard, 10.7 Lion, modern macOS",
+  "processorRequirements": "PowerPC G3 / G4 / G5 or Intel x86_64",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
+  "downloadUrl": "https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest",
+  "codeRepository": "https://github.com/matthewdeaves/old-mac-quakespasm",
+  "author": { "@type": "Person", "name": "Matthew Deaves" }
+}
+</script>
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 16px/1.65 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: #12110f; color: #e8e4dc; -webkit-font-smoothing: antialiased;
+  }
+  a { color: #e0a45a; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+  header { text-align: center; padding: 56px 20px 36px; background: radial-gradient(ellipse at top, #2a2620, #12110f 70%); }
+  header img.icon { width: 132px; height: 132px; image-rendering: auto; }
+  h1 { font-size: 2.1rem; margin: 18px 0 8px; letter-spacing: -0.5px; }
+  .tagline { font-size: 1.12rem; color: #c9c2b4; max-width: 640px; margin: 0 auto; }
+  .badges { margin: 22px 0 6px; }
+  .btn {
+    display: inline-block; margin: 6px; padding: 11px 20px; border-radius: 7px;
+    font-weight: 600; font-size: 0.98rem;
+  }
+  .btn.primary { background: #3a8f3a; color: #fff; }
+  .btn.ghost { background: #2a2620; color: #e8e4dc; border: 1px solid #463f33; }
+  h2 { font-size: 1.5rem; margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #2c2820; }
+  h3 { font-size: 1.12rem; margin: 26px 0 8px; color: #f0d9b8; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #2c2820; vertical-align: top; }
+  th { color: #f0d9b8; font-weight: 600; }
+  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0; }
+  .shots img { width: 100%; border-radius: 6px; display: block; }
+  .shots figure { margin: 0; }
+  .shots figcaption { font-size: 0.78rem; color: #9a9384; text-align: center; margin-top: 4px; }
+  ol li, ul li { margin: 6px 0; }
+  code { background: #211e18; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+  pre { background: #211e18; padding: 14px 16px; border-radius: 7px; overflow-x: auto; font-size: 0.86rem; }
+  .sisters { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 16px 0; }
+  .card { background: #1c1a15; border: 1px solid #2c2820; border-radius: 9px; padding: 16px 18px; }
+  .card h3 { margin-top: 0; }
+  footer { text-align: center; color: #8a8475; font-size: 0.86rem; padding: 40px 20px 56px; border-top: 1px solid #2c2820; margin-top: 48px; }
+  @media (max-width: 560px) { .shots { grid-template-columns: 1fr 1fr; } h1 { font-size: 1.7rem; } }
+</style>
+</head>
+<body>
+
+<header>
+  <img class="icon" src="assets/icon.png" alt="QuakeSpasm icon — Old Mac QuakeSpasm">
+  <h1>Old Mac QuakeSpasm</h1>
+  <p class="tagline">A modern <strong>QuakeSpasm</strong> source port that runs <strong>Quake</strong> natively on vintage <strong>PowerPC G3, G4, G5</strong> and early <strong>Intel Macs</strong> — from a 1999 Power Mac G3 on <strong>Mac OS X 10.3.9 Panther</strong> to a 2019 iMac, with automatic per-machine hardware tuning.</p>
+  <div class="badges">
+    <a class="btn primary" href="https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest">⬇ Download the latest DMG</a>
+    <a class="btn ghost" href="https://github.com/matthewdeaves/old-mac-quakespasm">View source on GitHub</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+<p>This is a <strong>QuakeSpasm fork</strong> tuned to look as good as possible while staying playable on <strong>six retro Macs spanning 1999–2019</strong>. One source tree builds a single <strong>fat universal binary</strong> (PowerPC G3 + PowerPC G4 with AltiVec + Intel x86_64); the right configuration for your machine is selected automatically at launch via <code>sysctl hw.model</code>. It is free and open source under the GPL, inherited from upstream QuakeSpasm.</p>
+
+<div class="shots">
+  <figure><img src="assets/sawtooth_spasm0010.webp" alt="Quake on a Power Mac G4 Sawtooth with NVIDIA GeForce2 MX" loading="lazy"><figcaption>Power Mac G4 · GeForce2 MX</figcaption></figure>
+  <figure><img src="assets/quicksilver_spasm0040.webp" alt="Quake on a Power Mac G4 Quicksilver with ATI Radeon 9000" loading="lazy"><figcaption>Power Mac G4 · Radeon 9000</figcaption></figure>
+  <figure><img src="assets/imac-2019_spasm0040.webp" alt="Quake on a 2019 iMac with AMD Radeon Pro 580X" loading="lazy"><figcaption>iMac 2019 · Radeon Pro 580X</figcaption></figure>
+</div>
+
+<h2 id="supported-macs">Supported Macs &amp; operating systems</h2>
+<p>If you are searching for how to run Quake on any of these exact machines and OS versions, this port is built and benchmarked for them:</p>
+<table>
+  <thead><tr><th>Machine</th><th>CPU</th><th>Graphics</th><th>Mac OS X</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Power Mac G3</strong> (Blue &amp; White / Yosemite, 1999)</td><td>449 MHz PowerPC 750</td><td>ATI Rage 128 16 MB AGP</td><td>10.3.9 Panther</td></tr>
+    <tr><td><strong>Power Mac G4</strong> (Sawtooth AGP, 1999)</td><td>500 MHz PowerPC 7400</td><td>NVIDIA GeForce2 MX 32 MB</td><td>10.4.11 Tiger</td></tr>
+    <tr><td><strong>Power Mac G4</strong> (Quicksilver, 2001)</td><td>733 MHz PowerPC 7450</td><td>ATI Radeon 9000 Pro 64 MB</td><td>10.4.11 Tiger</td></tr>
+    <tr><td><strong>Mac mini G4</strong> (PowerMac10,1, 2005)</td><td>1.25 GHz PowerPC 7447A</td><td>ATI Radeon 9200 32 MB</td><td>10.4.11 Tiger</td></tr>
+    <tr><td><strong>Mac mini</strong> (Intel Core 2 Duo, 2007)</td><td>2.33 GHz Core 2 Duo</td><td>Intel GMA 950 64 MB</td><td>10.7.5 Lion</td></tr>
+    <tr><td><strong>iMac 27"</strong> (iMac19,1, 2019)</td><td>3.7 GHz Core i5-9600K</td><td>AMD Radeon Pro 580X 8 GB</td><td>modern macOS</td></tr>
+  </tbody>
+</table>
+<p>The same DMG installs on every supported Mac. It is built on Panther so it mounts on everything from <strong>Mac OS X 10.3.9</strong> through the latest macOS, and the <code>.app</code> inside is a fat binary that runs natively as PowerPC on G3/G4/G5 and as Intel x86_64 on Core 2 Duo and newer. PowerPC G5 machines run the G4 AltiVec slice. (Pre-Lion 32-bit-kernel Intel Macs are not supported.)</p>
+
+<h2 id="features">What makes it different</h2>
+<ul>
+  <li><strong>One fat universal binary</strong> — PowerPC 750 (G3), PowerPC 7400 (G4, with hand-written AltiVec paths) and Intel x86_64, glued with <code>lipo</code> into a single <code>.app</code>.</li>
+  <li><strong>Automatic per-machine tuning</strong> — at launch the engine reads <code>hw.model</code> and applies a configuration profile tuned for that exact computer's CPU and GPU.</li>
+  <li><strong>Visuals tuned per GPU era</strong> — translucent water, lava, slime and teleporters; alias drop-shadows; trilinear and up to 16× anisotropic filtering; smooth lightstyles; emissive dynamic lights; stencil shadows and MSAA where the hardware can take it.</li>
+  <li><strong>Stays playable on real hardware</strong> — the 1999 Power Mac G3 with an ATI Rage 128 went from ~5 fps to ~21 fps on the dynamic-light-heavy demo3 over the course of the project.</li>
+  <li><strong>Every tweak is toggleable</strong> at runtime so you can A/B individual features on your own Mac without rebuilding.</li>
+</ul>
+
+<h2 id="install">How to install Quake on your old Mac</h2>
+<ol>
+  <li><strong>Download the DMG</strong> from the <a href="https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest">latest release</a> (<code>QuakeSpasm-OldMac-&lt;version&gt;.dmg</code>).</li>
+  <li><strong>Open the disk image</strong> and drag both <code>Quakespasm.app</code> and <code>quakespasm.pak</code> into a folder, e.g. <code>~/Desktop/quake/</code>.</li>
+  <li><strong>Copy your <code>id1</code> folder</strong> in next to them, containing <code>pak0.pak</code> (the shareware episode) or <code>pak0.pak</code> + <code>pak1.pak</code> (the registered game — available on <a href="https://store.steampowered.com/app/2310/QUAKE/">Steam</a> or <a href="https://www.gog.com/en/game/quake_the_offering">GOG</a>).</li>
+  <li><strong>Double-click <code>Quakespasm.app</code></strong> and play.</li>
+</ol>
+<p>On modern macOS the unsigned bundle is quarantined — either right-click → Open, or run <code>xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app</code>. Panther, Tiger and Lion do not need this.</p>
+
+<h2 id="gallery">Screenshots across the fleet</h2>
+<div class="shots">
+  <figure><img src="assets/yosemite_spasm0010.webp" alt="Quake running on a Power Mac G3 with ATI Rage 128 under Mac OS X Panther" loading="lazy"><figcaption>Power Mac G3 · Rage 128 · Panther</figcaption></figure>
+  <figure><img src="assets/mini-g4_spasm0070.webp" alt="Quake on a Mac mini G4 with ATI Radeon 9200 under Tiger" loading="lazy"><figcaption>Mac mini G4 · Radeon 9200 · Tiger</figcaption></figure>
+  <figure><img src="assets/mini-intel_spasm0070.webp" alt="Quake on an Intel Mac mini with GMA 950 under Mac OS X Lion" loading="lazy"><figcaption>Mac mini Intel · GMA 950 · Lion</figcaption></figure>
+</div>
+
+<h2 id="sisters">Sister projects — vintage Mac id Software ports</h2>
+<div class="sisters">
+  <div class="card">
+    <h3><a href="https://github.com/matthewdeaves/old-mac-quake2">Old Mac Quake II</a></h3>
+    <p>The same six-machine PowerPC + Intel fleet and tooling applied to <strong>Quake II</strong> (yquake2 base). One universal binary for Panther, Tiger, Lion and modern macOS.</p>
+  </div>
+  <div class="card">
+    <h3><a href="https://github.com/matthewdeaves/old-mac-quake3">Old Mac Quake III</a></h3>
+    <p><strong>Quake III Arena</strong> (ioquake3) on the same fleet, pinned to the last SDL 1.2 commit so it still runs on Panther and Tiger. Yes — Q3 on a 449 MHz G3.</p>
+  </div>
+  <div class="card">
+    <h3><a href="https://github.com/matthewdeaves/macglquake">Mac GLQuake (Classic)</a></h3>
+    <p>A Retro68 PowerPC CFM port of classic GLQuake — a runnable <strong>Quake</strong> for <strong>Mac OS 8.6 / 9</strong>, before OS X.</p>
+  </div>
+</div>
+
+<h2 id="source">Source code &amp; documentation</h2>
+<p>The full source tree, build scripts, benchmark history and engineering notes live on GitHub:
+<a href="https://github.com/matthewdeaves/old-mac-quakespasm">github.com/matthewdeaves/old-mac-quakespasm</a>.
+It documents the cross-compile pipeline, the per-machine autoexec configs, the AltiVec work and a rolling benchmark CSV tagged by commit. Built on the upstream <a href="https://github.com/sezero/quakespasm">QuakeSpasm</a> engine; GPL-2.0-or-later.</p>
+<p>For the full story — how the port was built and tuned machine by machine — read the write-up: <a href="https://matthewdeaves.com/blog/2026-05-09-quakespasm-six-old-macs/">Optimising Quake on six old Macs</a>.</p>
+
+</div>
+
+<footer>
+  <p>Old Mac QuakeSpasm · a QuakeSpasm source port for vintage PowerPC and Intel Macs · GPL-2.0-or-later<br>
+  Quake © id Software. QuakeSpasm by the <a href="https://github.com/sezero/quakespasm">QuakeSpasm developers</a>. Port by <a href="https://github.com/matthewdeaves">Matthew Deaves</a>.</p>
+</footer>
+
+</body>
+</html>
