@@ -471,7 +471,11 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 	texture_t	*t;
 	float		*v;
 	qboolean	bound;
-	const qboolean array_path = (gl_apple_var_arrays_mtex && gl_apple_var_able && gl_bmodel_var_pool);
+	// PPC port -- finding #4: the array path (bind once + glDrawArrays per
+	// surface, no per-vertex glBegin) is taken when the brush pool is live,
+	// either as the G4/Lion VAR pool (gated by -noarrays-mtex opt-out) or
+	// as the G3 -g3clbrush plain client-array pool.
+	const qboolean array_path = (((gl_apple_var_arrays_mtex && gl_apple_var_able) || gl_bmodel_clientpool) && gl_bmodel_var_pool);
 
 	// PPC port -- Round v8 item 2 -- enable TMU1 once before the texture
 	// loop on the legacy path too (array_path always did). The pre-v8 code

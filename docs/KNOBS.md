@@ -72,6 +72,25 @@ Per-machine configs live at
 | `vid_bpp` | cvar (CVAR_ARCHIVE) | **32** quicksilver + imac-2019; **16** (engine default) everywhere else | Colour depth, but really the depth/stencil allocation: `vid_bpp 16` → 16-bit z-buffer + **0 stencil** (so `r_shadows`' stencil self-intersection mask is inert — gl_rmain.c:1081 `if (gl_stencilbits)`); `vid_bpp 32` → 24-bit z-buffer + 8-bit stencil. Set 32 on quicksilver (Radeon 9000, verified +stencil shadows + 24-bit depth for ~3%, holds 60 floor) and imac-2019 (unverified — machine was offline). **NOT** on mini-g4 (Radeon 9200 hard-wedges intermittently on the 32bpp boot vid_restart — see MISTAKES.md 2026-05-29), nor on the fillrate-bound G3/sawtooth/mini-intel. Needs a boot `vid_restart` in the per-machine autoexec to apply (VID_Init runs before the autoexec). | `scripts/bundle/autoexec-{quicksilver,imac-2019}.cfg` |
 | `vid_fsaa` | cvar (CVAR_ARCHIVE) | **8** imac-2019 only; 0 elsewhere | MSAA sample count. Only imac-2019's Radeon Pro 580X gets it (8x — "spend the headroom"); the PPC GPUs lack `ARB_multisample` (sawtooth, G3) or are fillrate-bound near floor (Radeons/GMA950). **Required engine fix:** `VID_Restart` (gl_vidsdl.c) now re-reads the file-scope `fsaa` global from `vid_fsaa` before `VID_SetMode` — upstream only set it in VID_Init / `-fsaa` cmdline, so a `vid_fsaa` in autoexec + `vid_restart` was silently ignored. Inert where `vid_fsaa` is 0. | `gl_vidsdl.c` `VID_Restart`; `scripts/bundle/autoexec-imac-2019.cfg` |
 
+## G3 client-array brush pool (2026-05-29, code-review finding #4)
+
+`-g3clbrush` (cmdline, G3/Rage128 only — inert where `gl_apple_var_able`)
+builds the same contiguous brush-vert pool the G4/Lion VAR path uses, but
+in plain application memory (no `APPLE_vertex_array_range` registration),
+so the world multitexture pass binds vertex/texcoord pointers ONCE at the
+pool base and issues one `glDrawArrays(var_firstvert)` per surface instead
+of the legacy per-vertex `glBegin` trampoline (`R_DrawTextureChains_Multi`
+else branch, `r_world.c`). Shares the `BMODEL_POOL_LIVE` predicate +
+build/delete path with the VAR pool; only the APPLE range registration is
+gated to VAR mode (`r_brush.c`). **Default OFF.** Same-session yosemite
+A/B 2026-05-29: NET-NEUTRAL at 800×600 (demo1 27.90→27.85, demo3
+30.05→30.05) — G3 is GPU/fillrate-bound so removing CPU draw-dispatch
+frees headroom without moving fps. Notably NOT a regression (the bind-once
+design avoided the MISTAKES.md Phase 1.1c −3–4% client-array regression).
+Kept as an inert lever for a future less-GPU-bound G-class target (e.g. a
+G4/nVidia or faster-GPU machine running the ppc750 slice). Parsed in
+`gl_vidsdl.c` `GL_CheckExtensions`.
+
 ## §14.3 hygiene flag
 
 `-nowarpedarrays` falls the `R_UpdateWarpTextures` water-warp

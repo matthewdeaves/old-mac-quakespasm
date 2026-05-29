@@ -458,6 +458,7 @@ void GL_DeleteBModelVAR (void);   // PPC port -- Phase 3.2
 void GL_BuildBModelVAR (void);    // PPC port -- Phase 3.2
 extern float        *gl_bmodel_var_pool;   // PPC port -- Phase 3.2: VAR-registered brush vert pool, NULL if !gl_apple_var_able
 extern unsigned int  gl_bmodel_var_bytes;  // PPC port -- Phase 3.2
+extern qboolean      gl_bmodel_clientpool; // PPC port -- finding #4: -g3clbrush non-VAR plain brush pool (G3/Rage128)
 void GLMesh_LoadVertexBuffers (void);
 void GLMesh_DeleteVertexBuffers (void);
 void R_RebuildAllLightmaps (void);

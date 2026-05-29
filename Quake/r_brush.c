@@ -204,9 +204,17 @@ hunk-allocated glpoly_t. G3 cost is the same as DrawGLPoly's preceding
 behavior (still per-surface-rebind), since there's no pool to share.
 ================
 */
+// PPC port -- finding #4: the contiguous brush-vert pool is usable via
+// the "bind pointers once at the pool base + glDrawArrays(var_firstvert)"
+// pattern in two modes: VAR-registered VRAM (gl_apple_var_able, G4/Lion)
+// or plain application memory (gl_bmodel_clientpool, -g3clbrush on G3).
+// Both share the identical access pattern below; only build/delete differ
+// (the APPLE range registration). One predicate gates every access site.
+#define BMODEL_POOL_LIVE   ((gl_apple_var_able || gl_bmodel_clientpool) && gl_bmodel_var_pool)
+
 void R_BindBrushChain_Single (void)
 {
-	if (gl_apple_var_able && gl_bmodel_var_pool)
+	if (BMODEL_POOL_LIVE)
 	{
 		glVertexPointer   (3, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool);
 		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool + 3);
@@ -223,7 +231,7 @@ void R_UnbindBrushChain_Single (void)
 
 void R_DrawBrushChainSurface (msurface_t *s)
 {
-	if (gl_apple_var_able && gl_bmodel_var_pool)
+	if (BMODEL_POOL_LIVE)
 	{
 		glDrawArrays (GL_POLYGON, s->var_firstvert, s->polys->numverts);
 	}
@@ -240,7 +248,7 @@ void R_DrawBrushChainSurface (msurface_t *s)
 
 void R_BindBrushChain_Multi (void)
 {
-	if (gl_apple_var_able && gl_bmodel_var_pool)
+	if (BMODEL_POOL_LIVE)
 	{
 		glVertexPointer (3, GL_FLOAT, VERTEXSIZE*sizeof(float), gl_bmodel_var_pool);
 		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
@@ -266,7 +274,7 @@ void R_UnbindBrushChain_Multi (void)
 
 void R_DrawBrushChainSurface_Multi (msurface_t *s)
 {
-	if (gl_apple_var_able && gl_bmodel_var_pool)
+	if (BMODEL_POOL_LIVE)
 	{
 		glDrawArrays (GL_POLYGON, s->var_firstvert, s->polys->numverts);
 	}
@@ -956,16 +964,20 @@ unsigned int	 gl_bmodel_var_bytes = 0;
 
 void GL_DeleteBModelVAR (void)
 {
-	if (!gl_apple_var_able)
-		return;
 	if (!gl_bmodel_var_pool)
 		return;
 
-	// Disable the VAR client state and unregister the range before
-	// freeing the backing memory -- otherwise the driver may keep
-	// referring to the pool from its cached copy.
-	glDisableClientState (GL_VERTEX_ARRAY_RANGE_APPLE);
-	GL_VertexArrayRangeAPPLEFunc (0, NULL);
+	// The APPLE range was only registered in VAR mode (gl_apple_var_able);
+	// the -g3clbrush plain-pool mode never registers it. Unregister only
+	// where it was registered, then free the backing memory either way.
+	if (gl_apple_var_able)
+	{
+		// Disable the VAR client state and unregister the range before
+		// freeing the backing memory -- otherwise the driver may keep
+		// referring to the pool from its cached copy.
+		glDisableClientState (GL_VERTEX_ARRAY_RANGE_APPLE);
+		GL_VertexArrayRangeAPPLEFunc (0, NULL);
+	}
 
 	free (gl_bmodel_var_pool);
 	gl_bmodel_var_pool = NULL;
@@ -989,7 +1001,9 @@ void GL_BuildBModelVAR (void)
 	int		i, j;
 	qmodel_t	*m;
 
-	if (!gl_apple_var_able)
+	// Build the pool for VAR mode (G4/Lion) OR -g3clbrush plain-pool mode
+	// (G3). Neither active -> legacy per-surface-rebind path, no pool.
+	if (!gl_apple_var_able && !gl_bmodel_clientpool)
 		return;
 
 	// Mirror GL_BuildBModelVertexBuffer's self-reset behavior so the
@@ -1038,13 +1052,19 @@ void GL_BuildBModelVAR (void)
 		}
 	}
 
-	// Apple's documented pattern: set the storage hint *before* the
-	// range registration so the driver knows to put it in cached VRAM
-	// rather than AGP. Then enable the client state. With static data
-	// no per-frame flush is needed.
-	GL_VertexArrayParameteriAPPLEFunc (GL_VERTEX_ARRAY_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
-	GL_VertexArrayRangeAPPLEFunc (gl_bmodel_var_bytes, gl_bmodel_var_pool);
-	glEnableClientState (GL_VERTEX_ARRAY_RANGE_APPLE);
+	// VAR mode only: Apple's documented pattern -- set the storage hint
+	// *before* the range registration so the driver parks the pool in
+	// cached VRAM rather than AGP, then enable the client state. With
+	// static data no per-frame flush is needed. The -g3clbrush plain-pool
+	// mode SKIPS this entirely: the pool stays in ordinary application
+	// memory and the driver re-fetches it by index on each glDrawArrays
+	// (R128 has no APPLE_vertex_array_range, so there is no VRAM path).
+	if (gl_apple_var_able)
+	{
+		GL_VertexArrayParameteriAPPLEFunc (GL_VERTEX_ARRAY_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+		GL_VertexArrayRangeAPPLEFunc (gl_bmodel_var_bytes, gl_bmodel_var_pool);
+		glEnableClientState (GL_VERTEX_ARRAY_RANGE_APPLE);
+	}
 }
 
 /*

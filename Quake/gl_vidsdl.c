@@ -112,6 +112,7 @@ qboolean gl_apple_client_storage_able = false; // PPC port -- APPLE_client_stora
 qboolean gl_apple_storage_hint_able = false;   // PPC port -- APPLE_texture_range (per-texture cached-VRAM hint)
 qboolean gl_apple_var_able = false;            // PPC port -- APPLE_vertex_array_range (Phase 3.1+, G4 only)
 qboolean gl_apple_var_arrays_mtex = true;      // PPC port -- Phase 3.3: multitex arrays-vs-glBegin opt-out (-noarrays-mtex)
+qboolean gl_bmodel_clientpool = false;         // PPC port -- finding #4: -g3clbrush plain (non-VAR) brush vert pool, G3/Rage128 only
 QS_PFNGLVERTEXARRAYRANGEAPPLEPROC          GL_VertexArrayRangeAPPLEFunc      = NULL;
 QS_PFNGLFLUSHVERTEXARRAYRANGEAPPLEPROC     GL_FlushVertexArrayRangeAPPLEFunc = NULL;
 QS_PFNGLVERTEXARRAYPARAMETERIAPPLEPROC     GL_VertexArrayParameteriAPPLEFunc = NULL;
@@ -1188,6 +1189,25 @@ static void GL_CheckExtensions (void)
 	{
 		gl_apple_var_arrays_mtex = false;
 		Con_Warning ("Phase 3.3 multitex array conversion disabled at command line\n");
+	}
+
+	// PPC port -- code-review finding #4: -g3clbrush builds the same
+	// contiguous brush-vert pool the VAR path uses, but in plain
+	// application memory (no APPLE_vertex_array_range registration), so
+	// G3 / Rage 128 can bind vertex+texcoord pointers ONCE at the pool
+	// base and issue one glDrawArrays per surface instead of the legacy
+	// per-vertex glBegin trampoline (R_DrawTextureChains_Multitexture's
+	// else branch). Only meaningful where VAR is absent (R128); G4/Lion
+	// already do this via the VAR pool, so the flag is inert there.
+	// Default OFF: the pool lives in AGP/system RAM, not VRAM, and
+	// MISTAKES.md Phase 1.1c found client-array draws can lose to this
+	// ATI stack's small-poly glBegin fast path when data isn't VRAM-
+	// cached -- needs a same-session yosemite A/B before it could ever
+	// become a default.
+	if (COM_CheckParm("-g3clbrush") && !gl_apple_var_able)
+	{
+		gl_bmodel_clientpool = true;
+		Con_Printf("FOUND: -g3clbrush -- plain client-array brush pool enabled (non-VAR)\n");
 	}
 
 	// multitexture
