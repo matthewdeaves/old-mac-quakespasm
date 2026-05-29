@@ -48,6 +48,10 @@ scripts/deploy.sh mini-g4
 scripts/deploy.sh mini-intel
 scripts/deploy.sh imac-2019
 
+# Build a distributable .dmg (Quakespasm.app + quakespasm.pak + user
+# README) for handing to the Macs. One image installs on all of them.
+scripts/make-dmg.sh v1.6
+
 # Run a single bench
 scripts/bench.sh quicksilver demo1 1024x768
 scripts/bench.sh imac-2019   demo1 1024x768
@@ -93,6 +97,7 @@ before that commit use the old names, rows after use the new names.
 | `build.sh <g3\|g4\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
 | `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh lion`, then `lipo -create` the three slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
+| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on the cross-build host (Linux has no hdiutil). Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST=` overrides the Mac that runs hdiutil. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
 | `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 4 PPC machines, `intel` = the 2 Intel machines, `all` = all 6 (default). |
 | `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 6 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |

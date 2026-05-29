@@ -39,11 +39,14 @@ deploy.sh <machine>            stage Quakespasm.app + ship to <machine> via rsyn
                                the target.
 
 bench.sh <machine> <demo> <WxH> [runs]
-                               run timedemo, append to results.csv. Passes
-                               -noarchautoexec to keep +cvar extras deterministic
-                               (so autoexec-driven per-machine state is NOT in
-                               effect during benches — use compile-time gates
-                               or EXTRA_CVARS= if the gate matters).
+                               run timedemo, append to results.csv. Since the
+                               v1.5 real-conditions change it STAGES the per-arch
+                               + per-machine cfg as a temp id1/autoexec.cfg on the
+                               target (from the source-tree cfgs) so benches reflect
+                               real play; -noarchautoexec only suppresses the
+                               CFBundle layer (no double-apply). EXTRA_CVARS="+cvar
+                               val" runs as a stuffcmd AFTER the autoexec, so it
+                               still wins for single-cvar A/B.
 
 full-bench.sh [<machine>|ppc|all] [--quick]
                                matrix sweep; ppc=4 PPC machines, all=all 6.

@@ -84,7 +84,10 @@ Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. E
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Anisotropic filtering | — | — | 16× | 16× | 16× | 16× |
 | Trilinear (`GL_LINEAR_MIPMAP_LINEAR`) | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Smooth lightstyles (`r_lerplightstyles`) | — | — | ✓ | ✓ | — | ✓ |
 | Alias drop-shadows | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 24-bit depth + stencil shadow mask (`vid_bpp 32`) | — | — | ✓ | — (9200 wedges) | — | ✓ |
+| MSAA (`vid_fsaa`) | — | — | — | — | — | 8× |
 | `r_shadow_distance` | default | 512 | 512 | 512 | 512 | default |
 | Translucent water | ✓ classic warp | ✓ classic warp | ✓ shader water | ✓ shader water | ✓ classic warp | ✓ shader water |
 | Translucent lava / slime / tele | — | ✓ | ✓ | ✓ | ✓ | ✓ |

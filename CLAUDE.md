@@ -51,9 +51,14 @@ mechanisms, most to least restrictive:
    in the deployed bundle, loaded via CFBundle by `QS_ExecConfigFromBundle`
    at `host.c:53`; per-machine pick uses `sysctl hw.model` at
    `host.c:1024`). Right tool when the difference is hardware/driver.
-   `bench.sh` passes `-noarchautoexec` for determinism, so autoexec
-   state is NOT in effect during benches — use a compile-time gate or
-   `EXTRA_CVARS=` if the gate matters to the bench.
+   Since the v1.5 real-conditions change, `bench.sh` STAGES the per-arch
+   + per-machine cfg concatenation as a temp `id1/autoexec.cfg` on the
+   target (read from the source-tree cfgs) and passes `-noarchautoexec`
+   only to suppress the CFBundle layer so it isn't double-applied — so
+   per-machine autoexec state IS in effect during benches (real play
+   conditions). `EXTRA_CVARS="+cvar val"` still wins (it's a stuffcmd
+   that runs after the autoexec); use it to A/B a single cvar without
+   editing the cfg. A compile-time gate is still in effect regardless.
 3. **Runtime cvar / cmdline opt-out** — everywhere-available toggle
    for end-of-round A/B review.
 

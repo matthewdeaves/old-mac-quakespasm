@@ -7,7 +7,7 @@ so end-of-round code review can A/B individual contributions without
 rebuild. Per-machine shipping defaults live in
 `scripts/bundle/autoexec-<machine>.cfg`.
 
-Updated 2026-05-11.
+Updated 2026-05-29.
 
 ## AltiVec phase opt-outs (cmdline, G4 only — `-flag` to disable)
 

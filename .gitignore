@@ -1,6 +1,9 @@
 # Build artifacts (produced by scripts/build.sh)
 /build/
 
+# Release disk images (produced by scripts/make-dmg.sh)
+/dist/
+
 # Static-analysis raw output. The summarised .log files and triage notes
 # under analysis/ ARE committed; bulky/binary derivatives are ignored.
 /analysis/raw/
