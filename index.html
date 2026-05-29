@@ -84,7 +84,20 @@
   .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0; }
   .shots img { width: 100%; border-radius: 6px; display: block; }
   .shots figure { margin: 0; }
-  .shots figcaption { font-size: 0.78rem; color: #9a9384; text-align: center; margin-top: 4px; }
+  .shots figcaption { font-size: 0.82rem; color: #9a9384; text-align: center; margin-top: 4px; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin: 18px 0; }
+  .gallery figure { margin: 0; }
+  .gallery img { width: 100%; border-radius: 7px; display: block; aspect-ratio: 4 / 3; object-fit: cover; }
+  .gallery figcaption { font-size: 0.85rem; color: #9a9384; text-align: center; margin-top: 5px; }
+  .shots img, .gallery img { cursor: zoom-in; transition: filter .15s; }
+  .shots img:hover, .gallery img:hover { filter: brightness(1.12); }
+  /* Lightbox */
+  #lb { position: fixed; inset: 0; background: rgba(0,0,0,.94); display: none; z-index: 1000; cursor: zoom-out; }
+  #lb.open { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #lb img { max-width: 96vw; max-height: 90vh; border-radius: 6px; box-shadow: 0 0 40px rgba(0,0,0,.6); }
+  #lb .cap { color: #d8d2c6; margin-top: 12px; font-size: 0.95rem; }
+  #lb .x { position: absolute; top: 18px; right: 26px; color: #fff; font-size: 2.2rem; line-height: 1; cursor: pointer; opacity: .8; }
+  #lb .x:hover { opacity: 1; }
   ol li, ul li { margin: 6px 0; }
   code { background: #211e18; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
   pre { background: #211e18; padding: 14px 16px; border-radius: 7px; overflow-x: auto; font-size: 0.86rem; }
@@ -151,10 +164,25 @@
 <p>On modern macOS the unsigned bundle is quarantined — either right-click → Open, or run <code>xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app</code>. Panther, Tiger and Lion do not need this.</p>
 
 <h2 id="gallery">Screenshots across the fleet</h2>
-<div class="shots">
-  <figure><img src="assets/yosemite_spasm0010.webp" alt="Quake running on a Power Mac G3 with ATI Rage 128 under Mac OS X Panther" loading="lazy"><figcaption>Power Mac G3 · Rage 128 · Panther</figcaption></figure>
-  <figure><img src="assets/mini-g4_spasm0070.webp" alt="Quake on a Mac mini G4 with ATI Radeon 9200 under Tiger" loading="lazy"><figcaption>Mac mini G4 · Radeon 9200 · Tiger</figcaption></figure>
-  <figure><img src="assets/mini-intel_spasm0070.webp" alt="Quake on an Intel Mac mini with GMA 950 under Mac OS X Lion" loading="lazy"><figcaption>Mac mini Intel · GMA 950 · Lion</figcaption></figure>
+<p>Every machine running the same scenes with its own hand-tuned visual stack. Click any shot for full screen.</p>
+<div class="gallery">
+  <figure><img src="assets/yosemite_spasm0010.webp" alt="Quake on a Power Mac G3 with ATI Rage 128 under Mac OS X Panther" loading="lazy"><figcaption>Power Mac G3 · Rage 128 · Panther</figcaption></figure>
+  <figure><img src="assets/yosemite_spasm0040.webp" alt="Quake on a Power Mac G3 with ATI Rage 128, translucent water" loading="lazy"><figcaption>Power Mac G3 · Rage 128 · Panther</figcaption></figure>
+  <figure><img src="assets/sawtooth_spasm0010.webp" alt="Quake on a Power Mac G4 Sawtooth with NVIDIA GeForce2 MX under Tiger" loading="lazy"><figcaption>Power Mac G4 · GeForce2 MX · Tiger</figcaption></figure>
+  <figure><img src="assets/sawtooth_spasm0040.webp" alt="Quake on a Power Mac G4 with GeForce2 MX, drop-shadows" loading="lazy"><figcaption>Power Mac G4 · GeForce2 MX · Tiger</figcaption></figure>
+  <figure><img src="assets/sawtooth_spasm0070.webp" alt="Quake on a Power Mac G4 with GeForce2 MX, dynamic lights" loading="lazy"><figcaption>Power Mac G4 · GeForce2 MX · Tiger</figcaption></figure>
+  <figure><img src="assets/quicksilver_spasm0010.webp" alt="Quake on a Power Mac G4 Quicksilver with ATI Radeon 9000 under Tiger" loading="lazy"><figcaption>Power Mac G4 · Radeon 9000 · Tiger</figcaption></figure>
+  <figure><img src="assets/quicksilver_spasm0040.webp" alt="Quake on a Quicksilver G4 with Radeon 9000, anisotropic filtering" loading="lazy"><figcaption>Power Mac G4 · Radeon 9000 · Tiger</figcaption></figure>
+  <figure><img src="assets/quicksilver_spasm0070.webp" alt="Quake on a Quicksilver G4 with Radeon 9000, shader water" loading="lazy"><figcaption>Power Mac G4 · Radeon 9000 · Tiger</figcaption></figure>
+  <figure><img src="assets/mini-g4_spasm0010.webp" alt="Quake on a Mac mini G4 with ATI Radeon 9200 under Tiger" loading="lazy"><figcaption>Mac mini G4 · Radeon 9200 · Tiger</figcaption></figure>
+  <figure><img src="assets/mini-g4_spasm0040.webp" alt="Quake on a Mac mini G4 with Radeon 9200, trilinear filtering" loading="lazy"><figcaption>Mac mini G4 · Radeon 9200 · Tiger</figcaption></figure>
+  <figure><img src="assets/mini-g4_spasm0070.webp" alt="Quake on a Mac mini G4 with Radeon 9200, dynamic lights" loading="lazy"><figcaption>Mac mini G4 · Radeon 9200 · Tiger</figcaption></figure>
+  <figure><img src="assets/mini-intel_spasm0010.webp" alt="Quake on an Intel Mac mini with GMA 950 under Mac OS X Lion" loading="lazy"><figcaption>Mac mini Intel · GMA 950 · Lion</figcaption></figure>
+  <figure><img src="assets/mini-intel_spasm0040.webp" alt="Quake on an Intel Mac mini GMA 950, translucent liquids" loading="lazy"><figcaption>Mac mini Intel · GMA 950 · Lion</figcaption></figure>
+  <figure><img src="assets/mini-intel_spasm0070.webp" alt="Quake on an Intel Mac mini GMA 950, dynamic lights" loading="lazy"><figcaption>Mac mini Intel · GMA 950 · Lion</figcaption></figure>
+  <figure><img src="assets/imac-2019_spasm0010.webp" alt="Quake on a 2019 iMac with AMD Radeon Pro 580X, 8x MSAA" loading="lazy"><figcaption>iMac 2019 · Radeon Pro 580X · macOS</figcaption></figure>
+  <figure><img src="assets/imac-2019_spasm0040.webp" alt="Quake on a 2019 iMac with Radeon Pro 580X, stencil shadows" loading="lazy"><figcaption>iMac 2019 · Radeon Pro 580X · macOS</figcaption></figure>
+  <figure><img src="assets/imac-2019_spasm0070.webp" alt="Quake on a 2019 iMac with Radeon Pro 580X, emissive dynamic lights" loading="lazy"><figcaption>iMac 2019 · Radeon Pro 580X · macOS</figcaption></figure>
 </div>
 
 <h2 id="sisters">Sister projects — vintage Mac id Software ports</h2>
@@ -185,6 +213,36 @@ It documents the cross-compile pipeline, the per-machine autoexec configs, the A
   <p>Old Mac QuakeSpasm · a QuakeSpasm source port for vintage PowerPC and Intel Macs · GPL-2.0-or-later<br>
   Quake © id Software. QuakeSpasm by the <a href="https://github.com/sezero/quakespasm">QuakeSpasm developers</a>. Port by <a href="https://github.com/matthewdeaves">Matthew Deaves</a>.</p>
 </footer>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="Screenshot full screen">
+  <span class="x" aria-label="Close">&times;</span>
+  <img alt="">
+  <div class="cap"></div>
+</div>
+
+<script>
+(function () {
+  var lb = document.getElementById('lb'),
+      lbImg = lb.querySelector('img'),
+      lbCap = lb.querySelector('.cap');
+  function open(src, alt, cap) {
+    lbImg.src = src; lbImg.alt = alt || ''; lbCap.textContent = cap || '';
+    lb.classList.add('open'); document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    lb.classList.remove('open'); lbImg.src = ''; document.body.style.overflow = '';
+  }
+  document.querySelectorAll('.shots img, .gallery img').forEach(function (img) {
+    img.addEventListener('click', function () {
+      var fig = img.closest('figure'),
+          cap = fig ? fig.querySelector('figcaption') : null;
+      open(img.currentSrc || img.src, img.alt, cap ? cap.textContent : '');
+    });
+  });
+  lb.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
+</script>
 
 </body>
 </html>
