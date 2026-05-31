@@ -8,6 +8,13 @@ material.
 
 - [`KNOBS.md`](KNOBS.md) — inventory of every toggleable cvar / cmdline `-flag`
   (per-target visual + perf knobs). Keep current; end-of-round A/B depends on it.
+- [`GATING.md`](GATING.md) — toggleability requirement + the three per-machine
+  gating mechanisms (compile-time / per-machine autoexec / runtime cvar).
+- [`BENCHMARKING.md`](BENCHMARKING.md) — bench discipline, bench-and-commit
+  cadence, the timedemo invocation pattern, DMG smoke vs timedemo bench.
+- [`DEVELOPMENT.md`](DEVELOPMENT.md) — build path, the shared mini-intel
+  build-host isolation table, optimisation hot-files, codebase facts you can't
+  grep for. (Per-target compiler flags + bundle assembly: [`../MacOSX/CLAUDE.md`](../MacOSX/CLAUDE.md).)
 
 ## ideas/ — forward-looking design, not yet built
 
