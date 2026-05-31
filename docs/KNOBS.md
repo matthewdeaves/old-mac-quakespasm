@@ -33,6 +33,15 @@ Updated 2026-05-29.
 
 The R300 gate makes the existing `-noglsl -novbo -notexturenpot -nowarpmipmaps` switches redundant on these cards (the gate already skips all four), but they remain available for finer A/B.
 
+## Video-mode lock for fragile-GPU machines (cmdline/console, 2026-05-31)
+
+| Flag/cvar | Default | What it does | File |
+|-----------|---------|--------------|------|
+| `vid_lock` (command) | applied on G3 + G5 | Freezes the current video mode: `vid_restart`, `vid_test`, alt-enter (`VID_Toggle`), and the video-menu resolution/bpp/rate items all become **inert** until `vid_unlock`. Called as the LAST line of `autoexec-ppc750.cfg` (G3 Rage 128) and `autoexec-ppc970.cfg` (G5 R300), AFTER the boot `vid_restart` has set the safe resolution. Prevents a live fullscreen **resolution switch**, which hard-crashes the Panther Rage 128 driver (confirmed 2026-05-31) and hard-hangs the Leopard R300. Upstream only locked internally during gamedir changes; this port exposes it as a console command. | `gl_vidsdl.c` `VID_Lock` / `Cmd_AddCommand("vid_lock", …)` |
+| `vid_unlock` (command) | — | Re-enables in-game mode switching (upstream command). Type it at the console on a G3/G5 if you know your GPU tolerates a mode switch (e.g. a GeForce-equipped Power Mac G5 tower), then `vid_width N; vid_height M; vid_restart`. | `gl_vidsdl.c` `VID_Unlock` |
+
+The lock only sticks on a real `.app` launch: the per-arch CFBundle autoexec runs AFTER host.c's post-`quake.rc` `vid_unlock`, so its `vid_lock` is the last word. On a **bench** run the cfgs are staged as `id1/autoexec.cfg` (executed BY `quake.rc`, before that `vid_unlock`), so the staged `vid_lock` is cleared — benching and `-width`/`-height` overrides are unaffected. The G4 and Lion/Intel slices are NOT locked (their GPUs switch modes fine).
+
 ## Visual cvars (runtime, set in per-machine autoexec)
 
 Per-machine configs live at

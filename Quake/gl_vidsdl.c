@@ -1954,6 +1954,21 @@ void	VID_Init (void)
 	Cvar_SetCallback (&vid_borderless, VID_Changed_f);
 
 	Cmd_AddCommand ("vid_unlock", VID_Unlock); //johnfitz
+	// PPC port: expose vid_lock as a console command (upstream only ever
+	// locks internally during gamedir changes). The per-arch autoexec on
+	// the fragile-GPU machines (G3 Rage 128, G5 R300) calls `vid_lock` at
+	// the END of its boot sequence -- AFTER the boot vid_restart has set
+	// the safe resolution -- so any later in-game resolution change (video
+	// menu, alt-enter, `vid_restart` from console) is ignored. A live
+	// fullscreen RESOLUTION switch hard-crashes the Rage 128 driver and
+	// hard-hangs the R300; locking the mode is the belt-and-suspenders
+	// guard on top of booting at a safe res. `vid_unlock` re-enables
+	// switching for anyone who knows their GPU tolerates it. Safe on bench
+	// runs: bench stages the cfgs as id1/autoexec.cfg (run by quake.rc),
+	// and host.c appends `vid_unlock` AFTER quake.rc, so a staged vid_lock
+	// is cleared before play -- only the CFBundle .app autoexec (which runs
+	// AFTER that vid_unlock) makes the lock stick. See docs/KNOBS.md.
+	Cmd_AddCommand ("vid_lock", VID_Lock);
 	Cmd_AddCommand ("vid_restart", VID_Restart); //johnfitz
 	Cmd_AddCommand ("vid_test", VID_Test); //johnfitz
 	Cmd_AddCommand ("vid_describecurrentmode", VID_DescribeCurrentMode_f);
@@ -2118,6 +2133,13 @@ void	VID_Toggle (void)
 #if defined(USE_SDL2)
 	Uint32 flags = 0;
 #endif
+
+	// PPC port: honour the vid lock. On the fragile-GPU machines the
+	// autoexec runs `vid_lock`, so alt-enter must not flip vid_fullscreen
+	// and queue a vid_restart -- that would both poison config.cfg and (on
+	// SDL 1.2) try a live mode change the Rage 128 / R300 can't survive.
+	if (vid_locked)
+		return;
 
 	S_ClearBuffer ();
 
@@ -2378,6 +2400,14 @@ static void VID_Menu_ChooseNextMode (int dir)
 {
 	int i;
 
+	// PPC port: on a vid-locked machine (G3 Rage 128 / G5 R300) the
+	// resolution menu item is inert -- scrolling it would write vid_width/
+	// vid_height, and even though the apply (VID_Restart/VID_Test) no-ops
+	// while locked, the changed cvars would archive to config.cfg and force
+	// a hazardous mode switch on the NEXT boot. Refuse the change at source.
+	if (vid_locked)
+		return;
+
 	if (vid_menu_nummodes)
 	{
 		for (i = 0; i < vid_menu_nummodes; i++)
@@ -2418,6 +2448,9 @@ static void VID_Menu_ChooseNextBpp (int dir)
 {
 	int i;
 
+	if (vid_locked)	// PPC port: inert on vid-locked machines (see ChooseNextMode)
+		return;
+
 	if (vid_menu_numbpps)
 	{
 		for (i = 0; i < vid_menu_numbpps; i++)
@@ -2453,6 +2486,9 @@ chooses next refresh rate in order, then updates vid_refreshrate cvar
 static void VID_Menu_ChooseNextRate (int dir)
 {
 	int i;
+
+	if (vid_locked)	// PPC port: inert on vid-locked machines (see ChooseNextMode)
+		return;
 
 	for (i = 0; i < vid_menu_numrates; i++)
 	{

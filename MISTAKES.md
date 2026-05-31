@@ -16,6 +16,55 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-31 — G3 Rage 128: a live in-game resolution SWITCH crashes the engine
+
+**What we tried.** Shipped the G3 (`yosemite`, PowerMac1,1, Rage 128,
+Panther 10.3.9) with the boot resolution forced in TWO layered cfgs: the
+per-arch baseline `autoexec-ppc750.cfg` set `vid_width 1024` **and called
+`vid_restart`**, while the per-machine overlay `autoexec-yosemite.cfg` set
+`vid_width 800` but **had no `vid_restart`**.
+
+**What went wrong.** The overlay runs after the baseline, but with no
+`vid_restart` its 800x600 only landed in the cvars (→ config.cfg), never the
+live mode — so the engine actually ran at the baseline's **1024x768**. The
+user, seeing the wrong res, opened the video menu and selected 800x600. That
+fired a **live fullscreen resolution switch on the Rage 128**, which
+**hard-crashed** (black screen, display LUT wedged, OS alive over SSH —
+recovered with `ssh yosemite '~/bin/qsreboot.sh'` + a forced reboot). Same
+class of fragility as the G5 R300 mode-switch wedge, just a different
+failure mode (engine crash vs whole-OS hang).
+
+**The fix (two parts).**
+1. *Boot at the target res with ONE mode-set.* Moved 800x600 into the
+   ppc750 **baseline** (matching the overlay) so there's a single boot
+   `vid_restart` to 800x600 and the overlay just re-asserts the same cvars
+   (no second switch). 800x600 is the documented Rage 128 sweet spot.
+2. *Disable in-game switching on fragile GPUs.* Exposed `vid_lock` as a
+   console command (upstream only locked internally during gamedir changes)
+   and call it as the LAST line of `autoexec-ppc750.cfg` (G3) and
+   `autoexec-ppc970.cfg` (G5), AFTER the boot `vid_restart`. Also gated
+   `VID_Toggle` (alt-enter) and the three video-menu choosers
+   (`VID_Menu_ChooseNextMode/Bpp/Rate`) on `vid_locked` — otherwise the menu
+   would still mutate `vid_*` cvars (poisoning config.cfg → a hazardous
+   mode switch on the NEXT boot) even though the apply itself no-ops. The
+   menu/alt-enter/`vid_restart` are now inert on G3+G5 until `vid_unlock`.
+
+**Lessons.**
+- A two-layer cfg where the overlay changes a resolution cvar **without a
+  `vid_restart`** is a silent no-op for the live mode — the value only shows
+  up as a phantom in config.cfg. Put the authoritative boot res (and its one
+  restart) in ONE place.
+- On a GPU that can't survive a live mode switch, booting at the right res
+  isn't enough — the **video menu and alt-enter are loaded guns**. Lock the
+  mode (and gate the cvar-mutating menu paths) so the user can't pull the
+  trigger. `vid_unlock` stays as the escape hatch for known-safe GPUs.
+- The lock placement exploits boot order: the CFBundle `.app` autoexec runs
+  AFTER host.c's post-`quake.rc` `vid_unlock`, so its `vid_lock` sticks for
+  real play; the bench-staged `id1/autoexec.cfg` runs BEFORE that
+  `vid_unlock`, so benching/`-width` overrides are unaffected.
+
+---
+
 ## 2026-05-31 — iMac G5: GLSL/VBO on the ATI Radeon 9600 hard-hangs the whole OS
 
 **What we tried.** Bringing the new iMac G5 (`PowerMac8,2`, ppc970, ATI
