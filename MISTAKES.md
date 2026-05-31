@@ -16,6 +16,61 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-31 — DMG pipeline could ship a silently-corrupt binary (caught on the Q2 sister port)
+
+**What happened (to Quake II, our shared DMG pipeline's other consumer).**
+The Q2 `.dmg` shipped a **single flipped byte** in the ppc7400 code slice: a
+register-save `stw r31,...` (`0x93e1fffc`) became `0xe7e1fffc` — an illegal
+64-bit-only opcode that traps as privileged on a G4 → `EXC_PPC_PRIVINST` →
+instant crash at init on every G4. The build binary was fine; only the **DMG
+copy** was corrupt. Our `make-dmg.sh` was the parent that Q2's was adapted
+from, so QuakeSpasm carried the **same latent risk**.
+
+**Why it slipped past everything.**
+- It wasn't a transfer loss (TCP/SSH/rsync all checksum). The flip happened in
+  RAM/on disk on a build-hop machine *outside* the protected path — prime
+  suspect the non-ECC RAM / 25-year-old disk on the **1999 Panther G3** we ran
+  `hdiutil` on.
+- **`hdiutil verify` does NOT catch it** — it only checks that the UDIF
+  container's compressed blocks decompress to whatever was stored, NOT that
+  what was stored matches the source. A bad byte baked in at creation passes.
+- We only ever tested `+timedemo` via `deploy.sh` (direct rsync, no DMG hop).
+  We validated the wrong artifact; the DMG-install path was never smoke-tested.
+
+**The fix (three parts, mirroring Q2).**
+1. *End-to-end content verification in `make-dmg.sh`.* After building, mount the
+   finished image and md5 the 12 shipped code artifacts (engine binary + 10
+   codec dylibs + SDL) inside it against the source; retry up to 3× and **fail
+   loud** if it can't be made byte-identical. Also md5-check the scp-back.
+   Dropped rsync `--partial` (it can reuse a stale chunk on a retry).
+2. *Build on Tiger (`mini-g4`), not the G3.* The default `DMG_HOST` now
+   auto-picks the first reachable Tiger box (mini-g4 → quicksilver → sawtooth).
+   A Tiger UDZO still mounts on Panther→modern; Lion's hdiutil writes a
+   container Panther can't mount (no flag fixes it), so Lion stays out for any
+   G3-bound image. Binary is still built on Lion (mini-intel) — only the
+   `hdiutil` packaging step moved to healthier hardware.
+3. *Smoke-test the real artifact.* New `scripts/deploy-dmg.sh` (installs from
+   the DMG exactly as a human does) + `scripts/smoke-dmg.sh` (launches the
+   installed copy with the **production** bundle config — no `-noarchautoexec`,
+   no vid override — plus a `+timedemo` so it self-exits, reporting renderer +
+   actual resolution + fps). This is the gate the corrupt DMG slipped past.
+
+**Outcome.** Re-verified the already-published **v1.8** DMG: all 12 artifacts
+byte-identical to source — it dodged the corruption (luck: it was built on the
+G3). Then rebuilt through the hardened pipeline and smoke-tested all four
+reachable machines (G3 800x600 / mini-g4 1024x768 / iMac G5 1440x900 native /
+mini-intel 1024x768) — all rendered demo1 to completion, no crash.
+
+**Lessons.**
+- `hdiutil verify` is a container checksum, not a content check. If you ship a
+  DMG, verify the bytes *inside* it against source end-to-end, every build.
+- Don't build release artifacts on the flakiest hardware in the fleet. The G3
+  is for *testing the install*, not *creating the image*.
+- Test the artifact the user actually runs (DMG → install → launch with the
+  production config), not just the convenience path (`deploy.sh` + bench).
+
+---
+
 ## 2026-05-31 — G3 Rage 128: a live in-game resolution SWITCH crashes the engine
 
 **What we tried.** Shipped the G3 (`yosemite`, PowerMac1,1, Rage 128,

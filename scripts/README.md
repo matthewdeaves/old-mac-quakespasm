@@ -57,7 +57,14 @@ scripts/deploy.sh imac-2019
 
 # Build a distributable .dmg (Quakespasm.app + quakespasm.pak + user
 # README) for handing to the Macs. One image installs on all of them.
-scripts/make-dmg.sh v1.7
+# Builds on a reachable Tiger box by default and content-verifies the
+# binaries inside the image against source (md5, 3 retries, fail loud).
+scripts/make-dmg.sh v1.8
+
+# Test the .dmg the way an end user installs it, then smoke-launch it with
+# the production config (the path that caught the Q2 corrupt-DMG crash).
+scripts/deploy-dmg.sh yosemite v1.8     # scp + mount + install into ~/Desktop/quake/
+scripts/smoke-dmg.sh  yosemite demo1    # launch installed copy, report res + fps
 
 # Run a single bench
 scripts/bench.sh quicksilver demo1 1024x768
@@ -104,7 +111,9 @@ before that commit use the old names, rows after use the new names.
 | `build.sh <g3\|g4\|g5\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4/g5, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. `g5` = iMac G5 Leopard (ppc970, 10.5 SDK, `-mcpu=970`). Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
 | `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh g5` + `build.sh lion`, then `lipo -create` the four slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
-| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on the cross-build host (Linux has no hdiutil). Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST=` overrides the Mac that runs hdiutil. |
+| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac (Linux has no hdiutil). Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), **not** the G3 — a Tiger UDZO still mounts Panther→modern, and the G3's flaky old RAM/disk once flipped a byte into the Q2 DMG. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. `DMG_HOST=` overrides the host. |
+| `deploy-dmg.sh <machine> [ver]` | install the release DMG the way a human does: scp to the Desktop, md5-verify it arrived, mount, `ditto` `Quakespasm.app` + copy `quakespasm.pak` into `~/Desktop/quake/`, **preserving `id1/` game data**, then detach. Default ver = newest `dist/QuakeSpasm-OldMac-*.dmg`. |
+| `smoke-dmg.sh <machine> [demo]` | launch the DMG-installed copy with the **production** bundle config (no `-noarchautoexec`, no vid/res override) + a `+timedemo` so it self-exits. Reports renderer + actual resolution + fps; PASS iff an fps line appears. This is the install→launch path that catches a crash `deploy.sh` + bench would miss. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
 | `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 5 PPC machines, `intel` = the 2 Intel machines, `all` = all 7 (default). |
 | `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 7 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |

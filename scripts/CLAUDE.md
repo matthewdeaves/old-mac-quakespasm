@@ -92,6 +92,38 @@ install-host-tools.sh          push host-bin/* to ~/bin on every bench Mac.
                                Idempotent. Re-run after editing qsreboot.sh
                                or adding a machine.
 
+make-dmg.sh [version]          stage Quakespasm.app + quakespasm.pak + README,
+                               then build a compressed UDZO .dmg via hdiutil on a
+                               Mac (Linux has no hdiutil). Output dist/QuakeSpasm-
+                               OldMac-<version>.dmg. DMG_HOST defaults to the first
+                               REACHABLE TIGER box (mini-g4 → quicksilver →
+                               sawtooth) — NOT the G3 (its flaky non-ECC RAM/disk
+                               flipped a byte into the Q2 DMG once; see MISTAKES.md
+                               2026-05-31 "DMG byte-flip"). Tiger UDZO still mounts
+                               Panther→modern; Lion's hdiutil can't write a Panther-
+                               mountable image. END-TO-END VERIFIED: after build it
+                               mounts the image and md5s the 12 shipped code
+                               artifacts (engine + 10 codec dylibs + SDL) vs source,
+                               retries 3×, fails loud on mismatch, and md5-checks the
+                               scp-back. `hdiutil verify` alone does NOT catch a
+                               content flip. The binary is still built on Lion by
+                               build-fat.sh; DMG_HOST only runs the packaging step.
+deploy-dmg.sh <machine> [ver]  install the release DMG onto a target the way a human
+                               does: scp to Desktop, md5-verify arrival, mount,
+                               ditto Quakespasm.app + copy quakespasm.pak into
+                               ~/Desktop/quake/, PRESERVING id1/ game data, then
+                               detach (slow-disk-safe retry loop; never rm -rf a
+                               possibly-mounted volume). Default ver = newest
+                               dist/QuakeSpasm-OldMac-*.dmg.
+smoke-dmg.sh <machine> [demo]  launch the DMG-installed copy with the PRODUCTION
+                               bundle config (NO -noarchautoexec, NO vid/res
+                               override) + -condebug + a +timedemo so it self-exits.
+                               Reports renderer + actual resolution + fps; PASS iff
+                               an fps line appears. TERM-before-KILL (hard KILL
+                               wedges Rage 128 / hangs R300). This is the gate the
+                               corrupt-DMG bug slipped past — test the artifact the
+                               user actually runs, not just deploy.sh + bench.
+
 host-bin/qsreboot.sh           runs ON the Mac. Reboots via `sudo -n /sbin/reboot`
                                (Tier 1, works through wedged Finder / corrupt LUT)
                                with Finder Apple Event as Tier 2 fallback.
