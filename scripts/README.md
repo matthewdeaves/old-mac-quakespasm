@@ -1,16 +1,17 @@
 # scripts/ — build, deploy, bench tooling for QuakeSpasm
 
 Multi-host workflow: edit on Ubuntu → build on `mini-intel` (Lion) →
-run on the 6 bench machines. SSH config aliases (`yosemite`,
-`sawtooth`, `quicksilver`, `mini-g4`, `mini-intel`, `imac-2019`)
-expected in `~/.ssh/config`.
+run on the 7 bench machines. SSH config aliases (`yosemite`,
+`sawtooth`, `quicksilver`, `mini-g4`, `imac-g5`, `mini-intel`,
+`imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard needs the
+same legacy-crypto block as the other PPC boxes).
 
 Project goal, toggleability requirement, and the full perf-knob
 inventory live in `/CLAUDE.md` and `docs/KNOBS.md`. Per-machine
 shipping defaults: `scripts/bundle/autoexec-<machine>.cfg`.
 For LLM-facing per-script notes see `scripts/CLAUDE.md`.
 
-**Bench machines (6 machines, 3 distinct binaries):**
+**Bench machines (7 machines, 4 distinct binaries):**
 
 | machine     | hardware                                                              | binary                |
 |-------------|-----------------------------------------------------------------------|-----------------------|
@@ -18,8 +19,13 @@ For LLM-facing per-script notes see `scripts/CLAUDE.md`.
 | sawtooth    | PowerMac3,1  G4 AGP 500 MHz, GeForce2 MX 32 MB, Tiger 10.4.11         | `quakespasm-g4`       |
 | quicksilver | PowerMac3,5  G4 QS  733 MHz, Radeon 9000 Pro 64 MB, Tiger 10.4.11    | `quakespasm-g4`       |
 | mini-g4     | PowerMac10,1 Mac mini G4 1.25 GHz, Radeon 9200 32 MB, Tiger 10.4.11   | `quakespasm-g4`       |
+| imac-g5     | PowerMac8,2  iMac G5 2.0 GHz, Radeon 9600 128 MB (R300), Leopard 10.5.8 | `quakespasm-g5`     |
 | mini-intel  | Macmini2,1   C2D 2.33 GHz, GMA 950 64 MB shared, Lion 10.7.5          | `quakespasm-lion`     |
 | imac-2019   | iMac19,1     i5-9600K 3.70 GHz (6c), Radeon Pro 580X 8 GB, Sequoia 15.7.5 | `quakespasm-lion` |
+
+`imac-g5` (the only GL-2.0 GPU) is forced to the GL 1.x path — its Leopard
+GLSL driver hard-hangs the GPU — and benches **native-res only** (1440×900);
+a non-native fullscreen mode-switch wedges the R300. See `/MISTAKES.md`.
 
 `mini-intel` is both the cross-build host AND a runnable bench reference.
 The matrix spans the GPU axis from fixed-function (Rage 128, GeForce2 MX)
@@ -45,29 +51,30 @@ scripts/deploy.sh yosemite
 scripts/deploy.sh sawtooth
 scripts/deploy.sh quicksilver
 scripts/deploy.sh mini-g4
+scripts/deploy.sh imac-g5
 scripts/deploy.sh mini-intel
 scripts/deploy.sh imac-2019
 
 # Build a distributable .dmg (Quakespasm.app + quakespasm.pak + user
 # README) for handing to the Macs. One image installs on all of them.
-scripts/make-dmg.sh v1.6
+scripts/make-dmg.sh v1.7
 
 # Run a single bench
 scripts/bench.sh quicksilver demo1 1024x768
 scripts/bench.sh imac-2019   demo1 1024x768
 
 # Run the full baseline matrix (3 demos × 2 res × 3 runs each)
-scripts/full-bench.sh ppc        # 4 PPC machines
+scripts/full-bench.sh ppc        # 5 PPC machines
 scripts/full-bench.sh intel      # 2 Intel machines
-scripts/full-bench.sh all        # all 6 machines
+scripts/full-bench.sh all        # all 7 machines
 scripts/full-bench.sh sawtooth   # one machine
 
 # Same matrix in parallel (≈ wall time of the slowest leg = yosemite).
-# Default runs all 6 machines; --no-<machine> skips a leg if it's offline.
+# Default runs all 7 machines; --no-<machine> skips a leg if it's offline.
 scripts/parallel-bench.sh
 scripts/parallel-bench.sh --no-mini-intel --no-imac-2019
 
-# Quick iteration loop: demo1 only at both res, all 6 machines parallel (~3-4 min)
+# Quick iteration loop: demo1 only at both res, all 7 machines parallel (~3-4 min)
 scripts/parallel-bench.sh --quick
 
 # Bench HEAD and commit the resulting CSV rows + raw logs in one shot.
@@ -99,12 +106,12 @@ before that commit use the old names, rows after use the new names.
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
 | `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on the cross-build host (Linux has no hdiutil). Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST=` overrides the Mac that runs hdiutil. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
-| `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 4 PPC machines, `intel` = the 2 Intel machines, `all` = all 6 (default). |
-| `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 6 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |
+| `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 5 PPC machines, `intel` = the 2 Intel machines, `all` = all 7 (default). |
+| `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 7 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |
 | `bench-and-commit.sh "<phase>"` | bench HEAD + commit the data in one shot. Refuses dirty trees, pins HEAD, then `parallel-bench.sh "$@"`, stages CSV + new raw logs, lands `bench: <phase> (HEAD <hash>)` commit with median fps summary. The canonical second-of-two commits per phase. |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
 | `make-icon.py [source.png]` | regenerate `MacOSX/QuakeSpasm.icns` from a source PNG (default: `MacOSX/newiconfinal.png`). **Legacy-only ICNS chunks** (Panther/Tiger compat — see file header for why iconutil is wrong). Default also refreshes `docs/images/quakespasm-icon{,-256}.png` (README hero strip); `--no-readme-refresh` to skip. `--keep-bg` to skip auto bg-removal if the source already has alpha (canonical Photoshop-touch-up workflow). Requires `~/quakespasm/.venv` (Pillow + numpy + scipy). |
-| `install-host-tools.sh [hosts...]` | push `scripts/host-bin/*` to `~/bin/` on every bench Mac. Idempotent. Default hosts: `yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019`. Re-run after editing the source scripts in `scripts/host-bin/` or adding a new bench machine. |
+| `install-host-tools.sh [hosts...]` | push `scripts/host-bin/*` to `~/bin/` on every bench Mac. Idempotent. Default hosts: `yosemite sawtooth quicksilver mini-g4 imac-g5 mini-intel imac-2019`. Re-run after editing the source scripts in `scripts/host-bin/` or adding a new bench machine. |
 | `host-bin/qsreboot.sh` | runs **on the Mac**. SSH-side reboot. Tier 1: `sudo -n /sbin/reboot` (definite kernel reboot, works through wedged Finder / corrupt Rage 128 LUT). Tier 2: Finder Apple Event. Use as `ssh <machine> '~/bin/qsreboot.sh'`. |
 | `host-bin/qsreboot-setup.sh` | runs **on the Mac**. ONE-TIME `sudo ~/bin/qsreboot-setup.sh` per machine to install the NOPASSWD sudoers entry that enables Tier 1 above. Backs up `/etc/sudoers`, validates with `visudo -c`, restores backup on failure. Idempotent re-runs. |
 
@@ -141,7 +148,7 @@ Quakespasm.app/
       English.lproj/       Launcher.nib + InfoPlist.strings
 ```
 
-Bundle is byte-for-byte identical across all six machines —
+Bundle is byte-for-byte identical across all seven machines —
 `deploy.sh` always ships the fat binary; per-machine settings travel
 inside `Contents/Resources/`. Full Info.plist key list,
 install_name_tool fixup, and the fat-SDL build recipe live in

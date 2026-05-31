@@ -20,13 +20,24 @@ new plan written from that evidence. Sub-area detail:
 
 ## Goal in one line
 
-Best-looking QuakeSpasm port for G3 Panther + G4 Tiger + Lion Intel,
-keeping framerate comfortably playable on each (≥ 60 fps on G4, ≥ 60 fps
-on Lion, ≥ 20 fps on G3). Visual upgrades that cost 10–15% fps are in
-scope when they leave the cell above its playability threshold. Lion +
-iMac-2019 are also bench references — useful data points that separate
-GPU-bound from CPU-bound effects across the GPU axis (R128 / GeForce2 MX
-/ Radeon 9000/9200 / GMA 950 / Radeon Pro 580X).
+Best-looking QuakeSpasm port for G3 Panther + G4 Tiger + G5 Leopard +
+Lion Intel, keeping framerate comfortably playable on each (≥ 60 fps on
+G4, ≥ 60 fps on G5, ≥ 60 fps on Lion, ≥ 20 fps on G3). Visual upgrades
+that cost 10–15% fps are in scope when they leave the cell above its
+playability threshold. Lion + iMac-2019 are also bench references —
+useful data points that separate GPU-bound from CPU-bound effects across
+the GPU axis (R128 / GeForce2 MX / Radeon 9000/9200 / Radeon 9600 / GMA
+950 / Radeon Pro 580X).
+
+**iMac G5 (PowerMac8,2, Radeon 9600 / R300, Leopard 10.5.8)** is the one
+GL-2.0-class GPU in the fleet, and is forced onto the GL 1.x
+fixed-function path because its Leopard GLSL/VBO driver hard-hangs the
+GPU (engine ATI R300 gate in `gl_vidsdl.c`; `-atigl` overrides). It runs
+native-panel-res fullscreen via a same-mode CAPTURE (`vid_desktopfullscreen`
+in the ppc970 baseline — a mode SWITCH wedges the R300). ~100/74/86 fps
+(demo1/2/3) at native 1440×900. Integrated-panel iMacs (G5, and the
+untested-but-baked-in iMac G4) default to native panel res; external-
+display Macs keep their tuned fixed res. See MISTAKES.md 2026-05-31.
 
 ## Toggleability + per-machine gating
 
