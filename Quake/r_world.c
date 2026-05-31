@@ -375,15 +375,21 @@ Writes out the triangle indices needed to draw s as a triangle list.
 The number of indices it will write is given by R_NumTriangleIndicesForSurf.
 ================
 */
-static void R_TriangleIndicesForSurf (msurface_t *s, unsigned int *dest)
+static void R_TriangleIndicesForSurfBase (msurface_t *s, unsigned int base, unsigned int *dest)
 {
 	int i;
 	for (i=2; i<s->numedges; i++)
 	{
-		*dest++ = s->vbo_firstvert;
-		*dest++ = s->vbo_firstvert + i - 1;
-		*dest++ = s->vbo_firstvert + i;
+		*dest++ = base;
+		*dest++ = base + i - 1;
+		*dest++ = base + i;
 	}
+}
+
+static void R_TriangleIndicesForSurf (msurface_t *s, unsigned int *dest)
+{
+	// GLSL/VBO path indexes into gl_bmodel_vbo by vbo_firstvert.
+	R_TriangleIndicesForSurfBase (s, s->vbo_firstvert, dest);
 }
 
 #define MAX_BATCH_SIZE 4096
@@ -444,6 +450,31 @@ static void R_BatchSurface (msurface_t *s)
 
 /*
 ================
+R_BatchSurfaceVar -- experiment/gl-surfbatch
+
+Like R_BatchSurface, but indexes into the GL 1.x fixed-function client/VAR
+brush pool by s->var_firstvert (R_BatchSurface uses s->vbo_firstvert, which is
+only valid on the GLSL/VBO path that never runs on this hardware). Shares the
+same vbo_indices[] accumulator + R_FlushBatch -- the GLSL and GL1 world paths
+never execute in the same frame, so reusing the buffer is safe.
+================
+*/
+static void R_BatchSurfaceVar (msurface_t *s)
+{
+	int num_surf_indices = R_NumTriangleIndicesForSurf (s);
+
+	if (num_surf_indices <= 0)
+		return;
+
+	if (num_vbo_indices + num_surf_indices > MAX_BATCH_SIZE)
+		R_FlushBatch();
+
+	R_TriangleIndicesForSurfBase (s, s->var_firstvert, &vbo_indices[num_vbo_indices]);
+	num_vbo_indices += num_surf_indices;
+}
+
+/*
+================
 R_DrawTextureChains_Multitexture -- johnfitz
 
 PPC port -- Phase 3.3: two paths depending on whether the static brush
@@ -471,11 +502,17 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 	texture_t	*t;
 	float		*v;
 	qboolean	bound;
+	int			lastlightmap;	// batch_path: flush the glDrawElements batch on lightmap change
 	// PPC port -- finding #4: the array path (bind once + glDrawArrays per
 	// surface, no per-vertex glBegin) is taken when the brush pool is live,
 	// either as the G4/Lion VAR pool (gated by -noarrays-mtex opt-out) or
-	// as the G3 -g3clbrush plain client-array pool.
-	const qboolean array_path = (((gl_apple_var_arrays_mtex && gl_apple_var_able) || gl_bmodel_clientpool) && gl_bmodel_var_pool);
+	// as the G3 -g3clbrush plain client-array pool, or as the gl_surfbatch
+	// experiment's auto-built plain pool.
+	const qboolean array_path = (((gl_apple_var_arrays_mtex && gl_apple_var_able) || gl_bmodel_clientpool || gl_surfbatch.value) && gl_bmodel_var_pool);
+	// experiment/gl-surfbatch: when on (and the pool is therefore live),
+	// coalesce consecutive same-lightmap surfaces into a single
+	// glDrawElements instead of one glDrawArrays per surface.
+	const qboolean batch_path = array_path && gl_surfbatch.value;
 
 	// PPC port -- Round v8 item 2 -- enable TMU1 once before the texture
 	// loop on the legacy path too (array_path always did). The pre-v8 code
@@ -504,6 +541,9 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 			continue;
 
 		bound = false;
+		lastlightmap = -1;	// batch_path: forces the first lightmap bind; the matching flush is a no-op on the empty batch
+		if (batch_path)
+			R_ClearBatch ();
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
 		{
 			if (!bound) //only bind once we are sure we need this texture
@@ -523,25 +563,46 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 
 				bound = true;
 			}
-			GL_Bind (lightmaps[s->lightmaptexturenum].texture);
-			if (array_path)
+			if (batch_path)
 			{
-				R_DrawBrushChainSurface_Multi (s);
+				// experiment/gl-surfbatch: accumulate surfaces sharing one
+				// lightmap into a single glDrawElements; flush + rebind TMU1
+				// only when the lightmap changes (mirrors the GLSL path).
+				// Diffuse texture is constant for the whole chain, so the only
+				// in-chain state break is the lightmap. Vertex + both TMU
+				// texcoord arrays were bound once by R_BindBrushChain_Multi.
+				if (s->lightmaptexturenum != lastlightmap)
+				{
+					R_FlushBatch ();
+					GL_Bind (lightmaps[s->lightmaptexturenum].texture);	// TMU1 is the active unit here
+					lastlightmap = s->lightmaptexturenum;
+				}
+				R_BatchSurfaceVar (s);
 			}
 			else
 			{
-				glBegin(GL_POLYGON);
-				v = s->polys->verts[0];
-				for (j=0 ; j<s->polys->numverts ; j++, v+= VERTEXSIZE)
+				GL_Bind (lightmaps[s->lightmaptexturenum].texture);
+				if (array_path)
 				{
-					GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, v[3], v[4]);
-					GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, v[5], v[6]);
-					glVertex3fv (v);
+					R_DrawBrushChainSurface_Multi (s);
 				}
-				glEnd ();
+				else
+				{
+					glBegin(GL_POLYGON);
+					v = s->polys->verts[0];
+					for (j=0 ; j<s->polys->numverts ; j++, v+= VERTEXSIZE)
+					{
+						GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, v[3], v[4]);
+						GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, v[5], v[6]);
+						glVertex3fv (v);
+					}
+					glEnd ();
+				}
 			}
 			rs_brushpasses++;
 		}
+		if (batch_path)
+			R_FlushBatch ();	// drain the last lightmap group before the diffuse texture changes
 		// PPC port -- v8 item 2: legacy path no longer disables TMU1
 		// per-texture when hoist is active; we disable once after the loop.
 		if (!array_path && !mtex_hoisted)

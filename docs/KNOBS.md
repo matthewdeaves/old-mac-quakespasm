@@ -125,6 +125,54 @@ Kept as an inert lever for a future less-GPU-bound G-class target (e.g. a
 G4/nVidia or faster-GPU machine running the ppc750 slice). Parsed in
 `gl_vidsdl.c` `GL_CheckExtensions`.
 
+## gl_surfbatch — GL1 indexed surface batcher (experiment, 2026-05-31)
+
+`gl_surfbatch` (cvar, CVAR_ARCHIVE, **default 0 / OFF**) coalesces consecutive
+same-lightmap world surfaces in `R_DrawTextureChains_Multitexture` into a single
+`glDrawElements(GL_TRIANGLES)` instead of one `glDrawArrays` (or, on the poolless
+default, one per-vertex `glBegin`) per surface. It is the **fixed-function
+back-port** of the Q2 sister port's `gl_groupdraw`, and of the batcher QuakeSpasm
+already has but only on the GLSL/VBO path that never runs on this PPC hardware
+(`R_BatchSurface`/`R_FlushBatch`, locked behind `r_world_program != 0`). When on,
+it auto-builds the same plain client-memory brush-vert pool the **G3 client-array
+brush pool** lever above (`-g3clbrush`) uses — extends `BMODEL_POOL_LIVE` +
+`GL_BuildBModelVAR` to honour the cvar, on every arch, **never** the
+`APPLE_vertex_array_range` VRAM path (VAR is measured net-negative) — then indexes
+it by `s->var_firstvert` (reusing `R_TriangleIndicesForSurf` via a base-param
+variant + `R_FlushBatch`). Effective at map load (the pool is built in
+`R_NewMap`); A/B via separate launches, which is how `bench.sh` runs anyway.
+
+**Tested across the whole live fleet 2026-05-31, same-warm-machine A/B (median
+run2,3):**
+
+| Machine | GPU | Scene | `gl_surfbatch` 0 → 1 | Delta |
+|---------|-----|-------|----------------------|-------|
+| yosemite (G3) | Rage 128 | demo2 640×480 | 34.15 → 32.50 | **−4.8%** |
+| yosemite (G3) | Rage 128 | demo1 640×480 | 35.20 → 35.15 | neutral |
+| mini-g4 (G4) | Radeon 9200 | demo2 1024×768 | 40.90 → 41.00 | neutral |
+| mini-g4 (G4) | Radeon 9200 | demo1 640×480 | ~90 → ~90 | neutral |
+| mini-intel (Lion) | GMA 950 | demo1 640×480 | 171.80 → 164.55 | **−4.2%** |
+| mini-intel (Lion) | GMA 950 | demo2 640×480 | 127.50 → 127.75 | neutral |
+| mini-intel (Lion) | GMA 950 | demo2 1024×768 | 39.40 → 40.50 | neutral |
+| imac-g5 (G5) | Radeon 9600 | demo1 1440×900 | 100.65 → 101.05 | neutral |
+
+**Verdict: no machine wins; G3 + Lion regress slightly, G4 + G5 neutral.** The
+Rage 128's immediate-mode `glBegin` fast path beats indexed `glDrawElements` over
+an un-cached client pool, and draw-call coalescing doesn't reclaim enough to
+overcome it — the same wall the Q2 `gl_groupdraw` (−3% on R128, gated off) and
+QS's own Phase 1.1c client-array conversion (−3/−4% on R128, MISTAKES.md) hit. An
+initial mini-intel demo2-1024 "−30%" reading was **bench noise** (retracted on
+re-confirm: baseline 39.40 vs batch 40.50). Visually identical on G3 + G4 + G5
+(confirmed live), so the code is correct — it just doesn't pay here.
+
+**Kept default-OFF, correct, and fully toggleable** (OFF is byte-identical to the
+shipping path — zero risk) as a parked lever for a possible future GL-1.x target
+whose driver handles client-array indexed draws *well*; the GMA 950's instability
+hints that weak-driver array paths can actively hurt, so don't assume a future
+win. Truly modern Macs never run this path — they use the GLSL/VBO batcher.
+Declared `gl_rmain.c`, registered `gl_rmisc.c`, implemented `r_world.c` +
+`r_brush.c`.
+
 ## §14.3 hygiene flag
 
 `-nowarpedarrays` falls the `R_UpdateWarpTextures` water-warp

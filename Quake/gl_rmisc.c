@@ -179,6 +179,7 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_shadow_distance); // PPC port -- Pass C HIGH
 	Cvar_RegisterVariable (&r_dynamic_distance); // PPC port -- Round v5 B1
 	Cvar_RegisterVariable (&gl_lightmap_subrect); // PPC port -- Round v8 item 1
+	Cvar_RegisterVariable (&gl_surfbatch); // PPC port -- experiment/gl-surfbatch
 	Cvar_RegisterVariable (&r_wateralpha);
 	Cvar_SetCallback (&r_wateralpha, R_SetWateralpha_f);
 	Cvar_RegisterVariable (&r_litwater);

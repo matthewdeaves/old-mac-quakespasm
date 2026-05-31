@@ -210,7 +210,13 @@ behavior (still per-surface-rebind), since there's no pool to share.
 // or plain application memory (gl_bmodel_clientpool, -g3clbrush on G3).
 // Both share the identical access pattern below; only build/delete differ
 // (the APPLE range registration). One predicate gates every access site.
-#define BMODEL_POOL_LIVE   ((gl_apple_var_able || gl_bmodel_clientpool) && gl_bmodel_var_pool)
+//
+// experiment/gl-surfbatch: gl_surfbatch is a third "plain application memory"
+// reason the pool can be live. When the batcher is on we build the same plain
+// client pool (no VAR registration -- see GL_BuildBModelVAR), on every arch, so
+// the indexed glDrawElements path has a contiguous, var_firstvert-addressable
+// array to draw from.
+#define BMODEL_POOL_LIVE   ((gl_apple_var_able || gl_bmodel_clientpool || gl_surfbatch.value) && gl_bmodel_var_pool)
 
 void R_BindBrushChain_Single (void)
 {
@@ -1002,8 +1008,9 @@ void GL_BuildBModelVAR (void)
 	qmodel_t	*m;
 
 	// Build the pool for VAR mode (G4/Lion) OR -g3clbrush plain-pool mode
-	// (G3). Neither active -> legacy per-surface-rebind path, no pool.
-	if (!gl_apple_var_able && !gl_bmodel_clientpool)
+	// (G3) OR the gl_surfbatch experiment (plain pool, any arch). None
+	// active -> legacy per-surface-rebind path, no pool.
+	if (!gl_apple_var_able && !gl_bmodel_clientpool && !gl_surfbatch.value)
 		return;
 
 	// Mirror GL_BuildBModelVertexBuffer's self-reset behavior so the

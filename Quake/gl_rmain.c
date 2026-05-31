@@ -96,6 +96,19 @@ cvar_t	r_dynamic_distance = {"r_dynamic_distance","0",CVAR_ARCHIVE};
 // identical because we upload the same pixel data, just framed tighter.
 // Default 1; gate to 0 for runtime A/B if a driver mis-handles ROW_LENGTH.
 cvar_t	gl_lightmap_subrect = {"gl_lightmap_subrect","1",CVAR_ARCHIVE};
+// PPC port -- experiment/gl-surfbatch -- indexed-surface-batch draw on the GL
+// 1.x fixed-function multitexture world path. When on, R_NewMap auto-builds a
+// plain client-memory brush-vertex pool (NOT the VAR VRAM path -- VAR is
+// measured net-negative) and R_DrawTextureChains_Multitexture coalesces
+// consecutive same-lightmap surfaces into a single glDrawElements, cutting the
+// per-surface (and, vs the default poolless legacy path, per-vertex glBegin)
+// driver overhead that dominates frames on 1999-era fixed-function GPUs.
+// Default 0 -- the sister Q2 port measured the same idea neutral-to-regression
+// on this fleet, so this ships OFF and gets flipped per-machine in autoexec
+// only where same-warm-machine A/B proves a >=3% win with no visual regression.
+// Effective at map load (the pool is built in R_NewMap); A/B via separate
+// launches, which is how bench.sh runs anyway.
+cvar_t	gl_surfbatch = {"gl_surfbatch","0",CVAR_ARCHIVE};
 cvar_t	r_novis = {"r_novis","0",CVAR_ARCHIVE};
 
 cvar_t	gl_finish = {"gl_finish","0",CVAR_NONE};
