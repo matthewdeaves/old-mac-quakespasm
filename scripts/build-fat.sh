@@ -33,6 +33,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Resolve the port release label ONCE here and export it so all four sub-builds
+# stamp the identical version into their slice (build.sh would otherwise call
+# git describe per-slice — same value in practice, but pinning it is correct and
+# documents intent). git describe gives "v1.9" on a tagged build, else a
+# descriptive off-tag string. Overridable via the environment.
+export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+echo "[build-fat] stamping port version: $QS_PORT_VERSION"
+
 echo "[build-fat] sub-build 1/4: g3"
 scripts/build.sh g3
 

@@ -29,6 +29,15 @@ BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
 LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines below
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Port release label stamped into the binary's version string. Computed HERE on
+# the Ubuntu host (the rsync below excludes .git, so the cross-build host has no
+# git metadata). `git describe` yields the release tag exactly on a tagged build
+# (e.g. "v1.9"), or a descriptive "v1.9-3-gabc123" / "-dirty" off-tag so dev
+# builds self-identify. Makefile.darwin turns QS_PORT_VERSION into
+# -DQUAKESPASM_VER_SUFFIX. Overridable via env so build-fat.sh stamps all four
+# slices with one identical value.
+QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+
 # Serialize concurrent invocations. Both targets rsync to the same
 # lion:quakespasm/ path and `make -j2` in lion:quakespasm/Quake/ — running
 # them in parallel races on the .o files and produces a binary stamped with
@@ -156,6 +165,7 @@ ssh "$LION" "cd quakespasm/Quake && \
   make -f Makefile.darwin clean >/dev/null 2>&1
   make -f Makefile.darwin MACH_TYPE=$MACH_TYPE -j2 \
     CC=$CC \
+    QS_PORT_VERSION=$QS_PORT_VERSION \
     CPUFLAGS=\"$SYSROOT $CPUFLAGS\" \
     LDFLAGS=\"$SYSROOT $CPUFLAGS $EXTRA_LDFLAGS\" \
     > /tmp/qs-build-$TARGET.log 2>&1

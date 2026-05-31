@@ -121,6 +121,18 @@ CFLAGS += -DUSE_SDL2
 endif
 CFLAGS += -DGL_SILENCE_DEPRECATION=1
 
+# PPC port -- stamp the OldMac release label into the engine version string.
+# QS_PORT_VERSION is passed by scripts/build.sh (a git-describe token like
+# "v1.9", or "v1.9-3-gabc123-dirty" off-tag). Empty in a bare `make` so
+# upstream parity is preserved; when set it overrides the #ifndef'd
+# QUAKESPASM_VER_SUFFIX in quakedef.h, so the binary self-identifies as e.g.
+# "QuakeSpasm 0.97.0-oldmac-v1.9" in the console, window title, and -version.
+# The single quotes keep the C string literal intact through make; build.sh
+# only ever passes a quote-free, space-free token across the ssh boundary.
+ifneq ($(QS_PORT_VERSION),)
+CFLAGS += -DQUAKESPASM_VER_SUFFIX='"-oldmac-$(QS_PORT_VERSION)"'
+endif
+
 # not relying on sdl-config command and assuming
 # /Library/Frameworks/SDL.framework is available
 SDL_CFLAGS =-D_GNU_SOURCE=1 -D_THREAD_SAFE
