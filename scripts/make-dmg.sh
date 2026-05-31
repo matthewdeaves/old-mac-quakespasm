@@ -26,9 +26,9 @@
 #        this script builds it for you if missing)
 # post:  dist/QuakeSpasm-OldMac-<version>.dmg
 #
-# The same .dmg installs on every supported Mac — the fat binary's three
-# slices (ppc750 / ppc7400 / x86_64) + the CFBundle per-machine autoexec
-# layer mean one disk image serves G3 Panther through modern Intel.
+# The same .dmg installs on every supported Mac — the fat binary's four
+# slices (ppc750 / ppc7400 / ppc970 / x86_64) + the CFBundle per-machine
+# autoexec layer mean one disk image serves G3 Panther through modern Intel.
 
 set -euo pipefail
 
@@ -73,7 +73,7 @@ chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
 cp    "$REPO_ROOT/Quake/quakespasm.pak" "$IMG/"
 # Per-arch baselines + per-machine overlays, picked at boot by host.c.
-for cfg in ppc750 ppc7400 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
+for cfg in ppc750 ppc7400 ppc970 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
   cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
 done
 
@@ -84,11 +84,11 @@ QuakeSpasm — Old-Mac fat build ($VERSION)
 
 A QuakeSpasm fork tuned to look as good as possible while staying playable
 on retro Macs from 1999 to today. ONE universal binary (PowerPC G3 + PowerPC
-G4/AltiVec + Intel x86_64); the right code slice and the right per-machine
-visual/perf config are picked automatically at launch.
+G4/AltiVec + PowerPC G5/970 + Intel x86_64); the right code slice and the
+right per-machine visual/perf config are picked automatically at launch.
 
 Supported: Mac OS X 10.3.9 Panther (G3) and up, through modern Intel macOS.
-(PowerPC G3/G4 and 64-bit Intel only — pre-Lion 32-bit Intel Macs are not
+(PowerPC G3/G4/G5 and 64-bit Intel only — pre-Lion 32-bit Intel Macs are not
 supported.)
 
 INSTALL

@@ -54,7 +54,7 @@ for arch in g3 g4 g5 lion; do
 done
 
 # lipo lives on Lion's build host, not necessarily on the orchestration
-# host. Send the three slices over, lipo there, scp the fat back. (lipo
+# host. Send the four slices over, lipo there, scp the fat back. (lipo
 # is also in /usr/bin/ on macOS only — Linux Ubuntu doesn't ship it by
 # default. Doing the merge on Lion keeps the toolchain assumption
 # uniform with build.sh.)

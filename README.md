@@ -117,15 +117,15 @@ Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. E
   <img src="docs/images/architecture.svg" width="92%" alt="Architecture: arch baseline → per-machine layer → autoexec dispatch" />
 </p>
 
-Two extra `.cfg` layers execute on top of the regular `quake.rc` → `default.cfg` → `config.cfg` → `autoexec.cfg` chain: the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then the per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c`](Quake/host.c) `QS_ExecConfigFromBundle`. Both layers ship inside `Quakespasm.app/Contents/Resources/` and are loaded via CFBundle, so the .app is a self-contained distribution unit. The per-machine layer runs last so its cvars win over everything above.
+Two extra `.cfg` layers execute on top of the regular `quake.rc` → `default.cfg` → `config.cfg` → `autoexec.cfg` chain: the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-ppc970.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then the per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c`](Quake/host.c) `QS_ExecConfigFromBundle`. Both layers ship inside `Quakespasm.app/Contents/Resources/` and are loaded via CFBundle, so the .app is a self-contained distribution unit. The per-machine layer runs last so its cvars win over everything above.
 
 ## How it's built
 
 <p align="center">
-  <img src="docs/images/build-pipeline.svg" width="92%" alt="Build pipeline: rsync sources from Ubuntu → cross-compile on Lion → lipo three slices → fat .app bundle" />
+  <img src="docs/images/build-pipeline.svg" width="92%" alt="Build pipeline: rsync sources from Ubuntu → cross-compile on Lion → lipo four slices → fat .app bundle" />
 </p>
 
-Cross-builds run on the Mac mini Intel — the last machine with a working `gcc-4.0` + `MacOSX10.3.9.sdk` + `MacOSX10.4u.sdk` toolchain (Xcode 3.2.6 era). Three sub-builds (G3 with 10.3.9 SDK, G4 with 10.4u SDK + `-maltivec`, Intel with Lion default SDK), glued with `lipo -create` into one fat `quakespasm-fat`. The `.app` bundle ships identically to all six machines.
+Cross-builds run on the Mac mini Intel — the last machine with a working `gcc-4.0` + `MacOSX10.3.9.sdk` + `MacOSX10.4u.sdk` + `MacOSX10.5.sdk` toolchain (Xcode 3.2.6 era). Four sub-builds (G3 with 10.3.9 SDK, G4 with 10.4u SDK + `-maltivec`, G5 with 10.5 SDK + `-mcpu=970`, Intel with Lion default SDK), glued with `lipo -create` into one fat `quakespasm-fat`. The `.app` bundle ships identically to every supported Mac.
 
 ## How it's benched
 

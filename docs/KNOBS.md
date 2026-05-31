@@ -83,8 +83,8 @@ per-frame lightmap rebuild on every surface touching an animated style
 (`d_lightstylevalue` changes every frame instead of every 0.1 s —
 `r_brush.c:494` cached_light compare), so it's enabled only where the GPU
 has bandwidth headroom: **on** quicksilver / mini-g4 / imac-2019 autoexec,
-**off** (defensive 0) in the ppc7400 / x86_64 / ppc750 baselines so it
-never drifts onto sawtooth / mini-intel / G3. Same-session A/B 2026-05-29:
+**off** (defensive 0) in the ppc7400 / ppc970 / x86_64 / ppc750 baselines so it
+never drifts onto sawtooth / mini-intel / iMac G5 / G3. Same-session A/B 2026-05-29:
 quicksilver demo2 1024 62.9 vs 63.5 / demo3 61.4 vs 62.5 (~1.5%, holds 60
 floor); mini-g4 within noise (~0%). Registered in `gl_rmisc.c` `R_Init`.
 
