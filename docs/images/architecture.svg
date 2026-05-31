@@ -32,11 +32,11 @@
 
   <!-- bench rack zone -->
   <rect x="32" y="610" width="1256" height="380" rx="14" fill="#f2f8f4" stroke="#c9e1d3" stroke-width="1"/>
-  <text x="52" y="634" font-size="11" font-weight="700" fill="#0f8a5f" letter-spacing="1.4">BENCH RACK  ·  six Macs on a shelf</text>
+  <text x="52" y="634" font-size="11" font-weight="700" fill="#0f8a5f" letter-spacing="1.4">BENCH RACK  ·  seven Macs on a shelf</text>
 
   <!-- Title -->
   <text x="660" y="48" text-anchor="middle" font-size="26" font-weight="700" fill="#1a1a1a">QuakeSpasm PPC bench rack — devops architecture</text>
-  <text x="660" y="76" text-anchor="middle" font-size="14" fill="#666">One Ubuntu workstation orchestrates · the Lion mini cross-builds for PPC and benches itself · four PPC + two Intel Macs run timedemo</text>
+  <text x="660" y="76" text-anchor="middle" font-size="14" fill="#666">One Ubuntu workstation orchestrates · the Lion mini cross-builds for PPC and benches itself · five PPC + two Intel Macs run timedemo</text>
 
   <!-- ============================================================ -->
   <!-- ZONE 1 :: Ubuntu workstation                                   -->
@@ -177,125 +177,145 @@
   <g transform="translate(60, 678)">
     <text x="0" y="0" font-size="13" fill="#666">Each runs <tspan font-family="ui-monospace, Menlo, Consolas, monospace" fill="#333">+timedemo demo&lt;n&gt;</tspan>; qconsole.log returns to Ubuntu, parsed into a CSV row tagged with the commit hash</text>
 
-    <!-- 6 machine cards -->
-    <!-- card width 200, gap 10, total 6*200 + 5*10 = 1250 -->
+    <!-- 7 machine cards (5 PPC + 2 Intel) -->
+    <!-- card width 176, pitch 182, 7 cards span 1268px -->
     <g transform="translate(-12, 24)">
       <!-- yosemite -->
       <g transform="translate(0,0)">
-        <rect x="0" y="0" width="200" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
-        <rect x="0" y="0" width="200" height="6" rx="3" fill="#5fb1d8"/>
-        <text x="14" y="32" font-size="14" font-weight="700" fill="#1a1a1a">yosemite</text>
-        <text x="14" y="50" font-size="10.5" fill="#888">PowerMac G3 B&amp;W · 1999</text>
-        <g font-size="10.5" fill="#333">
-          <text x="14" y="76">CPU: PPC 750 @ 449 MHz</text>
-          <text x="14" y="94">GPU: ATI Rage 128 · 16 MB</text>
-          <text x="14" y="112">OS: 10.3.9 Panther</text>
-          <text x="14" y="130">Pipeline: fixed-function</text>
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#5fb1d8"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">yosemite</text>
+        <text x="13" y="49" font-size="10" fill="#888">PowerMac G3 B&amp;W · 1999</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: PPC 750 @ 449 MHz</text>
+          <text x="13" y="92">GPU: ATI Rage 128 · 16 MB</text>
+          <text x="13" y="110">OS: 10.3.9 Panther</text>
+          <text x="13" y="128">Pipeline: fixed-function</text>
         </g>
-        <line x1="14" y1="150" x2="186" y2="150" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="170" font-size="10" fill="#888">runs:</text>
-        <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g3</text>
-        <text x="14" y="206" font-size="10" fill="#888">slice: ppc750</text>
-        <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 20 fps</text>
-        <text x="14" y="252" font-size="10" fill="#888" font-style="italic">GPU-bound</text>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g3</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: ppc750</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 20 fps</text>
+        <text x="13" y="252" font-size="10" fill="#888" font-style="italic">GPU-bound</text>
       </g>
       <!-- sawtooth -->
-      <g transform="translate(210,0)">
-        <rect x="0" y="0" width="200" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
-        <rect x="0" y="0" width="200" height="6" rx="3" fill="#8b5cf6"/>
-        <text x="14" y="32" font-size="14" font-weight="700" fill="#1a1a1a">sawtooth</text>
-        <text x="14" y="50" font-size="10.5" fill="#888">PowerMac G4 AGP · 1999</text>
-        <g font-size="10.5" fill="#333">
-          <text x="14" y="76">CPU: PPC 7400 @ 500 MHz</text>
-          <text x="14" y="94">GPU: GeForce2 MX · 32 MB</text>
-          <text x="14" y="112">OS: 10.4.11 · AltiVec</text>
-          <text x="14" y="130">Pipeline: fixed-function</text>
+      <g transform="translate(182,0)">
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#8b5cf6"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">sawtooth</text>
+        <text x="13" y="49" font-size="10" fill="#888">PowerMac G4 AGP · 1999</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: PPC 7400 @ 500 MHz</text>
+          <text x="13" y="92">GPU: GeForce2 MX · 32 MB</text>
+          <text x="13" y="110">OS: 10.4.11 · AltiVec</text>
+          <text x="13" y="128">Pipeline: fixed-function</text>
         </g>
-        <line x1="14" y1="150" x2="186" y2="150" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="170" font-size="10" fill="#888">runs:</text>
-        <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
-        <text x="14" y="206" font-size="10" fill="#888">slice: ppc7400</text>
-        <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 30 fps</text>
-        <text x="14" y="252" font-size="10" fill="#888" font-style="italic">fillrate-bound</text>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: ppc7400</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 30 fps</text>
+        <text x="13" y="252" font-size="10" fill="#888" font-style="italic">fillrate-bound</text>
       </g>
       <!-- quicksilver -->
-      <g transform="translate(420,0)">
-        <rect x="0" y="0" width="200" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
-        <rect x="0" y="0" width="200" height="6" rx="3" fill="#8b5cf6"/>
-        <text x="14" y="32" font-size="14" font-weight="700" fill="#1a1a1a">quicksilver</text>
-        <text x="14" y="50" font-size="10.5" fill="#888">PowerMac G4 QS · 2001</text>
-        <g font-size="10.5" fill="#333">
-          <text x="14" y="76">CPU: PPC 7450 @ 733 MHz</text>
-          <text x="14" y="94">GPU: Radeon 9000 Pro · 64 MB</text>
-          <text x="14" y="112">OS: 10.4.11 · AltiVec</text>
-          <text x="14" y="130">Pipeline: prog. (no SM2)</text>
+      <g transform="translate(364,0)">
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#8b5cf6"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">quicksilver</text>
+        <text x="13" y="49" font-size="10" fill="#888">PowerMac G4 QS · 2001</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: PPC 7450 @ 733 MHz</text>
+          <text x="13" y="92">GPU: Radeon 9000 · 64 MB</text>
+          <text x="13" y="110">OS: 10.4.11 · AltiVec</text>
+          <text x="13" y="128">Pipeline: prog. (no SM2)</text>
         </g>
-        <line x1="14" y1="150" x2="186" y2="150" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="170" font-size="10" fill="#888">runs:</text>
-        <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
-        <text x="14" y="206" font-size="10" fill="#888">slice: ppc7400</text>
-        <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 60 fps</text>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: ppc7400</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 60 fps</text>
       </g>
       <!-- mini-g4 -->
-      <g transform="translate(630,0)">
-        <rect x="0" y="0" width="200" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
-        <rect x="0" y="0" width="200" height="6" rx="3" fill="#8b5cf6"/>
-        <text x="14" y="32" font-size="14" font-weight="700" fill="#1a1a1a">mini-g4</text>
-        <text x="14" y="50" font-size="10.5" fill="#888">Mac mini G4 · 2005</text>
-        <g font-size="10.5" fill="#333">
-          <text x="14" y="76">CPU: PPC 7447A @ 1.25 GHz</text>
-          <text x="14" y="94">GPU: Radeon 9200 · 32 MB</text>
-          <text x="14" y="112">OS: 10.4.11 · AltiVec</text>
-          <text x="14" y="130">Pipeline: prog. (no SM2)</text>
+      <g transform="translate(546,0)">
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#8b5cf6"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">mini-g4</text>
+        <text x="13" y="49" font-size="10" fill="#888">Mac mini G4 · 2005</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: PPC 7447A @ 1.25 GHz</text>
+          <text x="13" y="92">GPU: Radeon 9200 · 32 MB</text>
+          <text x="13" y="110">OS: 10.4.11 · AltiVec</text>
+          <text x="13" y="128">Pipeline: prog. (no SM2)</text>
         </g>
-        <line x1="14" y1="150" x2="186" y2="150" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="170" font-size="10" fill="#888">runs:</text>
-        <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
-        <text x="14" y="206" font-size="10" fill="#888">slice: ppc7400</text>
-        <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 60 fps</text>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g4</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: ppc7400</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 60 fps</text>
       </g>
-      <!-- mini-intel — dual role -->
-      <g transform="translate(840,0)">
-        <rect x="0" y="0" width="200" height="262" rx="10" fill="#ffffff" stroke="#4c83c4" stroke-width="1.6" filter="url(#card-shadow)"/>
-        <rect x="0" y="0" width="200" height="6" rx="3" fill="#10b981"/>
-        <text x="14" y="32" font-size="14" font-weight="700" fill="#1a1a1a">mini-intel</text>
-        <text x="14" y="50" font-size="10.5" fill="#888">Mac mini Intel · 2007</text>
-        <g font-size="10.5" fill="#333">
-          <text x="14" y="76">CPU: Core 2 Duo @ 2.33 GHz</text>
-          <text x="14" y="94">GPU: Intel GMA 950 · shared</text>
-          <text x="14" y="112">OS: 10.7.5 Lion</text>
-          <text x="14" y="130">Pipeline: GL 1.4, no GLSL</text>
+      <!-- imac-g5 -->
+      <g transform="translate(728,0)">
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#e0a35f"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">imac-g5</text>
+        <text x="13" y="49" font-size="10" fill="#888">iMac G5 · 2005</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: PPC 970 @ 2.0 GHz</text>
+          <text x="13" y="92">GPU: Radeon 9600 · 128 MB</text>
+          <text x="13" y="110">OS: 10.5.8 Leopard · AltiVec</text>
+          <text x="13" y="128">Pipeline: GL 1.x (R300 gate)</text>
         </g>
-        <line x1="14" y1="150" x2="186" y2="150" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="170" font-size="10" fill="#888">runs:</text>
-        <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-lion</text>
-        <text x="14" y="206" font-size="10" fill="#888">slice: x86_64</text>
-        <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#4c83c4" font-weight="700">↑ also the build host</text>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-g5</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: ppc970</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">floor: 60 fps</text>
+        <text x="13" y="252" font-size="10" fill="#888" font-style="italic">native 1440×900</text>
       </g>
-      <!-- imac-2019 — modern outlier -->
-      <g transform="translate(1050,0)">
-        <rect x="0" y="0" width="200" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
-        <rect x="0" y="0" width="200" height="6" rx="3" fill="#10b981"/>
-        <text x="14" y="32" font-size="14" font-weight="700" fill="#1a1a1a">imac-2019</text>
-        <text x="14" y="50" font-size="10.5" fill="#888">iMac 27" Retina · 2019</text>
-        <g font-size="10.5" fill="#333">
-          <text x="14" y="76">CPU: i5-9600K @ 3.7 GHz</text>
-          <text x="14" y="94">GPU: Radeon Pro 580X · 8 GB</text>
-          <text x="14" y="112">OS: 15.7.5 Sequoia</text>
-          <text x="14" y="130">Pipeline: GL 1.x via Lion SDK</text>
+      <!-- mini-intel -->
+      <g transform="translate(910,0)">
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#4c83c4" stroke-width="1.6" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#10b981"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">mini-intel</text>
+        <text x="13" y="49" font-size="10" fill="#888">Mac mini Intel · 2007</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: Core 2 Duo @ 2.33 GHz</text>
+          <text x="13" y="92">GPU: Intel GMA 950 · shared</text>
+          <text x="13" y="110">OS: 10.7.5 Lion</text>
+          <text x="13" y="128">Pipeline: GL 1.4, no GLSL</text>
         </g>
-        <line x1="14" y1="150" x2="186" y2="150" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="170" font-size="10" fill="#888">runs:</text>
-        <text x="14" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-lion</text>
-        <text x="14" y="206" font-size="10" fill="#888">slice: x86_64</text>
-        <line x1="14" y1="218" x2="186" y2="218" stroke="#e8e1cb" stroke-width="1"/>
-        <text x="14" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">~2000 fps</text>
-        <text x="14" y="252" font-size="10" fill="#888" font-style="italic">CPU-limited at idle</text>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-lion</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: x86_64</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#4c83c4" font-weight="700">↑ also the build host</text>
+      </g>
+      <!-- imac-2019 -->
+      <g transform="translate(1092,0)">
+        <rect x="0" y="0" width="176" height="262" rx="10" fill="#ffffff" stroke="#e0d8c0" stroke-width="1" filter="url(#card-shadow)"/>
+        <rect x="0" y="0" width="176" height="6" rx="3" fill="#10b981"/>
+        <text x="13" y="32" font-size="13.5" font-weight="700" fill="#1a1a1a">imac-2019</text>
+        <text x="13" y="49" font-size="10" fill="#888">iMac 27" Retina · 2019</text>
+        <g font-size="10" fill="#333">
+          <text x="13" y="74">CPU: i5-9600K @ 3.7 GHz</text>
+          <text x="13" y="92">GPU: Radeon Pro 580X · 8 GB</text>
+          <text x="13" y="110">OS: 15.7.5 Sequoia</text>
+          <text x="13" y="128">Pipeline: GL 1.x via Lion SDK</text>
+        </g>
+        <line x1="13" y1="150" x2="162" y2="150" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="170" font-size="10" fill="#888">runs:</text>
+        <text x="13" y="188" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10.5" fill="#1a1a1a">quakespasm-lion</text>
+        <text x="13" y="206" font-size="10" fill="#888">slice: x86_64</text>
+        <line x1="13" y1="218" x2="162" y2="218" stroke="#e8e1cb" stroke-width="1"/>
+        <text x="13" y="238" font-size="10.5" fill="#1a1a1a" font-weight="700">~2000 fps</text>
+        <text x="13" y="252" font-size="10" fill="#888" font-style="italic">CPU-limited at idle</text>
       </g>
     </g>
   </g>
@@ -304,7 +324,7 @@
        (clear of deploy.sh), then sweeps left through the gap between zones to land on top
        of the mini-intel bench card. Curve stays clear of the imac-2019 column at y≥702. -->
   <g stroke="#3b6dd5" stroke-width="2.4" stroke-dasharray="7 5" fill="none" opacity="1">
-    <path d="M 1260 480 C 1260 670 1100 670 988 698" marker-end="url(#arr-blue)"/>
+    <path d="M 1260 480 C 1260 670 1165 670 1050 698" marker-end="url(#arr-blue)"/>
   </g>
   <!-- small dot at the connector origin to anchor the visual on the cross-build card -->
   <circle cx="1260" cy="480" r="4" fill="#3b6dd5"/>
@@ -320,17 +340,20 @@
       <circle cx="6" cy="0" r="4" fill="#e95420"/>
       <text x="16" y="3">Ubuntu — orchestrator</text>
 
-      <circle cx="200" cy="0" r="4" fill="#5fb1d8"/>
-      <text x="210" y="3">G3 / Panther / Rage 128</text>
+      <circle cx="150" cy="0" r="4" fill="#5fb1d8"/>
+      <text x="160" y="3">G3 / Panther / Rage 128</text>
 
-      <circle cx="380" cy="0" r="4" fill="#8b5cf6"/>
-      <text x="390" y="3">G4 / Tiger / AltiVec</text>
+      <circle cx="310" cy="0" r="4" fill="#8b5cf6"/>
+      <text x="320" y="3">G4 / Tiger / AltiVec</text>
 
-      <circle cx="540" cy="0" r="4" fill="#10b981"/>
-      <text x="550" y="3">Intel / Lion</text>
+      <circle cx="450" cy="0" r="4" fill="#e0a35f"/>
+      <text x="460" y="3">G5 / Leopard / R300</text>
 
-      <circle cx="650" cy="0" r="4" fill="#4c83c4"/>
-      <text x="660" y="3">cross-build host (Lion mini, dual role)</text>
+      <circle cx="590" cy="0" r="4" fill="#10b981"/>
+      <text x="600" y="3">Intel / Lion</text>
+
+      <circle cx="690" cy="0" r="4" fill="#4c83c4"/>
+      <text x="700" y="3">cross-build host (Lion mini)</text>
     </g>
     <text x="1200" y="3" text-anchor="end" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10" fill="#888">scripts/{build,build-fat,deploy,bench,parallel-bench}.sh</text>
   </g>
