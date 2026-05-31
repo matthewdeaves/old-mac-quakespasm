@@ -32,6 +32,21 @@ DMG_BASE=$(basename "$DMG")
 
 echo "[deploy-dmg $HOST] copy $DMG_BASE to ~/Desktop/"
 ssh "$HOST" 'mkdir -p ~/Desktop'
+
+# Clean up any previously-shipped release DMGs first so bench machines don't
+# accumulate stale versions across releases (and so a leftover same-name DMG
+# can't be silently reused if a later scp ever fails). Scoped to our own
+# QuakeSpasm-OldMac-*.dmg release artifacts on the Desktop — the user's own
+# files and game data are never touched. Removing the current name too is fine:
+# it's re-copied fresh on the next line. Also detach any stale mount of an old
+# image so its /Volumes entry doesn't linger.
+OLD_DMGS=$(ssh "$HOST" 'ls -1 ~/Desktop/QuakeSpasm-OldMac-*.dmg 2>/dev/null || true')
+if [ -n "$OLD_DMGS" ]; then
+  echo "[deploy-dmg $HOST] removing old release DMG(s) on target:"
+  echo "$OLD_DMGS" | sed 's/^/    /'
+  ssh "$HOST" 'rm -f ~/Desktop/QuakeSpasm-OldMac-*.dmg'
+fi
+
 scp -q "$DMG" "$HOST:Desktop/$DMG_BASE"
 
 # Verify the .dmg arrived intact (md5 the local vs remote copy) — defence in
