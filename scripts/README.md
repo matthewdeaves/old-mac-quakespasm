@@ -59,11 +59,14 @@ scripts/deploy.sh imac-2019
 # README) for handing to the Macs. One image installs on all of them.
 # Builds on a reachable Tiger box by default and content-verifies the
 # binaries inside the image against source (md5, 3 retries, fail loud).
-scripts/make-dmg.sh v1.8
+# The fat binary is stamped with the git release version (build-fat.sh),
+# so the engine reports e.g. "QuakeSpasm 0.97.0-oldmac-v1.9".
+scripts/make-dmg.sh v1.9
 
 # Test the .dmg the way an end user installs it, then smoke-launch it with
 # the production config (the path that caught the Q2 corrupt-DMG crash).
-scripts/deploy-dmg.sh yosemite v1.8     # scp + mount + install into ~/Desktop/quake/
+# deploy-dmg first removes any older QuakeSpasm-OldMac-*.dmg on the target.
+scripts/deploy-dmg.sh yosemite v1.9     # scp + mount + install into ~/Desktop/quake/
 scripts/smoke-dmg.sh  yosemite demo1    # launch installed copy, report res + fps
 
 # Run a single bench

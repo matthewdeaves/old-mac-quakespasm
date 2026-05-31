@@ -19,6 +19,15 @@ serves the iMac G5 (PowerMac8,x, Leopard 10.5.8); the `lion` binary serves two
 per CPU subtype (ppc970 prefers the g5 slice, G4s fall back to ppc7400, the
 universal ppc750 floor runs on any PPC).
 
+**Release version stamping.** `build.sh` / `build-fat.sh` compute `QS_PORT_VERSION`
+via `git describe --tags --always --dirty` on the Ubuntu host (the rsync excludes
+`.git`, so the build host can't) and pass it as a quote-free make token;
+`Makefile.darwin` turns a non-empty token into `-DQUAKESPASM_VER_SUFFIX`, so the
+binary self-identifies as e.g. `QuakeSpasm 0.97.0-oldmac-v1.9` (overriding the
+`#ifndef`'d suffix in `quakedef.h`). Bare `make` (empty token) keeps upstream
+parity. Tag the release commit *before* building so the stamp is clean (`v1.9`,
+not `v1.9-2-g…-dirty`).
+
 `prereqs/` vendors the installers (Xcode 3.2.6 DMG, Xcode 2.5 DMG for 10.3.9 SDK,
 SDL 1.2.15 source); ~5 GB total. Don't push to a free GitHub remote without
 git-lfs.

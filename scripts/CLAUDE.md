@@ -17,7 +17,12 @@ exists as build-fat.sh's sub-step + for diagnosing one-slice compile errors.
 - **build.sh** flocks `~/quakespasm/build/.build.lock` to serialize concurrent
   g3/g4/g5 invocations (the `.o`-race in /CLAUDE.md). After any build, `file
   build/quakespasm-<t>` must report the right CPU subtype (ppc_750 / ppc_7400 /
-  ppc_970 / x86_64) — anything else is the race.
+  ppc_970 / x86_64) — anything else is the race. It also stamps the release
+  version: `QS_PORT_VERSION` (env-overridable; default `git describe --tags
+  --always --dirty`) becomes `-DQUAKESPASM_VER_SUFFIX` in `Makefile.darwin`, so
+  the binary reports e.g. `0.97.0-oldmac-v1.9`. Tag the commit before a release
+  build or the stamp carries `-N-g…-dirty`. build-fat.sh resolves it once and
+  exports it so all four slices match.
 - **deploy.sh / bench.sh** load two autoexec layers (per-arch baseline +
   per-machine overlay) from the bundle via CFBundle; bench.sh STAGES them as a
   temp `id1/autoexec.cfg` and passes `-noarchautoexec` to avoid double-apply.
@@ -25,8 +30,10 @@ exists as build-fat.sh's sub-step + for diagnosing one-slice compile errors.
   a single-cvar A/B. Full detail: `docs/GATING.md`.
 - **make-dmg.sh** defaults to a reachable TIGER host (not the flaky G3) and
   content-verifies the binaries inside the image vs source. **deploy-dmg.sh /
-  smoke-dmg.sh** install + production-launch the DMG (the path bench skips). Why
-  it matters: MISTAKES.md 2026-05-31 "DMG byte-flip".
+  smoke-dmg.sh** install + production-launch the DMG (the path bench skips);
+  deploy-dmg first removes any older `QuakeSpasm-OldMac-*.dmg` from the target
+  Desktop so releases don't pile up. Why it matters: MISTAKES.md 2026-05-31
+  "DMG byte-flip".
 - **bench-and-commit.sh** refuses dirty trees and any NA fps cell; the
   manual-commit override for a lone transient is in `docs/BENCHMARKING.md`.
 - **make-icon.py** — see "Icon pipeline philosophy" below.
