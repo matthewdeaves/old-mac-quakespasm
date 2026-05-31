@@ -1,4 +1,4 @@
-# QuakeSpasm — six old Macs, one fat binary
+# QuakeSpasm — seven old Macs, one fat binary
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
 [![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#the-bench-fleet)
@@ -10,7 +10,7 @@
   <img src="docs/images/quakespasm-icon-256.png" width="200" alt="QuakeSpasm icon" />
 </p>
 
-A QuakeSpasm fork tuned to look as good as possible while staying playable on **six retro Macs spanning 1999–2019**. One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + Intel x86_64), per-machine config picked at boot via `sysctl hw.model`.
+A QuakeSpasm fork tuned to look as good as possible while staying playable on **seven retro Macs spanning 1999–2019**. One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + PPC G5 + Intel x86_64), per-machine config picked at boot via `sysctl hw.model`.
 
 <p align="center">
   <img src="docs/screenshots/sawtooth_spasm0010.webp" width="24%" alt="Sawtooth G4 / GeForce2 MX" />
@@ -31,10 +31,11 @@ On the 1999 B&W G3 (449 MHz PPC 750, Rage 128 16 MB AGP), the dlight-heavy `demo
 | **Sawtooth** (PowerMac3,1 G4 AGP, 1999) | 500 MHz PPC 7400 | NVIDIA GeForce2 MX 32 MB | 10.4.11 Tiger | 1024×768 |
 | **Quicksilver** (PowerMac3,5, 2001) | 733 MHz PPC 7450 | ATI Radeon 9000 Pro 64 MB | 10.4.11 Tiger | 1024×768 |
 | **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger | 1024×768 |
+| **iMac G5** (PowerMac8,2, 2005) | 2.0 GHz PPC 970 | ATI Radeon 9600 128 MB | 10.5.8 Leopard | 1440×900 (native) |
 | **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
 | **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7.5 Sequoia | 2560×1440 |
 
-Four GPU eras: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Radeon 9000/9200), Intel integrated GMA, modern AMD discrete.
+GPU eras: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Radeon 9000/9200/9600), Intel integrated GMA, modern AMD discrete. The iMac G5's Radeon 9600 is the only OpenGL-2.0 GPU in the fleet — it's forced onto the GL 1.x fixed-function path because its Leopard GLSL driver hard-hangs the GPU (see the engine's ATI R300 gate).
 
 ## Before vs after — first compiled build → Round v11.1
 
@@ -130,7 +131,7 @@ Cross-builds run on the Mac mini Intel — the last machine with a working `gcc-
 ## How it's benched
 
 <p align="center">
-  <img src="docs/images/bench-loop.svg" width="92%" alt="Bench loop: code edit → build fat → deploy 6 machines → parallel timedemo → CSV append → commit" />
+  <img src="docs/images/bench-loop.svg" width="92%" alt="Bench loop: code edit → build fat → deploy 7 machines → parallel timedemo → CSV append → commit" />
 </p>
 
 ```bash
@@ -144,7 +145,7 @@ Every phase that lands gets a smoke bench (demo1 × 2 res × 3 runs) committed a
 
 ## Running it
 
-**Download the latest disk image from [Releases](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)** (`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac — it's built on Panther so it mounts on everything from Mac OS X 10.3.9 through modern macOS, and the `.app` inside is a fat binary (PPC G3 + PPC G4 + Intel x86_64) that runs natively on each.
+**Download the latest disk image from [Releases](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)** (`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac — it's built on Panther so it mounts on everything from Mac OS X 10.3.9 through modern macOS, and the `.app` inside is a fat binary (PPC G3 + PPC G4 + PPC G5 + Intel x86_64) that runs natively on each — including the iMac G5 on Leopard at its native panel resolution.
 
 Open the `.dmg`, then drag both `Quakespasm.app` and `quakespasm.pak` into a folder (e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak` (shareware) or `pak0.pak` + `pak1.pak` (registered — buy on [Steam](https://store.steampowered.com/app/2310/QUAKE/) / [GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click `Quakespasm.app`. (Pre-Lion 32-bit-kernel Intel Macs are not supported.)
 
