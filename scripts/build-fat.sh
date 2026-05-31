@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Build a 3-arch universal Quakespasm binary by composing the existing
+# Build a 4-arch universal Quakespasm binary by composing the existing
 # per-target builds with `lipo`.
 #
-# Output: build/quakespasm-fat — a Mach-O universal binary with three
-# slices: ppc750 (G3), ppc7400 (G4 + AltiVec), x86_64 (Lion). dyld picks
-# the right slice automatically per host CPU subtype, so the same
-# Quakespasm.app bundle runs on G3 Panther, G4 Tiger, and Lion Intel.
+# Output: build/quakespasm-fat — a Mach-O universal binary with four
+# slices: ppc750 (G3), ppc7400 (G4 + AltiVec), ppc970 (iMac G5, Leopard),
+# x86_64 (Lion). dyld picks the right slice automatically per host CPU
+# subtype, so the same Quakespasm.app bundle runs on G3 Panther, G4 Tiger,
+# G5 Leopard, and Lion Intel.
 #
 # usage: scripts/build-fat.sh
-# pre:   Lion build host reachable; SDKs installed (10.3.9 + 10.4u + Lion default)
-# post:  build/quakespasm-{g3,g4,lion,fat} all present; fat is the deliverable
+# pre:   build host reachable; SDKs installed (10.3.9 + 10.4u + 10.5 + Lion default)
+# post:  build/quakespasm-{g3,g4,g5,lion,fat} all present; fat is the deliverable
 #
 # Strategy (per docs/research/fat-binary-feasibility.md §7):
-#   1. Run scripts/build.sh g3, g4, lion sequentially. Each takes the
-#      build flock individually; we serialise the three sub-builds.
-#      Parallel sub-builds would race on Lion's quakespasm/Quake/ tree
-#      (`make clean` + `-j2` aliases the .o files), so SERIAL is required.
-#   2. lipo -create the three per-target binaries into a single fat.
+#   1. Run scripts/build.sh g3, g4, g5, lion sequentially. Each takes the
+#      build flock individually; we serialise the sub-builds.
+#      Parallel sub-builds would race on the build host's quakespasm/Quake/
+#      tree (`make clean` + `-j2` aliases the .o files), so SERIAL is required.
+#   2. lipo -create the four per-target binaries into a single fat.
 #      Verified working in fat-binary-feasibility.md §1: zero warnings,
 #      ~5 KB padding overhead on top of sum-of-slices.
 #
@@ -32,17 +33,20 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "[build-fat] sub-build 1/3: g3"
+echo "[build-fat] sub-build 1/4: g3"
 scripts/build.sh g3
 
-echo "[build-fat] sub-build 2/3: g4"
+echo "[build-fat] sub-build 2/4: g4"
 scripts/build.sh g4
 
-echo "[build-fat] sub-build 3/3: lion"
+echo "[build-fat] sub-build 3/4: g5"
+scripts/build.sh g5
+
+echo "[build-fat] sub-build 4/4: lion"
 scripts/build.sh lion
 
-# All three slices present?
-for arch in g3 g4 lion; do
+# All four slices present?
+for arch in g3 g4 g5 lion; do
   if [ ! -x "build/quakespasm-$arch" ]; then
     echo "[build-fat] missing build/quakespasm-$arch — sub-build did not produce a binary" >&2
     exit 1
@@ -56,14 +60,14 @@ done
 # uniform with build.sh.)
 LION="${BUILD_HOST:-${LION:-mini-intel}}"
 echo "[build-fat] lipo -create on $LION (cross-build host)"
-scp -q build/quakespasm-g3 build/quakespasm-g4 build/quakespasm-lion \
+scp -q build/quakespasm-g3 build/quakespasm-g4 build/quakespasm-g5 build/quakespasm-lion \
   "$LION:/tmp/" >/dev/null
 ssh "$LION" "cd /tmp && \
-  lipo -create quakespasm-g3 quakespasm-g4 quakespasm-lion \
+  lipo -create quakespasm-g3 quakespasm-g4 quakespasm-g5 quakespasm-lion \
     -output quakespasm-fat && \
   lipo -info quakespasm-fat"
 scp -q "$LION:/tmp/quakespasm-fat" build/quakespasm-fat
-ssh "$LION" "rm -f /tmp/quakespasm-{g3,g4,lion,fat}" 2>/dev/null || true
+ssh "$LION" "rm -f /tmp/quakespasm-{g3,g4,g5,lion,fat}" 2>/dev/null || true
 
 echo "[build-fat] sanity:"
 file build/quakespasm-fat

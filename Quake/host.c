@@ -982,13 +982,19 @@ void Host_Init (void)
 		// unit: end users only need it + their own id1/pak0.pak.
 		//
 		// Compile-time slice selection picks the per-arch baseline:
-		// ppc7400 (G4 AltiVec), ppc750 (G3), or x86_64 (Lion+).
+		// ppc970 (iMac G5 Leopard), ppc7400 (G4 AltiVec), ppc750 (G3),
+		// or x86_64 (Lion+). The 970 slice also defines __VEC__ (it has
+		// AltiVec), so it must be checked FIRST via the QS_ARCH_PPC970
+		// build macro — otherwise it would fall into the ppc7400 branch.
 		// On top of that, hw.model sysctl picks a per-machine overlay
 		// (the fat binary's per-arch dispatch can't tell mini-intel
 		// GMA 950 from iMac19,1 Radeon Pro 580X — both are x86_64;
 		// nor among the three G4s). Each known machine gets its
 		// hand-tuned visual + resolution stack; unknown models fall
-		// through silently (per-arch baseline applies).
+		// through silently (per-arch baseline applies). This is exactly
+		// the "best on known machines, sane generic on everything else"
+		// fallback: any G3/G4/G5/Intel Mac gets its arch baseline even
+		// if its specific model isn't in the map below.
 		//
 		// `-noarchautoexec` cmdline flag suppresses the hook entirely
 		// — used by bench/screenshot scripts whose own cmdline
@@ -1001,7 +1007,9 @@ void Host_Init (void)
 #ifdef __APPLE__
 		if (!COM_CheckParm("-noarchautoexec"))
 		{
-#if defined(__VEC__) || defined(__ALTIVEC__)
+#if defined(QS_ARCH_PPC970)
+			QS_ExecConfigFromBundle ("autoexec-ppc970");
+#elif defined(__VEC__) || defined(__ALTIVEC__)
 			QS_ExecConfigFromBundle ("autoexec-ppc7400");
 #elif defined(__ppc__) || defined(__POWERPC__) || defined(__powerpc__)
 			QS_ExecConfigFromBundle ("autoexec-ppc750");

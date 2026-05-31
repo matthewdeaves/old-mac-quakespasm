@@ -2,7 +2,7 @@
 # Build a distributable .dmg containing Quakespasm.app + quakespasm.pak +
 # a user-facing README — the easy way to hand the build to the old Macs.
 #
-# The .app is staged exactly like deploy.sh (fat 3-arch binary + SDL +
+# The .app is staged exactly like deploy.sh (fat 4-arch binary + SDL +
 # codec dylibs + per-machine autoexec cfgs + icon). Linux has no hdiutil,
 # so a Mac (the cross-build host by default) does the actual hdiutil
 # create; we stage on Ubuntu, ship the folder over, build the .dmg there,
@@ -45,10 +45,12 @@ if [ ! -f "$BIN" ]; then
   echo "[make-dmg] build/quakespasm-fat missing — building it"
   scripts/build-fat.sh
 fi
-# Sanity: must be the 3-slice fat, not a stray single-arch binary. Note
-# `file` prints the subtypes with underscores (ppc_750 / ppc_7400).
+# Sanity: must be the multi-slice fat, not a stray single-arch binary.
+# Note `file` prints the subtypes with underscores (ppc_750 / ppc_7400 /
+# ppc_970). Checking the two endpoints (oldest PPC + Intel) is enough to
+# distinguish the fat from any single-arch slice.
 if ! file "$BIN" | grep -q 'ppc_750' || ! file "$BIN" | grep -q 'x86_64'; then
-  echo "[make-dmg] $BIN is not the 3-arch fat binary — run scripts/build-fat.sh" >&2
+  echo "[make-dmg] $BIN is not the 4-arch fat binary — run scripts/build-fat.sh" >&2
   exit 1
 fi
 

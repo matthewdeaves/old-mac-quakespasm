@@ -134,7 +134,7 @@ Cross-builds run on the Mac mini Intel — the last machine with a working `gcc-
 </p>
 
 ```bash
-scripts/build-fat.sh                              # 3-arch universal binary
+scripts/build-fat.sh                              # 4-arch universal binary
 scripts/deploy.sh <machine>                       # ship to one of the 6 hosts
 scripts/bench.sh <machine> demo1 1024x768 3       # 3 timedemo runs, append to CSV
 scripts/parallel-bench.sh                         # full matrix, all 6 legs concurrent

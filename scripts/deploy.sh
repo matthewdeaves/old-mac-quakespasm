@@ -6,10 +6,10 @@
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
-# Ships ONE Mach-O (3 slices: ppc750 + ppc7400 + x86_64). The .app is
+# Ships ONE Mach-O (4 slices: ppc750 + ppc7400 + ppc970 + x86_64). The .app is
 # self-contained: per-arch + per-machine autoexec configs live inside
 # Quakespasm.app/Contents/Resources/, loaded by host.c via CFBundle
-# (QS_ExecConfigFromBundle). Compile-time __VEC__/__ppc__/__x86_64__
+# (QS_ExecConfigFromBundle). Compile-time QS_ARCH_PPC970/__VEC__/__ppc__/__x86_64__
 # picks the per-arch baseline; runtime sysctl hw.model picks the
 # per-machine overlay. End-user install is just .app + their own
 # id1/pak0.pak alongside.
@@ -70,7 +70,7 @@ cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 # Per-arch baselines + per-machine overlays. host.c picks the right
 # baseline at compile time and the right overlay at runtime via sysctl
 # hw.model. All ship inside the .app so the bundle is self-contained.
-for cfg in ppc750 ppc7400 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
+for cfg in ppc750 ppc7400 ppc970 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
   cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
 done
 
@@ -82,6 +82,7 @@ echo "[deploy] ship to $HOST:~/Desktop/quake/"
 ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg \
                    ~/Desktop/quake/id1/autoexec-ppc750.cfg \
                    ~/Desktop/quake/id1/autoexec-ppc7400.cfg \
+                   ~/Desktop/quake/id1/autoexec-ppc970.cfg \
                    ~/Desktop/quake/id1/autoexec-x86_64.cfg \
                    ~/Desktop/quake/id1/autoexec-yosemite.cfg \
                    ~/Desktop/quake/id1/autoexec-sawtooth.cfg \

@@ -150,9 +150,11 @@ a convention for predictable rsync paths, **not** a binary requirement.
 `SDL.framework` is fat (x86_64 + i386 + ppc) where the **ppc slice is
 the Panther-compatible 10.3.9-SDK build**, not the 10.6-SDK build that
 ships upstream. `codecs/lib/*.dylib` are fat too. Combined with the
-fat engine binary (`build/quakespasm-fat` — ppc750 + ppc7400 + x86_64),
-`deploy.sh <target>` ships the same bundle byte-for-byte to G3, G4,
-G4mini, Lion, and iMac-2019. The only per-host action `deploy.sh`
+fat engine binary (`build/quakespasm-fat` — ppc750 + ppc7400 + ppc970 +
+x86_64), `deploy.sh <target>` ships the same bundle byte-for-byte to G3,
+G4, G4mini, G5, Lion, and iMac-2019. The single ppc slice in SDL.framework
+(the 10.3.9-SDK Panther build) runs on the G5 too — it's PPC, forward-
+compatible up through Leopard. The only per-host action `deploy.sh`
 takes is rsync (plus the migration cleanup of any pre-v1.4 id1/cfgs).
 
 ## install_name_tool fixup (run on Lion before shipping)

@@ -4,11 +4,13 @@ End-user-facing reference is `scripts/README.md`. This file is the
 durable LLM context for the scripts area — full script contracts,
 operational gotchas that matter when editing or invoking them.
 
-Build TARGET names (`g3`/`g4`/`lion`) refer to chip family + SDK,
+Build TARGET names (`g3`/`g4`/`g5`/`lion`) refer to chip family + SDK,
 NOT a machine. Machine names (`yosemite`/`sawtooth`/`quicksilver`/
-`mini-g4`/`mini-intel`/`imac-2019`) refer to specific bench Macs.
+`mini-g4`/`mini-intel`/`imac-2019`/`imac-g5`) refer to specific bench Macs.
+(`g5` = ppc970 / 10.5 SDK / -mcpu=970 / -DQS_ARCH_PPC970, for the iMac G5
+on Leopard 10.5.8.)
 
-`build.sh` produces one slice; `build-fat.sh` lipo's all three slices
+`build.sh` produces one slice; `build-fat.sh` lipo's all four slices
 into `build/quakespasm-fat`. **`deploy.sh` always ships the fat binary**
 — `build.sh` exists as the sub-step build-fat.sh calls plus for
 diagnosing one-slice compile errors; we don't deploy single-arch.
@@ -16,22 +18,24 @@ diagnosing one-slice compile errors; we don't deploy single-arch.
 ## Per-script notes
 
 ```
-build.sh <g3|g4|lion>          cross-compile (g3/g4) or native x86_64 (lion)
+build.sh <g3|g4|g5|lion>       cross-compile (g3/g4/g5) or native x86_64 (lion)
                                on the cross-build host (mini-intel).
                                Flocks ~/quakespasm/build/.build.lock to
-                               serialize against concurrent g3/g4 invocations
+                               serialize against concurrent g3/g4/g5 invocations
                                (see "Don't parallel g3+g4" in /CLAUDE.md).
                                After any build, `file build/quakespasm-<t>`
                                must report the right CPU subtype (ppc_750 /
-                               ppc_7400 / x86_64) — anything else is the race.
+                               ppc_7400 / ppc_970 / x86_64) — anything else is
+                               the race.
 
 deploy.sh <machine>            stage Quakespasm.app + ship to <machine> via rsync.
-                               Always ships build/quakespasm-fat (3-arch lipo'd
+                               Always ships build/quakespasm-fat (4-arch lipo'd
                                binary). Per-arch + per-machine autoexec cfgs
                                ship inside Quakespasm.app/Contents/Resources/
                                (loaded by host.c's QS_ExecConfigFromBundle via
-                               CFBundle): __VEC__/__ppc__/__x86_64__ picks the
-                               per-arch baseline, sysctl hw.model picks the
+                               CFBundle): QS_ARCH_PPC970/__VEC__/__ppc__/__x86_64__
+                               picks the per-arch baseline (970 checked first —
+                               it also defines __VEC__), sysctl hw.model picks the
                                per-machine overlay. End-user install is just
                                .app + their id1/pak0.pak — bundled settings
                                travel with .app. Also clears stale
@@ -78,8 +82,8 @@ make-icon.py [source.png]      regenerate MacOSX/QuakeSpasm.icns. Default
                                source PNG is hand-cleaned in Photoshop — the
                                canonical workflow, see "Icon pipeline" below).
                                Requires ~/quakespasm/.venv with Pillow+numpy+scipy.
-build-fat.sh                   3-arch (ppc750+ppc7400+x86_64) lipo of g3+g4+lion.
-                               Output: build/quakespasm-fat.
+build-fat.sh                   4-arch (ppc750+ppc7400+ppc970+x86_64) lipo of
+                               g3+g4+g5+lion. Output: build/quakespasm-fat.
 screenshot.sh <machine>        drive deployed Quakespasm through demo1/2/3 with
                                `screenshot tga` inserted at intervals. Saves to
                                ~/Desktop/quakespasm-screens-<host>/ on target and

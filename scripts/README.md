@@ -34,8 +34,8 @@ The two Intel machines share `build/quakespasm-lion`.
 ## Quick start
 
 ```bash
-# Build the fat binary (composes ppc750 + ppc7400 + x86_64 sub-builds
-# on mini-intel; build.sh g3/g4/lion runs internally as sub-steps).
+# Build the fat binary (composes ppc750 + ppc7400 + ppc970 + x86_64
+# sub-builds on mini-intel; build.sh g3/g4/g5/lion runs as sub-steps).
 scripts/build-fat.sh
 
 # Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host).
@@ -94,8 +94,8 @@ before that commit use the old names, rows after use the new names.
 
 | script | purpose |
 |---|---|
-| `build.sh <g3\|g4\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
-| `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh lion`, then `lipo -create` the three slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
+| `build.sh <g3\|g4\|g5\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4/g5, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. `g5` = iMac G5 Leopard (ppc970, 10.5 SDK, `-mcpu=970`). Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
+| `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh g5` + `build.sh lion`, then `lipo -create` the four slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
 | `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on the cross-build host (Linux has no hdiutil). Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST=` overrides the Mac that runs hdiutil. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |

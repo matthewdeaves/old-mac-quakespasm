@@ -71,8 +71,8 @@ ship the wins.
 Full contracts in `scripts/CLAUDE.md`; host matrix in `scripts/README.md`.
 Top of mind:
 
-- `scripts/build.sh <g3|g4|lion>` — cross-compile or native, on mini-intel (per-slice; mostly called by build-fat.sh, also useful for diagnosing one-slice compile errors)
-- `scripts/build-fat.sh` — 3-arch (ppc750+ppc7400+x86_64) lipo'd binary; this is the only binary we deploy
+- `scripts/build.sh <g3|g4|g5|lion>` — cross-compile or native, on mini-intel (per-slice; mostly called by build-fat.sh, also useful for diagnosing one-slice compile errors). `g5` = iMac G5 Leopard 10.5.8 (ppc970, 10.5 SDK, -mcpu=970, -DQS_ARCH_PPC970).
+- `scripts/build-fat.sh` — 4-arch (ppc750+ppc7400+ppc970+x86_64) lipo'd binary; this is the only binary we deploy
 - `scripts/deploy.sh <machine>` — stage Quakespasm.app + ship to host. Always ships the fat binary; per-machine settings travel inside Contents/Resources/.
 - `scripts/bench.sh <machine> <demo> <WxH> [runs]` — append to results.csv
 - `scripts/parallel-bench.sh [--quick]` — full matrix concurrently
@@ -81,9 +81,12 @@ Top of mind:
 - `ssh <host> '~/bin/qsreboot.sh'` — reboot the Mac when fullscreen kill
   wedged the display (one-time `qsreboot-setup.sh` per machine first)
 
-Build TARGET names (`g3`/`g4`/`lion`) = chip family + SDK, NOT machines.
+Build TARGET names (`g3`/`g4`/`g5`/`lion`) = chip family + SDK, NOT machines.
 The single `g4` binary serves three machines (sawtooth/quicksilver/mini-g4);
-the `lion` binary serves two (mini-intel/imac-2019).
+`g5` serves the iMac G5 (PowerMac8,x, Leopard 10.5.8);
+the `lion` binary serves two (mini-intel/imac-2019). All four slices live in
+the one fat binary; dyld picks per CPU subtype (ppc970 prefers the g5 slice,
+G4s fall back to ppc7400, the universal ppc750 floor runs on any PPC).
 
 `prereqs/` vendors the installers (Xcode 3.2.6 DMG, Xcode 2.5 DMG for
 10.3.9 SDK, SDL 1.2.15 source); ~5 GB total. Don't push to a free

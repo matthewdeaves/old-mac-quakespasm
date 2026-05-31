@@ -9,13 +9,20 @@
 # mini-g4) — they all run -mcpu=7400 -maltivec code on Tiger 10.4. Machine
 # identity → binary mapping lives in scripts/deploy.sh.
 #
-# usage: scripts/build.sh <g3|g4|lion>
+# - g5  : cross-compile PPC via gcc-4.0 + 10.5 SDK, tuned -mcpu=970 for the
+#         iMac G5 (PowerMac8,2, 970FX) on Leopard 10.5.8. AltiVec like the G4,
+#         but a very different pipeline, so it gets its own scheduling pass.
+#         Stamped cpusubtype ppc970 (via -arch ppc -mcpu=970, same mechanism
+#         that gives g4 its ppc7400 stamp) so dyld prefers it on the G5 while
+#         G4s still fall back to the ppc7400 slice.
+#
+# usage: scripts/build.sh <g3|g4|g5|lion>
 # output: build/quakespasm-<target>
 # env:    BUILD_HOST (ssh alias for the cross-build host, default 'mini-intel')
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4|lion>}"
+TARGET="${1:?usage: $0 <g3|g4|g5|lion>}"
 # The cross-build host is the Intel Mac mini (mini-intel). Variable name
 # kept as BUILD_HOST for clarity; LION still accepted for backward compat.
 BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
@@ -71,6 +78,30 @@ case "$TARGET" in
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
     ;;
+  g5)
+    # iMac G5 (PowerMac8,2, single 970FX @ 2.0 GHz) on Leopard 10.5.8.
+    # The 970 has AltiVec (so __VEC__ paths apply, same as g4) but a deep,
+    # heavily out-of-order pipeline with different AltiVec latencies than the
+    # 7450 — so it gets -mcpu=970 scheduling rather than reusing the g4 slice.
+    # `-arch ppc -mcpu=970` stamps cpusubtype ppc970 (Apple gcc propagates
+    # -mcpu into the subtype, the same way g4 → ppc7400), so this slice is a
+    # distinct lipo member and dyld prefers it on the G5; G4 hosts (ppc7450)
+    # aren't a 970 descendant so they fall back to the ppc7400 slice.
+    # 32-bit ABI (-arch ppc, not ppc64): Leopard runs the 32-bit slice fine
+    # and we have no need for 64-bit GPRs here.
+    MACH_TYPE=ppc
+    CC=/usr/bin/gcc-4.0
+    SDK=/Developer/SDKs/MacOSX10.5.sdk
+    VMIN=10.5
+    # Apple gcc defines only __VEC__/__ALTIVEC__/__ppc__ for -mcpu=970 (no
+    # __ppc970__), so the 970 slice is indistinguishable from the 7400 slice
+    # at compile time. -DQS_ARCH_PPC970 gives host.c a hook to load the
+    # generic-G5 autoexec baseline (autoexec-ppc970) instead of the G4 one.
+    # Same compile-time-gate pattern as QS_DISABLE_ALIAS_STATE_CACHE.
+    CPUFLAGS='-mcpu=970 -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970'
+    SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
+    EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
+    ;;
   lion)
     # Native x86_64 build on Lion. Lion has llvm-gcc-4.2 + clang; we
     # use clang for clean modern C support. No -isysroot — let the
@@ -105,7 +136,7 @@ case "$TARGET" in
     SYSROOT=""
     ;;
   *)
-    echo "unknown target: $TARGET (expected: g3|g4|lion)" >&2
+    echo "unknown target: $TARGET (expected: g3|g4|g5|lion)" >&2
     exit 2
     ;;
 esac
@@ -116,7 +147,7 @@ echo "[build] sync sources Ubuntu → $LION"
 rsync -av --partial --inplace --delete \
   --exclude='.git' --exclude='*.o' --exclude='*.d' \
   --exclude='build/' --exclude='benchmarks/' --exclude='prereqs/' \
-  --exclude='quakespasm' --exclude='quakespasm-g3' --exclude='quakespasm-g4' --exclude='quakespasm-lion' \
+  --exclude='quakespasm' --exclude='quakespasm-g3' --exclude='quakespasm-g4' --exclude='quakespasm-g5' --exclude='quakespasm-lion' \
   -e 'ssh -o ServerAliveInterval=15' \
   "$REPO_ROOT/" "$LION:quakespasm/" | tail -3
 
