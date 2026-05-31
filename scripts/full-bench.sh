@@ -8,11 +8,12 @@
 #   mini-g4      Mac mini G4   1.25 GHz, Radeon 9200, 10.4.11 Tiger
 #   mini-intel   Mac mini Intel 2.33 GHz Core 2 Duo, GMA 950, 10.7.5 Lion
 #   imac-2019    iMac 27" 2019, i5-9600K @ 3.70 GHz, Radeon Pro 580X 8GB, 15.7.5 Sequoia
+#   imac-g5      iMac G5 PowerMac8,2 2.0 GHz, Radeon 9600 128MB, 10.5.8 Leopard
 #
 # usage: scripts/full-bench.sh [<machine>|ppc|all] [--quick]
-#   ppc:    yosemite + sawtooth + quicksilver + mini-g4 (skip the Intel boxes)
+#   ppc:    yosemite + sawtooth + quicksilver + mini-g4 + imac-g5 (skip the Intel boxes)
 #   intel:  mini-intel + imac-2019 (Intel-only sweep)
-#   all:    all 6 machines (default)
+#   all:    all 7 machines (default)
 #
 # default matrix: demo1+demo2+demo3 × 1024x768+640x480 × 3 runs
 # --quick:        demo1 only      × 1024x768+640x480 × 3 runs   (~5–10× faster)
@@ -32,7 +33,7 @@ TARGETS=all
 QUICK=0
 for arg in "$@"; do
   case "$arg" in
-    yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|ppc|intel|all) TARGETS=$arg ;;
+    yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5|ppc|intel|all) TARGETS=$arg ;;
     --quick)    QUICK=1 ;;
     -h|--help)  sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
@@ -44,10 +45,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Order: fastest → slowest (so the long-pole G3 finishes last when invoked
 # sequentially; parallel-bench.sh launches them concurrently regardless).
 case "$TARGETS" in
-  ppc)   MACHINES="quicksilver mini-g4 sawtooth yosemite" ;;
+  ppc)   MACHINES="imac-g5 quicksilver mini-g4 sawtooth yosemite" ;;
   intel) MACHINES="imac-2019 mini-intel" ;;
-  all)   MACHINES="imac-2019 mini-intel quicksilver mini-g4 sawtooth yosemite" ;;
-  yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019) MACHINES="$TARGETS" ;;
+  all)   MACHINES="imac-2019 mini-intel imac-g5 quicksilver mini-g4 sawtooth yosemite" ;;
+  yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5) MACHINES="$TARGETS" ;;
 esac
 
 if [ "$QUICK" -eq 1 ]; then

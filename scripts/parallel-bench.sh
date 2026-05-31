@@ -53,6 +53,7 @@ SKIP[quicksilver]=0
 SKIP[mini-g4]=0
 SKIP[mini-intel]=0
 SKIP[imac-2019]=0
+SKIP[imac-g5]=0
 PASSTHRU=()  # extra flags forwarded to full-bench.sh (--quick etc)
 for arg in "$@"; do
   case "$arg" in
@@ -65,6 +66,7 @@ for arg in "$@"; do
     --no-mini-g4)       SKIP[mini-g4]=1 ;;
     --no-mini-intel)    SKIP[mini-intel]=1 ;;
     --no-imac-2019)     SKIP[imac-2019]=1 ;;
+    --no-imac-g5)       SKIP[imac-g5]=1 ;;
     -h|--help)          sed -n '2,33p' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
@@ -100,7 +102,7 @@ fi
 
 # Active legs — preserve fastest → slowest order so the wall-time tail
 # corresponds to the G3.
-ALL_LEGS=(imac-2019 mini-intel quicksilver mini-g4 sawtooth yosemite)
+ALL_LEGS=(imac-2019 mini-intel imac-g5 quicksilver mini-g4 sawtooth yosemite)
 ACTIVE_LEGS=()
 for LEG in "${ALL_LEGS[@]}"; do
   [ "${SKIP[$LEG]}" -eq 0 ] && ACTIVE_LEGS+=("$LEG")

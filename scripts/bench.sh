@@ -2,7 +2,7 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
@@ -13,6 +13,7 @@
 #   quicksilver  PowerMac3,5   G4 QS  733 MHz / Radeon 9000 / 10.4.11 Tiger
 #   mini-g4      PowerMac10,1  Mac mini G4 1.25 GHz / Radeon 9200 / 10.4.11
 #   mini-intel   Macmini2,1    C2D 2.33 GHz / GMA 950 / 10.7.5 Lion
+#   imac-g5      PowerMac8,2   iMac G5 2.0 GHz / Radeon 9600 128 MB / 10.5.8 Leopard
 #
 # env: EXTRA_CVARS  optional cmdline cvar overrides spliced into the launch
 #                   line right before +timedemo. Spliced as stuffcmds, so
@@ -53,6 +54,7 @@ case "$TARGET" in
   mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400" ;;
   mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64"  ;;
   imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64"  ;;  # i5-9600K + Radeon Pro 580X — fastest
+  imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970"  ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 

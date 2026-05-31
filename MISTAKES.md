@@ -16,6 +16,64 @@ we learned. Newest at the top.
 
 ---
 
+## 2026-05-31 — iMac G5: GLSL/VBO on the ATI Radeon 9600 hard-hangs the whole OS
+
+**What we tried.** Bringing the new iMac G5 (`PowerMac8,2`, ppc970, ATI
+Radeon 9600 / RV351, Leopard 10.5.8) online as a bench/deploy target.
+First deploy + `bench.sh imac-g5 ... -fullscreen` HARD-HUNG the machine:
+grey screen, no ping, no SSH, fans to max (SMU thermal failsafe when the
+kernel stops servicing it). Required a physical power-cycle. A later
+**windowed** smoke also wedged it (more gently — SSH stayed up).
+
+**What went wrong — two red herrings before the real cause.**
+1. *Suspected fullscreen SDL.* We rebuilt SDL 1.2.15 against the 10.5 SDK
+   as a dedicated `ppc970` slice (the shipped slice is the 10.3.9/Panther
+   build). The new SDL loaded + rendered fine **windowed**... then wedged
+   anyway. So SDL was **not** the hang (the Leopard SDL slice is still
+   the right thing to ship — see MacOSX/CLAUDE.md — just not the cure).
+2. *The real cause: the GL 2.0 / GLSL / VBO path.* The Radeon 9600 (R300)
+   is the **only GPU in the fleet that advertises OpenGL 2.0**, so it's the
+   only one that ever ran QuakeSpasm's GLSL + VBO renderer. The R300's Mac
+   GL2 driver on Leopard is broken — exercising GLSL locks the GPU (and the
+   OS). Every other box (Rage128, GeForce2 MX, Radeon 9000/9200) is GL
+   1.2–1.3 and silently uses fixed-function, so none ever hit it. Matches
+   QuakeSpasm bug #43 (same card+OS) and its regression window ("0.85.x
+   worked, 0.91.0 broke" = exactly when GLSL/VBO landed).
+
+**The fix.** Runtime renderer gate in `gl_vidsdl.c GL_CheckExtensions`
+(same idiom as the Rage128 CVA skip): on `Radeon 9500/9600/9700/9800`,
+force the GL 1.x fixed-function path (skip VBO, NPOT, GLSL, warp-mipmaps),
+`-atigl` overrides for A/B. Validated first with the existing
+`-noglsl -novbo -notexturenpot -nowarpmipmaps` flags (no rebuild). Result:
+stable **119 fps at native 1440x900 fullscreen 32bpp** with the full GL-1.x
+visual stack (same as the G4s). Confirmed via cmdline flags AND the
+baked-in gate auto-firing with zero flags.
+
+**Also: never do a fullscreen mode-SWITCH on this card.** The first
+full-OS-death was a 1024x768 fullscreen on a 1440x900 desktop (a mode
+*switch*). Use `vid_desktopfullscreen 1` → same-mode display CAPTURE at the
+native panel res (1440x900 / 1680x1050) — the driver survives a capture but
+not a switch. Added SDL-1.2 support for this (substitute captured
+`display_*` in `VID_SetMode`); SDL2 gets it free via
+`SDL_WINDOW_FULLSCREEN_DESKTOP`.
+
+**Lessons.**
+- A GPU that *advertises* GL2 on an old Mac driver is a trap. The first
+  GL-2.0-class GPU in a fleet exercises code paths nothing else did. Gate on
+  the **renderer string**, not the CPU/slice (NVIDIA G5s drive GLSL fine).
+- GL 1.x here is **not** a compromise — fixed-function ran 119 fps with the
+  full visual stack, and R300 GLSL is partly software-emulated (likely
+  *slower*). No meaningful fps/visuals are left on the table.
+- **Leopard `sudo` has no `-n` flag** (`sudo: illegal option -n`), so
+  `qsreboot.sh`'s `sudo -n /sbin/reboot` Tier-1 silently fails on 10.5. Use
+  plain `sudo /sbin/reboot` (NOPASSWD entry still works). `qsreboot.sh`
+  needs a Leopard fallback.
+- Wedge severity splits by trigger: **fullscreen mode-switch (+GLSL) = full
+  OS death** (power-cycle only); **windowed/GLSL distress = half-alive** (SSH
+  up, `sudo /sbin/reboot` recovers). Iterate windowed/native-same-mode only.
+
+---
+
 ## 2026-05-29 — Code-review cheap win: vid_bpp 32 hard-wedged mini-g4 (Radeon 9200)
 
 **What we tried.** Code-review finding #1: every target defaults to

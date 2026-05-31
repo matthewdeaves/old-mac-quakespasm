@@ -2,7 +2,7 @@
 # Assemble a self-contained Quakespasm.app bundle and deploy it to the
 # target machine. Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019>
+# usage: scripts/deploy.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5>
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
@@ -18,7 +18,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TARGET="${1:?usage: $0 <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019>}"
+TARGET="${1:?usage: $0 <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5>}"
 
 # MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
 # ppc slice is the Panther-compatible build. One framework serves all
@@ -32,7 +32,10 @@ case "$TARGET" in
     HOST="yosemite"
     RSYNC_EXTRA="--protocol=29"
     ;;
-  sawtooth|quicksilver|mini-g4|mini-intel|imac-2019)
+  sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5)
+    # imac-g5: PowerMac8,2 iMac G5 on Leopard 10.5.8. Leopard ships
+    # rsync 2.6.9 (protocol 29), same as the Tiger boxes — no
+    # --protocol downgrade needed (only Panther's 2.5.x needs that).
     HOST="$TARGET"
     RSYNC_EXTRA=""
     ;;
@@ -70,7 +73,7 @@ cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 # Per-arch baselines + per-machine overlays. host.c picks the right
 # baseline at compile time and the right overlay at runtime via sysctl
 # hw.model. All ship inside the .app so the bundle is self-contained.
-for cfg in ppc750 ppc7400 ppc970 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019; do
+for cfg in ppc750 ppc7400 ppc970 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5; do
   cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
 done
 
@@ -89,7 +92,8 @@ ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg \
                    ~/Desktop/quake/id1/autoexec-quicksilver.cfg \
                    ~/Desktop/quake/id1/autoexec-mini-g4.cfg \
                    ~/Desktop/quake/id1/autoexec-mini-intel.cfg \
-                   ~/Desktop/quake/id1/autoexec-imac-2019.cfg 2>/dev/null' || true
+                   ~/Desktop/quake/id1/autoexec-imac-2019.cfg \
+                   ~/Desktop/quake/id1/autoexec-imac-g5.cfg 2>/dev/null' || true
 
 # --checksum: force file-content comparison instead of trusting size+mtime.
 # Saw at least one stale-icon case on sawtooth where rsync's size+mtime

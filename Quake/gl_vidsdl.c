@@ -72,6 +72,11 @@ static char * gl_extensions_nice;
 static vmode_t	modelist[MAX_MODE_LIST];
 static int		nummodes;
 
+// Captured desktop mode (set once in VID_Init before the first
+// SDL_SetVideoMode). File-scope so VID_SetMode can reuse it for the
+// SDL 1.2 vid_desktopfullscreen path -- see the substitution there.
+static int		display_width, display_height, display_refreshrate, display_bpp;
+
 static qboolean	vid_initialized = false;
 
 #if defined(USE_SDL2)
@@ -700,6 +705,22 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 
 #else /* !defined(USE_SDL2) */
 
+	// SDL 1.2 "desktop fullscreen": substitute the captured desktop mode
+	// so we request the EXACT current resolution + depth. That makes SDL
+	// do a same-mode display CAPTURE instead of a mode SWITCH -- the mode
+	// switch is what hard-hangs the iMac G5's ATI Radeon 9600 driver on
+	// Leopard. Bonus: any panel gets its native max automatically (17"
+	// iMac G5 1440x900, 20" 1680x1050) with no per-machine resolution
+	// hard-coding. Pairs with the ATI R300 GL 1.x gate in
+	// GL_CheckExtensions. (SDL2 gets this for free via
+	// SDL_WINDOW_FULLSCREEN_DESKTOP in the branch above.)
+	if (fullscreen && vid_desktopfullscreen.value)
+	{
+		width = display_width;
+		height = display_height;
+		bpp = display_bpp;
+	}
+
 	flags = DEFAULT_SDL_FLAGS;
 	if (fullscreen)
 		flags |= SDL_FULLSCREEN;
@@ -1032,10 +1053,33 @@ static void GL_CheckExtensions (void)
 {
 	int swap_control;
 
+	// PPC port -- ATI R300-family Leopard GPU-hang gate.
+	// The Radeon 9500/9600/9700/9800 (R300/R350/RV350/RV360) advertise
+	// OpenGL 2.0 + GLSL on Leopard 10.5, but their Mac GL2 driver
+	// HARD-HANGS the GPU -- and with it the whole OS -- the moment the
+	// engine exercises the GLSL / VBO path. Observed live on the iMac G5
+	// (Radeon 9600): a GLSL windowed timedemo crawled (60s+, never
+	// finished) then wedged the GPU, and a GLSL fullscreen launch killed
+	// the box outright (no SSH, fans to max). This matches QuakeSpasm
+	// bug #43 ("0.85.x worked, 0.91.0 broke") -- exactly when GLSL+VBO
+	// landed. NVIDIA G5s (GeForce 5200/6800) drive GLSL fine, so this is
+	// gated to the renderer string, not the ppc970 slice.
+	// Fix: force these renderers down the GL 1.x fixed-function path that
+	// the GL-1.3 G4s (Radeon 9000/9200) already run rock-solid -- i.e.
+	// skip VBO, NPOT, GLSL and warp-mipmap generation below. Same idiom
+	// as the Rage 128 CVA skip further down.
+	// Toggle: -atigl re-enables the full GL2 path for A/B retesting.
+	qboolean gl_ati_r300_force_gl1 = gl_renderer &&
+	    (strstr(gl_renderer, "Radeon 9500") || strstr(gl_renderer, "Radeon 9600") ||
+	     strstr(gl_renderer, "Radeon 9700") || strstr(gl_renderer, "Radeon 9800")) &&
+	    !COM_CheckParm("-atigl");
+
 	// ARB_vertex_buffer_object
 	//
 	if (COM_CheckParm("-novbo"))
 		Con_Warning ("Vertex buffer objects disabled at command line\n");
+	else if (gl_ati_r300_force_gl1)
+		Con_Warning ("Vertex buffer objects skipped on ATI R300 (Leopard GL 1.x path)\n");
 	else if (gl_version_major < 1 || (gl_version_major == 1 && gl_version_minor < 5))
 		Con_Warning ("OpenGL version < 1.5, skipping ARB_vertex_buffer_object check\n");
 	else
@@ -1390,6 +1434,8 @@ static void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-notexturenpot"))
 		Con_Warning ("texture_non_power_of_two disabled at command line\n");
+	else if (gl_ati_r300_force_gl1)
+		Con_Warning ("texture_non_power_of_two skipped on ATI R300 (Leopard GL 1.x path)\n");
 	else if (GL_ParseExtensionList(gl_extensions, "GL_ARB_texture_non_power_of_two"))
 	{
 		Con_Printf("FOUND: ARB_texture_non_power_of_two\n");
@@ -1404,6 +1450,8 @@ static void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-noglsl"))
 		Con_Warning ("GLSL disabled at command line\n");
+	else if (gl_ati_r300_force_gl1)
+		Con_Warning ("GLSL skipped on ATI R300 (Leopard driver GPU-hang -- forcing GL 1.x)\n");
 	else if (gl_version_major >= 2)
 	{
 		GL_CreateShaderFunc = (QS_PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
@@ -1524,6 +1572,8 @@ static void GL_CheckExtensions (void)
 	// glGenerateMipmap for warp textures
 	if (COM_CheckParm("-nowarpmipmaps"))
 		Con_Warning ("glGenerateMipmap disabled at command line\n");
+	else if (gl_ati_r300_force_gl1)
+		Con_Warning ("glGenerateMipmap skipped on ATI R300 (Leopard GL 1.x path)\n");
 	else
 	{
 		if (gl_version_major >= 3 || GL_ParseExtensionList(gl_extensions, "GL_ARB_framebuffer_object"))
@@ -1872,7 +1922,6 @@ void	VID_Init (void)
 {
 	static char vid_center[] = "SDL_VIDEO_CENTERED=center";
 	int		p, width, height, refreshrate, bpp;
-	int		display_width, display_height, display_refreshrate, display_bpp;
 	qboolean	fullscreen;
 	const char	*read_vars[] = { "vid_fullscreen",
 					 "vid_width",

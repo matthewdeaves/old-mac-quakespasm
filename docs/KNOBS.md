@@ -24,6 +24,15 @@ Updated 2026-05-29.
 |----------------|-------|---------|--------------|
 | `-perfprint` (cmdline) / `gl_perfprint` (cvar) | 7 | 0 (silent) | Per-region renderer timing every 60 frames — see Quake/gl_perfprint.h for region list |
 
+## iMac G5 / ATI R300 knobs (cmdline + cvar)
+
+| Flag/cvar | Default | What it does | File |
+|-----------|---------|--------------|------|
+| `-atigl` (cmdline) | off | **Override** the ATI R300 GL-1.x gate. By default, renderers matching `Radeon 9500/9600/9700/9800` (R300 family, e.g. the iMac G5's Radeon 9600) are forced onto the GL 1.x fixed-function path because their Leopard GL2 driver **hard-hangs the GPU on the GLSL/VBO path** (see MISTAKES.md 2026-05-31). `-atigl` re-enables the full GL 2.0 path for A/B retesting — **expect a wedge**. | `gl_vidsdl.c` `GL_CheckExtensions` |
+| `vid_desktopfullscreen` (cvar) | 0 | When 1, fullscreen uses the **captured desktop resolution + depth** (a same-mode display CAPTURE, not a mode SWITCH). Avoids the mode-switch that hard-hangs the R300 driver, and auto-selects each panel's native max res (17" iMac G5 1440x900, 20" 1680x1050) with no per-model hard-coding. Set to 1 in `autoexec-ppc970.cfg` (all G5s). SDL2 builds get this free via `SDL_WINDOW_FULLSCREEN_DESKTOP`; the SDL-1.2 substitution lives in `VID_SetMode`. Engine-default 0 so external-display machines (minis/towers) keep their tuned fixed res. | `gl_vidsdl.c` `VID_SetMode` |
+
+The R300 gate makes the existing `-noglsl -novbo -notexturenpot -nowarpmipmaps` switches redundant on these cards (the gate already skips all four), but they remain available for finer A/B.
+
 ## Visual cvars (runtime, set in per-machine autoexec)
 
 Per-machine configs live at
