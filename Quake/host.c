@@ -1025,6 +1025,27 @@ void Host_Init (void)
 					{ "PowerMac10,1", "autoexec-mini-g4"     },
 					{ "Macmini2,1",   "autoexec-mini-intel"  },
 					{ "iMac19,1",     "autoexec-imac-2019"   },
+					// iMac G5 family (ppc970) -> native-res desktopfullscreen
+					// overlay. Without this a Finder launch falls back to the
+					// ppc970 baseline's 1024x768, which is a MODE SWITCH the
+					// Radeon 9600 R300 driver can't survive -- the overlay's
+					// vid_desktopfullscreen makes it a same-mode CAPTURE.
+					// 8,2 = our bench unit (17" ALS Radeon 9600); 8,1 = 2004
+					// original; 12,1 = 2005 iSight. NVIDIA-GPU G5s also get
+					// native res here (the GL 1.x gate is renderer-scoped, so
+					// they keep GLSL).
+					{ "PowerMac8,1",  "autoexec-imac-g5"     },
+					{ "PowerMac8,2",  "autoexec-imac-g5"     },
+					{ "PowerMac12,1", "autoexec-imac-g5"     },
+					// iMac G4 "sunflower" family (ppc7400, GL 1.x non-R300, so
+					// no GLSL-hang risk) -> native-panel-res desktopfullscreen.
+					// Best-effort + UNTESTED on hardware (no iMac G4 in the
+					// fleet); a wrong/missing model id just falls back to the
+					// safe ppc7400 1024x768 baseline. 4,2 = 15" Flat Panel
+					// 2002; 6,1/6,3 = USB 2.0 15"/17"/20" 2003-04.
+					{ "PowerMac4,2",  "autoexec-imac-g4"     },
+					{ "PowerMac6,1",  "autoexec-imac-g4"     },
+					{ "PowerMac6,3",  "autoexec-imac-g4"     },
 				};
 				char model[64];
 				size_t mlen = sizeof(model);
