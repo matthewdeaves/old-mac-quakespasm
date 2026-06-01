@@ -89,5 +89,11 @@ qboolean VID_HasMouseOrInputFocus (void);
 qboolean VID_IsMinimized (void);
 void	VID_Lock (void);
 
+// sysreport: expose the live GL driver strings (captured at GL init) so the
+// in-engine spec/benchmark report can record the renderer of the machine it
+// runs on. Any out pointer may be NULL. Returned strings are owned by the
+// video backend -- do not free; valid for the lifetime of the GL context.
+void	VID_GetGLStrings (const char **vendor, const char **renderer, const char **version);
+
 #endif	/* __VID_DEFS_H */
 
