@@ -64,6 +64,8 @@ void Con_LogCenterPrint (const char *str);
 void LOG_Init (quakeparms_t *parms);
 void LOG_Close (void);
 void Con_DebugLog (const char *msg);
+void Con_LogStart (void);		// sysreport: open/clear the console log
+const char *Con_LogFilename (void);	// sysreport: active log path, or NULL
 
 #endif	/* __CONSOLE_H */
 

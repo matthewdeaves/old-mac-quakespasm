@@ -479,6 +479,49 @@ void Con_DebugLog(const char *msg)
 	}
 }
 
+/*
+================
+Con_LogStart -- sysreport
+
+Ensure qconsole.log exists, is active, and starts FRESH for this run, so a
+copy of it captures exactly the sysreport output (all demo runs) and nothing
+from earlier in the session. Safe whether or not -condebug already opened the
+log: if already open it is truncated; otherwise it is opened in com_basedir.
+================
+*/
+void Con_LogStart (void)
+{
+	if (log_fd != -1)
+	{
+		// already logging (e.g. -condebug) -- rewind + truncate to clear it
+		lseek (log_fd, 0, SEEK_SET);
+		if (ftruncate (log_fd, 0) != 0)
+			Sys_Printf ("Con_LogStart: could not truncate %s\n", logfilename);
+		return;
+	}
+
+	q_snprintf (logfilename, sizeof(logfilename), "%s/qconsole.log", com_basedir);
+	log_fd = open (logfilename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	if (log_fd == -1)
+	{
+		Sys_Printf ("Con_LogStart: unable to create log file %s\n", logfilename);
+		return;
+	}
+	con_debuglog = true;
+}
+
+/*
+================
+Con_LogFilename -- sysreport
+
+Path of the active console log, or NULL if logging is not enabled.
+================
+*/
+const char *Con_LogFilename (void)
+{
+	return (log_fd != -1) ? logfilename : NULL;
+}
+
 
 /*
 ================

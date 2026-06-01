@@ -1022,6 +1022,21 @@ static void GL_Info_f (void)
 
 /*
 ===============
+VID_GetGLStrings -- sysreport accessor for the GL driver strings
+===============
+*/
+void VID_GetGLStrings (const char **vendor, const char **renderer, const char **version)
+{
+	if (vendor)
+		*vendor = gl_vendor;
+	if (renderer)
+		*renderer = gl_renderer;
+	if (version)
+		*version = gl_version;
+}
+
+/*
+===============
 GL_CheckExtensions
 ===============
 */
