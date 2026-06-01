@@ -37,6 +37,17 @@ extern NSString *FQPrefScreenModeKey;
     BOOL bypassedLauncher;  // YES when -nolauncher skipped the GUI -- don't
                             // overwrite the user's saved launcher defaults
                             // with bench/screenshot script command lines.
+
+    // --- programmatic settings GUI (Option-gated) ---------------------
+    NSWindow *settingsWindow;
+    NSPopUpButton *sgScreenModePopUp;   // resolution
+    NSButton *sgFullscreenCheck;
+    NSTextField *sgAdvancedField;       // extra command line
+    NSMutableArray *sgControls;         // NSControl* per setting (tag = index)
+    NSMutableArray *sgReadouts;         // NSTextField* slider value labels (or NSNull)
+    NSMutableArray *sgOrigValues;       // NSString* preset value per setting
+    NSMutableArray *sgItems;            // NSValue (qsitem_t*) per setting
+    NSMutableDictionary *sgCfgDefaults; // cvar -> value parsed from bundle cfgs
 }
 
 - (IBAction)changeScreenMode:(id)sender;
@@ -44,5 +55,11 @@ extern NSString *FQPrefScreenModeKey;
 - (IBAction)cancel:(id)sender;
 
 - (NSArray *)screenModes;
+
+// settings GUI (Option-gated)
+- (void)showSettingsWindow;
+- (IBAction)sgSliderChanged:(id)sender;
+- (IBAction)sgLaunch:(id)sender;
+- (IBAction)sgRunBenchmark:(id)sender;
 
 @end

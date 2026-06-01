@@ -230,7 +230,9 @@ CFLAGS+= -DUSE_CODEC_UMX
 endif
 CFLAGS+= $(CODEC_INC)
 
-COMMON_LIBS= -Wl,-framework,IOKit -Wl,-framework,OpenGL
+# Carbon: the launcher uses GetCurrentKeyModifiers() for the Option-key gate
+# (HIToolbox, 64-bit-safe on all targets incl. Lion x86_64).
+COMMON_LIBS= -Wl,-framework,IOKit -Wl,-framework,OpenGL -Wl,-framework,Carbon
 
 LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODEC_LINK) $(CODECLIBS)
 

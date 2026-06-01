@@ -487,9 +487,22 @@ static float	sysreport_fps[SYSREPORT_NUM_DEMOS][SYSREPORT_NUM_RUNS];
 // result of the timedemo that just finished, stashed by CL_FinishTimeDemo
 static float	sysreport_last_fps;
 
+// audio volumes saved at sysreport start, restored at finish (the benchmark
+// runs silent regardless of how the engine was launched)
+static float	sysreport_saved_volume;
+static float	sysreport_saved_bgmvolume;
+
 static qboolean CL_SysReport_Active (void)
 {
 	return sysreport_running;
+}
+
+// end a sysreport run (normal completion or abort): restore audio + clear flag
+static void CL_SysReport_Finish (void)
+{
+	sysreport_running = false;
+	Cvar_SetValue ("volume", sysreport_saved_volume);
+	Cvar_SetValue ("bgmvolume", sysreport_saved_bgmvolume);
 }
 
 static float SR_MedianN (const float *v, int n)
@@ -1036,8 +1049,8 @@ static void CL_SysReport_Step (void)
 
 	if (sysreport_demo >= sysreport_ndemos)
 	{
-		sysreport_running = false;
 		CL_SysReport_Write ();
+		CL_SysReport_Finish ();
 		return;
 	}
 
@@ -1077,6 +1090,13 @@ void CL_SysReport_f (void)
 	sysreport_demo = 0;
 	sysreport_run = 0;
 	sysreport_running = true;
+
+	// run the benchmark silent: save + zero the audio volumes (restored in
+	// CL_SysReport_Finish). Keeps fps clean and spares the user the demo audio.
+	sysreport_saved_volume = Cvar_VariableValue ("volume");
+	sysreport_saved_bgmvolume = Cvar_VariableValue ("bgmvolume");
+	Cvar_SetValue ("volume", 0);
+	Cvar_SetValue ("bgmvolume", 0);
 
 	// clear/open the console log so the Desktop copy covers exactly this run
 	Con_LogStart ();
@@ -1138,7 +1158,7 @@ void CL_TimeDemo_f (void)
 		// stalling forever waiting for a CL_FinishTimeDemo that won't come.
 		if (CL_SysReport_Active ())
 		{
-			sysreport_running = false;
+			CL_SysReport_Finish ();
 			Con_Printf ("sysreport: aborted -- demo '%s' not found (need id1/pak0.pak)\n", Cmd_Argv(1));
 		}
 		return;
