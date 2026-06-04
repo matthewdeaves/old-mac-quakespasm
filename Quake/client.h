@@ -350,6 +350,16 @@ void CL_NewTranslation (int slot);
 void CL_DumpPacket_f (void);
 
 //
+// cl_watchlink.c -- live player-state UDP feed to a companion (Apple Watch)
+//
+void CL_WatchLink_Init (void);
+void CL_WatchLink_Frame (void);
+void CL_WatchLink_CenterPrint (const char *str);
+void CL_WatchLink_Damage (int armor, int blood);
+void CL_WatchLink_Sound (const char *cfgname);
+void CL_WatchLink_Event (const char *kind, const char *detail);
+
+//
 // view
 //
 void V_StartPitchDrift (void);

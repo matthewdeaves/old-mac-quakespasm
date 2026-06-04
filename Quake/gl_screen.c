@@ -146,6 +146,7 @@ for a few moments
 */
 void SCR_CenterPrint (const char *str) //update centerprint data
 {
+	CL_WatchLink_CenterPrint (str); // mirror story/pickup text to the companion
 	strncpy (scr_centerstring, str, sizeof(scr_centerstring)-1);
 	scr_centertime_off = scr_centertime.value;
 	scr_centertime_start = cl.time;

@@ -47,6 +47,7 @@
 		483A78470D2EEAAB00CB2E4C /* cl_main.c in Sources */ = {isa = PBXBuildFile; fileRef = 483A783C0D2EEAAB00CB2E4C /* cl_main.c */; };
 		483A78480D2EEAAB00CB2E4C /* cl_parse.c in Sources */ = {isa = PBXBuildFile; fileRef = 483A783D0D2EEAAB00CB2E4C /* cl_parse.c */; };
 		483A78490D2EEAAB00CB2E4C /* cl_tent.c in Sources */ = {isa = PBXBuildFile; fileRef = 483A783E0D2EEAAB00CB2E4C /* cl_tent.c */; };
+		FACE0001D2EEAAB00CB2E4C0 /* cl_watchlink.c in Sources */ = {isa = PBXBuildFile; fileRef = FACE0002D2EEAAB00CB2E4C0 /* cl_watchlink.c */; };
 		483A784A0D2EEAAB00CB2E4C /* net_main.c in Sources */ = {isa = PBXBuildFile; fileRef = 483A783F0D2EEAAB00CB2E4C /* net_main.c */; };
 		483A784C0D2EEAAB00CB2E4C /* sv_main.c in Sources */ = {isa = PBXBuildFile; fileRef = 483A78410D2EEAAB00CB2E4C /* sv_main.c */; };
 		483A784D0D2EEAAB00CB2E4C /* sv_move.c in Sources */ = {isa = PBXBuildFile; fileRef = 483A78420D2EEAAB00CB2E4C /* sv_move.c */; };
@@ -241,6 +242,7 @@
 		483A783C0D2EEAAB00CB2E4C /* cl_main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cl_main.c; path = ../Quake/cl_main.c; sourceTree = SOURCE_ROOT; };
 		483A783D0D2EEAAB00CB2E4C /* cl_parse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cl_parse.c; path = ../Quake/cl_parse.c; sourceTree = SOURCE_ROOT; };
 		483A783E0D2EEAAB00CB2E4C /* cl_tent.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cl_tent.c; path = ../Quake/cl_tent.c; sourceTree = SOURCE_ROOT; };
+		FACE0002D2EEAAB00CB2E4C0 /* cl_watchlink.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cl_watchlink.c; path = ../Quake/cl_watchlink.c; sourceTree = SOURCE_ROOT; };
 		483A783F0D2EEAAB00CB2E4C /* net_main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = net_main.c; path = ../Quake/net_main.c; sourceTree = SOURCE_ROOT; };
 		483A78410D2EEAAB00CB2E4C /* sv_main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sv_main.c; path = ../Quake/sv_main.c; sourceTree = SOURCE_ROOT; };
 		483A78420D2EEAAB00CB2E4C /* sv_move.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sv_move.c; path = ../Quake/sv_move.c; sourceTree = SOURCE_ROOT; };
@@ -566,6 +568,7 @@
 				483A783C0D2EEAAB00CB2E4C /* cl_main.c */,
 				483A783D0D2EEAAB00CB2E4C /* cl_parse.c */,
 				483A783E0D2EEAAB00CB2E4C /* cl_tent.c */,
+				FACE0002D2EEAAB00CB2E4C0 /* cl_watchlink.c */,
 				48134A1412102F400015BF15 /* net_bsd.c */,
 				48728D280D3004A70004D61B /* net_dgrm.c */,
 				48728D2A0D3004A80004D61B /* net_loop.c */,
@@ -776,6 +779,7 @@
 				483A78470D2EEAAB00CB2E4C /* cl_main.c in Sources */,
 				483A78480D2EEAAB00CB2E4C /* cl_parse.c in Sources */,
 				483A78490D2EEAAB00CB2E4C /* cl_tent.c in Sources */,
+				FACE0001D2EEAAB00CB2E4C0 /* cl_watchlink.c in Sources */,
 				483A784A0D2EEAAB00CB2E4C /* net_main.c in Sources */,
 				483A784C0D2EEAAB00CB2E4C /* sv_main.c in Sources */,
 				483A784D0D2EEAAB00CB2E4C /* sv_move.c in Sources */,

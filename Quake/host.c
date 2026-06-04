@@ -817,6 +817,8 @@ void _Host_Frame (float time)
 	if (cls.state == ca_connected)
 		CL_ReadFromServer ();
 
+	CL_WatchLink_Frame (); // push live player state to the companion app
+
 // update video
 	if (host_speeds.value)
 		time1 = Sys_DoubleTime ();

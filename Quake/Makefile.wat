@@ -207,6 +207,7 @@ OBJS = strlcat.obj &
 	cl_main.obj &
 	cl_parse.obj &
 	cl_tent.obj &
+	cl_watchlink.obj &
 	console.obj &
 	keys.obj &
 	menu.obj &

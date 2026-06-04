@@ -327,6 +327,8 @@ void V_ParseDamage (void)
 	v_dmg_pitch = count*side*v_kickpitch.value;
 
 	v_dmg_time = v_kicktime.value;
+
+	CL_WatchLink_Damage (armor, blood); // buzz the companion the instant we're hit
 }
 
 

@@ -192,6 +192,10 @@ void CL_ParseStartSoundPacket(void)
 	for (i = 0; i < 3; i++)
 		pos[i] = MSG_ReadCoord (cl.protocolflags);
 
+	// mirror the LOCAL player's vocal / pickup sounds to the watch companion
+	if (ent == cl.viewentity && cl.sound_precache[sound_num])
+		CL_WatchLink_Sound (cl.sound_precache[sound_num]->name);
+
 	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 }
 

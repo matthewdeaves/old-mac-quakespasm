@@ -828,5 +828,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("tracepos", CL_Tracepos_f); //johnfitz
 	Cmd_AddCommand ("viewpos", CL_Viewpos_f); //johnfitz
 	Cmd_AddCommand ("dumppacket", CL_DumpPacket_f);
+
+	CL_WatchLink_Init (); // companion-app UDP feed (off unless watch_host set)
 }
 

@@ -158,6 +158,26 @@ Modern macOS will quarantine the unsigned bundle — either right-click → Open
 - [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
 - [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
 
+## Tactical Computer — live Apple Watch companion
+
+The engine can stream the ranger's live state — health, armor, ammo, weapon,
+powerups, pickups and damage — out over UDP to a wrist-worn "tactical computer".
+An iPhone receives it on the LAN and relays it to an Apple Watch rendering an
+amber-phosphor terminal HUD with damage haptics. It's the **same companion** that
+drives [old-mac-quake2](https://github.com/matthewdeaves/old-mac-quake2): same
+JSON wire format, same UDP port, same Bonjour service — so one app handles both
+games. Quake 1 has no in-game help computer, so the watch shows a graceful
+cut-down HUD (sector + vitals, no objectives panel).
+
+**Off by default** — the whole thing is gated on the `watch_host` cvar (empty ⇒
+no socket, no per-frame work, no packets), so the fleet build and benchmarks are
+untouched. Point it at a host (`set watch_host "192.168.1.50"`) or let it find
+the phone over Bonjour (`set watch_host "auto"`). Debug with `nc -ul 27999`.
+
+The companion app (iPhone relay + watchOS app) lives in its own repo:
+**[quake2-tactical-watch](https://github.com/matthewdeaves/quake2-tactical-watch)**.
+Engine details in [`docs/WATCHLINK.md`](docs/WATCHLINK.md).
+
 ## Sister projects
 
 - [**old-mac-quake2**](https://github.com/matthewdeaves/old-mac-quake2) — the same six-machine PPC + Intel fleet, same tooling, applied to **yquake2 5.11** as base. Shares the cross-build host, scripts, and per-machine autoexec pattern; cross-pollinates features (GL_FOG cvar layer, underwater warp magnitude dial, anisotropic caps) between the two engines.
