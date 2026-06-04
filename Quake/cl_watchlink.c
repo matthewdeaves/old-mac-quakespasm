@@ -134,6 +134,7 @@ static char		watch_last_vitals[1024];/* last vitals payload (change-detect) */
 static qboolean		watch_meta_pending;	/* meta queued; send once dest resolves */
 static char		watch_lastmap[128];	/* detect map changes to re-arm + send meta */
 static char		watch_last_cp[1024];	/* last centerprint forwarded (dedup re-fires) */
+static int		watch_dmg_flash;	/* pending damage bits, mirrored into the next vitals "flashes" */
 
 #ifdef WATCHLINK_BONJOUR
 static DNSServiceRef	watch_browse_ref;
@@ -588,6 +589,7 @@ CL_WatchLink_Init (void)
 	watch_last_vitals[0] = '\0';
 	watch_lastmap[0] = '\0';
 	watch_last_cp[0] = '\0';
+	watch_dmg_flash = 0;
 	/* watch_host_seen's "\001" sentinel forces the first WatchLink_Sync to
 	   reconcile, so an archived watch_host (incl. "auto") is honoured at
 	   launch without needing a console edit. */
@@ -655,6 +657,14 @@ CL_WatchLink_Damage (int armor, int blood)
 {
 	char	detail[64];
 
+	/* Mirror the hit into the vitals "flashes" bitfield (1=blood, 2=armor),
+	   matching Quake II's STAT_FLASHES wire shape. The discrete event below is
+	   the instant path but is droppable (sendMessage); the vitals heartbeat
+	   rides the always-delivered app context, so this guarantees the wrist
+	   still buzzes/flashes -- including armor-only hits that don't drop HP.
+	   Cleared once the next heartbeat carries it. */
+	watch_dmg_flash |= ((blood > 0) ? 1 : 0) | ((armor > 0) ? 2 : 0);
+
 	q_snprintf (detail, sizeof(detail),
 			",\"health\":%d,\"armor\":%d,\"ammo\":0",
 			(blood > 0) ? 1 : 0, (armor > 0) ? 1 : 0);
@@ -687,7 +697,11 @@ CL_WatchLink_Sound (const char *cfgname)
 	else if (!strncmp (cfgname, "items/", 6))
 		p = cfgname + 6;		/* pickups / powerups */
 	else if (strstr (cfgname, "pkup"))
-		p = cfgname;			/* ammo / weapon pickup */
+		p = cfgname;			/* weapon pickup (weapons/pkup.wav) */
+	else if (strstr (cfgname, "lock4"))
+		p = cfgname;			/* ammo + backpack pickup (weapons/lock4.wav) */
+	else if (!strncmp (cfgname, "misc/", 5) && strstr (cfgname, "key"))
+		p = cfgname + 5;		/* door / rune keys (misc/medkey|runekey|basekey.wav) */
 	else
 		return;				/* not a player-feedback sound */
 
@@ -754,6 +768,7 @@ WatchLink_Reconnect (void)
 	watch_last_send = 0;
 	watch_last_vitals[0] = '\0';
 	watch_last_cp[0] = '\0';   /* re-allow this map's centerprints */
+	watch_dmg_flash = 0;
 	watch_sent_count = 0;
 
 #ifdef WATCHLINK_BONJOUR
@@ -851,9 +866,10 @@ CL_WatchLink_Frame (void)
 		}
 	}
 
-	/* Quake 1 has no STAT_FLASHES / STAT_LAYOUTS / spectator: send 0 for those
-	   (damage drives the watch haptic via the discrete event above), keeping
-	   the wire shape identical to the Quake II feed. */
+	/* Quake 1 has no STAT_LAYOUTS / spectator: send 0 for those. "flashes"
+	   carries watch_dmg_flash -- the damage bits set by CL_WatchLink_Damage --
+	   so the wrist buzz rides the reliable vitals context (cleared once sent),
+	   keeping the wire shape identical to the Quake II feed. */
 	q_snprintf (line, sizeof(line),
 			"{\"t\":\"vitals\",\"game\":\"q1\","
 			"\"hp\":%d,\"armor\":%d,\"ammo\":%d,"
@@ -862,7 +878,7 @@ CL_WatchLink_Frame (void)
 			"\"pu\":{\"icon\":\"%s\",\"sec\":%d}}\n",
 			st[STAT_HEALTH], st[STAT_ARMOR], st[STAT_AMMO],
 			sel,
-			st[STAT_FRAGS], 0, 0, 0,
+			st[STAT_FRAGS], watch_dmg_flash, 0, 0,
 			pu_icon, pu_sec);
 
 	/* Cut the packet flood: only send when the vitals actually changed, plus a
@@ -875,4 +891,5 @@ CL_WatchLink_Frame (void)
 	watch_last_send = realtime;
 	q_strlcpy (watch_last_vitals, line, sizeof(watch_last_vitals));
 	WatchLink_Send (line);
+	watch_dmg_flash = 0;	/* edge delivered; next heartbeat clears it on the wire */
 }

@@ -59,17 +59,22 @@ Endianness-proof on the big-endian PPC fleet; debuggable with `nc -ul 27999`.
   `sel` is the active weapon name (mapped from `cl.stats[STAT_ACTIVEWEAPON]`).
   `pu.icon` is one of `quad` / `pent` / `ring` / `envir` (Quad, Pentagram,
   Ring of Shadows, Biosuit) with `sec` estimated from `cl.item_gettime` against
-  Quake's 30-second powerup duration. Quake 1 has no `STAT_FLASHES`,
-  `STAT_LAYOUTS` or spectator stat, so `flashes` / `layouts` / `spec` are always
-  `0` — the wire shape is kept identical to the Quake II feed.
+  Quake's 30-second powerup duration. Quake 1 has no `STAT_LAYOUTS` or
+  spectator stat, so `layouts` / `spec` are always `0`. `flashes` mirrors the
+  most recent `svc_damage` (bit 1 = blood, bit 2 = armor) so the wrist buzz
+  rides the reliable vitals heartbeat as well as the discrete `damage` event;
+  it clears the moment the heartbeat carries it. The wire shape is kept
+  identical to the Quake II feed.
 - **meta** — level name (`cl.levelname`, falling back to `cl.mapname`) plus the
   weapons currently owned (synthesised from `cl.items`; Quake 1 has no item-name
   configstring table). Sent once per map load, sub-MTU so it never fragments.
 - **event/centerprint** — mirrors `SCR_CenterPrint` (pickups, story text).
 - **event/damage** — fired the instant `svc_damage` arrives, for a wrist haptic;
   `health`/`armor` flag which subsystem took the hit.
-- **event/psound** — the local player's vocal / pickup sounds (`player/*`,
-  `items/*`, `*pkup*`), forwarded as the bare basename.
+- **event/psound** — the local player's vocal / pickup sounds, forwarded as the
+  bare basename: `player/*` (vocals), `items/*` (health/armor/powerups),
+  `weapons/pkup.wav` (weapon pickup), `weapons/lock4.wav` (ammo + backpack
+  pickup), and `misc/*key*.wav` (door / rune keys).
 
 There is **no** `objectives` event (Quake 1 has no F1 help computer); the
 companion shows the sector name only and hides its objectives panel.
