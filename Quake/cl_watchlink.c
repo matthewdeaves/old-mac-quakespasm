@@ -836,7 +836,7 @@ CL_WatchLink_Frame (void)
 	   (damage drives the watch haptic via the discrete event above), keeping
 	   the wire shape identical to the Quake II feed. */
 	q_snprintf (line, sizeof(line),
-			"{\"t\":\"vitals\","
+			"{\"t\":\"vitals\",\"game\":\"q1\","
 			"\"hp\":%d,\"armor\":%d,\"ammo\":%d,"
 			"\"sel\":\"%s\","
 			"\"frags\":%d,\"flashes\":%d,\"layouts\":%d,\"spec\":%d,"
