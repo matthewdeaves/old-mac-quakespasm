@@ -785,6 +785,14 @@ CL_WatchLink_Frame (void)
 	if (!watch_host.string[0])
 		return;			/* feature off -- stay fully inert */
 
+	/* A timedemo benchmark (incl. the sysreport grid) is running: stay fully
+	   inert so the feed never perturbs the FPS measurement. The fleet cfg sets
+	   watch_host "auto", so a benchmark on a fleet box would otherwise pay for
+	   WatchLink_Sync()/discovery every frame. The demoplayback guard below also
+	   covers it, but bailing here first keeps the benchmark frame truly clean. */
+	if (cls.timedemo)
+		return;
+
 	WatchLink_Sync ();
 
 	/* only meaningful once a human is actually in a level; never stream the
