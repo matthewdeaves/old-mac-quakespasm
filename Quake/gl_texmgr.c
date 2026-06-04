@@ -944,11 +944,22 @@ static unsigned *TexMgr_MipMapW (unsigned *data, int width, int height)
 
 		for (v = 0; v < vec_iters; v++, out += 16, in += 32)
 		{
-			// Unaligned-safe load of 32 bytes via lvsl + double-load.
+			// Unaligned-safe load of 32 bytes as two independent 16-byte
+			// unaligned loads (each lvsl + lo/hi aligned pair).
+			// v0 = bytes [0..15]:  perm(ld(0), ld(15))
+			// v1 = bytes [16..31]: perm(ld(16), ld(31))
+			// NB raw1_lo must be vec_ld(16,in), NOT a reuse of raw0_hi
+			// (=vec_ld(15,in)): the two aligned blocks coincide only when
+			// `in` is mis-aligned. The texture buffer is 16-byte aligned and
+			// `in` advances by 32 each iter, so it is aligned on EVERY iter --
+			// reusing raw0_hi made v1 collapse to v0 (right half of each
+			// 4-pixel group duplicated the left), i.e. the distant-surface
+			// mipmap blur. Same lvsl shift works for both: in+16 shares in's
+			// alignment.
 			vector unsigned char shift = vec_lvsl (0, in);
 			vector unsigned char raw0_lo = vec_ld ( 0, in);
 			vector unsigned char raw0_hi = vec_ld (15, in);
-			vector unsigned char raw1_lo = raw0_hi;
+			vector unsigned char raw1_lo = vec_ld (16, in);
 			vector unsigned char raw1_hi = vec_ld (31, in);
 			vector unsigned char v0 = vec_perm (raw0_lo, raw0_hi, shift);
 			vector unsigned char v1 = vec_perm (raw1_lo, raw1_hi, shift);
