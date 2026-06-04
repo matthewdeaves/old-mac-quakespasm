@@ -69,13 +69,18 @@ if [ ! -f "$BIN" ]; then
   scripts/build-fat.sh
 fi
 # Sanity: must be the multi-slice fat, not a stray single-arch binary.
-# Note `file` prints the subtypes with underscores (ppc_750 / ppc_7400 /
-# ppc_970). Checking the two endpoints (oldest PPC + Intel) is enough to
-# distinguish the fat from any single-arch slice.
-if ! file "$BIN" | grep -q 'ppc_750' || ! file "$BIN" | grep -q 'x86_64'; then
-  echo "[make-dmg] $BIN is not the 4-arch fat binary — run scripts/build-fat.sh" >&2
-  exit 1
-fi
+# Use lipo (reads the Mach header directly) rather than file(1): file's ppc
+# subtype names vary by host/toolchain — on an Apple-silicon workstation it
+# renders the ppc750 slice as "ppc_650", so the old `file | grep ppc_750`
+# check spuriously failed on a perfectly good 4-arch fat. lipo -archs is
+# authoritative and stable.
+ARCHS=$(lipo -archs "$BIN" 2>/dev/null || echo)
+for a in ppc750 ppc7400 ppc970 x86_64; do
+  case " $ARCHS " in
+    *" $a "*) ;;
+    *) echo "[make-dmg] $BIN is not the 4-arch fat binary (missing $a; got: ${ARCHS:-none}) — run scripts/build-fat.sh" >&2; exit 1;;
+  esac
+done
 
 # ---- stage the disk-image contents (Quakespasm.app + pak + README) -------
 STAGE=$(mktemp -d -t qs-dmg.XXXXXX)
