@@ -369,6 +369,7 @@ void CL_SysReport_f (void);
 void CL_ParseServerMessage (void);
 void CL_NewTranslation (int slot);
 void CL_DumpPacket_f (void);
+void CL_LoadPrecaches (void);	// (re)resolve model/sound precache name lists
 
 //
 // cl_download.c

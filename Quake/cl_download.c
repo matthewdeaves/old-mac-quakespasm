@@ -243,7 +243,14 @@ static void CL_Download_Finished_f (void)
 
 	Con_Printf ("Downloaded: %s\n", name);
 
-	// Reload the file into the appropriate precache slot.
+	// Load the downloaded file into its precache slot so CL_CheckDownloads sees
+	// it present and advances past it. We deliberately do NOT call R_NewMap here
+	// even for the world model: the world's inline brush submodels (*1..*N --
+	// doors, lifts, platforms) only become loadable once the parent .bsp is on
+	// disk, and they're still NULL at this point. R_NewMap -> GL_BuildBModelVAR
+	// would then dereference a NULL inline model and crash. R_NewMap is deferred
+	// to CL_CheckDownloads, which first (re)loads the full precache list
+	// (including the now-resolvable inline submodels) via CL_LoadPrecaches.
 	// Model?
 	{
 		int i;
@@ -252,12 +259,6 @@ static void CL_Download_Finished_f (void)
 			if (!q_strcasecmp(cl.model_name[i], name) && !cl.model_precache[i])
 			{
 				cl.model_precache[i] = Mod_ForName (name, false);
-				if (i == 1 && cl.model_precache[1] && !cl.worldinit)
-				{
-					cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
-					R_NewMap ();
-					cl.worldinit = true;
-				}
 				break;
 			}
 		}
@@ -443,12 +444,17 @@ qboolean CL_CheckDownloads (void)
 		Con_DPrintf ("Missing sound: %s\n", cl.sound_name[i]);
 	}
 
-	// All content is present (or best-effort without downloads).
-	// If R_NewMap hasn't been called yet (world was downloaded), do it now.
+	// All downloadable content is present (or best-effort without downloads).
+	// If R_NewMap hasn't run yet (the world was just downloaded), do it now --
+	// but first (re)load the whole precache list so the world's inline brush
+	// submodels (*1..*N), which only resolve once the parent .bsp is on disk,
+	// are loaded before R_NewMap -> GL_BuildBModelVAR builds their vertex arrays.
+	// Skipping this crashes on a NULL inline model.
 	if (!cl.worldinit)
 	{
 		if (cl.model_precache[1])
 		{
+			CL_LoadPrecaches ();	// resolve inline submodels + any deferred precaches
 			cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
 			R_NewMap ();
 			cl.worldinit = true;
