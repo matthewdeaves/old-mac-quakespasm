@@ -106,6 +106,11 @@ void CL_Disconnect (void)
 	if (key_dest == key_message)
 		Key_EndChat ();	// don't get stuck in chat mode
 
+// abort any in-flight download: close the temp file + unlink it so the next
+// connection starts clean (download state lives in cls, which CL_ClearState
+// does NOT wipe).
+	CL_StopDownload ();
+
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
 	BGM_Stop();

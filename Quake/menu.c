@@ -2475,6 +2475,13 @@ void M_ServerList_Draw (void)
 		NET_SlistSort ();
 	}
 
+	/* Re-clamp cursor: hostCacheCount can shrink (e.g. a fresh search) while
+	   this menu is up, otherwise the cursor/scroll index can run past the list. */
+	if (slist_cursor >= hostCacheCount)
+		slist_cursor = hostCacheCount - 1;
+	if (slist_cursor < 0)
+		slist_cursor = 0;
+
 	/* Keep scroll window around the cursor */
 	if (slist_cursor < slist_scroll)
 		slist_scroll = slist_cursor;

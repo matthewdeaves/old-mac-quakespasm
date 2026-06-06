@@ -93,6 +93,17 @@ static void CL_Download_Begin_f (void)
 		return;
 	}
 
+	// SECURITY: the name arrives via server stuffcmd — re-validate before we
+	// build a filesystem path from it (defense in depth; CL_CheckDownloads
+	// already screened cls.download.current).
+	if (!COM_DownloadNameOkay (name))
+	{
+		Con_Printf ("Refusing unsafe download name: %s\n", name);
+		CL_StopDownload ();
+		CL_CheckDownloads ();
+		return;
+	}
+
 	if (size < 0)
 	{
 		// Server refused or file not found.
@@ -100,6 +111,16 @@ static void CL_Download_Begin_f (void)
 		CL_StopDownload ();
 		// CL_CheckDownloads already advanced the cursor before queuing the
 		// request, so calling it again moves to the next missing file.
+		CL_CheckDownloads ();
+		return;
+	}
+
+	// SECURITY: cap the server-declared size (matches the server-side serve cap)
+	// so a hostile server can't make us allocate/write an enormous temp file.
+	if (size > 50*1024*1024)
+	{
+		Con_Printf ("Refusing oversized download (%d bytes): %s\n", size, name);
+		CL_StopDownload ();
 		CL_CheckDownloads ();
 		return;
 	}
@@ -171,27 +192,37 @@ static void CL_Download_Finished_f (void)
 		goto discard;
 	}
 
-	// Verify CRC.
-	buf = (byte *)malloc (size);
-	if (buf)
+	// Verify CRC. Any failure to *complete* the check (alloc/open/read) must
+	// discard — never rename an unverified file into place. CRC is integrity
+	// only (CRC16 is forgeable), not authentication, but a clean check is the
+	// floor before we hand the bytes to the model/sound loaders.
 	{
-		FILE *f = fopen (cls.download.temp, "rb");
-		if (f)
+		FILE *f;
+		size_t got;
+
+		buf = (size > 0) ? (byte *)malloc (size) : NULL;
+		if (!buf)
 		{
-			if (fread(buf, 1, size, f) == (size_t)size)
-			{
-				computed_crc = CRC_Block (buf, size);
-				if (computed_crc != (unsigned short)crc)
-				{
-					fclose(f);
-					free(buf);
-					Con_Printf ("Download %s: CRC mismatch — discarding\n", name);
-					goto discard;
-				}
-			}
-			fclose (f);
+			Con_Printf ("Download %s: out of memory verifying — discarding\n", name);
+			goto discard;
 		}
+		f = fopen (cls.download.temp, "rb");
+		if (!f)
+		{
+			free (buf);
+			Con_Printf ("Download %s: can't reopen temp to verify — discarding\n", name);
+			goto discard;
+		}
+		got = fread (buf, 1, size, f);
+		fclose (f);
+		computed_crc = CRC_Block (buf, size);
 		free (buf);
+
+		if (got != (size_t)size || computed_crc != (unsigned short)crc)
+		{
+			Con_Printf ("Download %s: CRC/read mismatch — discarding\n", name);
+			goto discard;
+		}
 	}
 
 	// Move temp → final.
@@ -292,7 +323,9 @@ void CL_Download_Data (void)
 	byte	buf[4096];
 
 	start = MSG_ReadLong ();
-	size  = MSG_ReadShort ();
+	size  = MSG_ReadShort ();	// NB: signed — 0x8000..0xFFFF read as negative,
+					// which the bounds check below rejects. Do not
+					// widen this to unsigned without re-checking buf[].
 
 	if (size < 0 || size > (int)sizeof(buf))
 	{
@@ -307,13 +340,26 @@ void CL_Download_Data (void)
 			buf[j] = (byte)MSG_ReadByte ();
 	}
 
-	// Ack immediately.
+	// Ack immediately (even bad chunks, so the server's window advances).
 	MSG_WriteByte (&cls.message, clcdp_ackdownloaddata);
 	MSG_WriteLong (&cls.message, start);
 	MSG_WriteShort (&cls.message, (short)size);
 
 	if (!cls.download.active || !cls.download.file)
 		return; // download was cancelled; keep acking to drain the pipe
+
+	// SECURITY: clamp the server-controlled write offset to the declared file
+	// size so a malicious server can't fseek us to ~2GB and balloon the temp
+	// file (DoS / fill the disk on a vintage Mac). start+size must stay within
+	// the size announced in cl_downloadbegin.
+	if (start < 0 || start > cls.download.size ||
+	    size > cls.download.size - start)
+	{
+		Con_Printf ("CL_Download_Data: chunk [%d+%d] outside declared size %d\n",
+		            start, size, cls.download.size);
+		CL_StopDownload ();
+		return;
+	}
 
 	if (fseek(cls.download.file, start, SEEK_SET) != 0 ||
 	    fwrite(buf, 1, size, cls.download.file) != (size_t)size)
@@ -353,7 +399,10 @@ qboolean CL_CheckDownloads (void)
 		if (cl.model_name[i][0] == '*')
 			continue;
 
-		if (allow_download.value && cl.protocol_dpdownload)
+		// SECURITY: never download a name we wouldn't be allowed to write.
+		// The server's name is fully untrusted; validate before we ask.
+		if (allow_download.value && cl.protocol_dpdownload &&
+		    COM_DownloadNameOkay (cl.model_name[i]))
 		{
 			q_strlcpy (cls.download.current, cl.model_name[i],
 			           sizeof(cls.download.current));
@@ -365,7 +414,7 @@ qboolean CL_CheckDownloads (void)
 			    va("download \"%s\"\n", cl.model_name[i]));
 			return false;
 		}
-		// No download support: warn but continue.
+		// No download support, or unsafe name: warn but continue.
 		Con_DPrintf ("Missing model: %s\n", cl.model_name[i]);
 	}
 
@@ -377,7 +426,9 @@ qboolean CL_CheckDownloads (void)
 		if (cl.sound_precache[i])
 			continue;
 
-		if (allow_download.value && cl.protocol_dpdownload)
+		// SECURITY: validate the untrusted server name before requesting.
+		if (allow_download.value && cl.protocol_dpdownload &&
+		    COM_DownloadNameOkay (cl.sound_name[i]))
 		{
 			q_strlcpy (cls.download.current, cl.sound_name[i],
 			           sizeof(cls.download.current));

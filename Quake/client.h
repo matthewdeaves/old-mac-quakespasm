@@ -131,7 +131,8 @@ typedef struct
 	struct qsocket_s	*netcon;
 	sizebuf_t	message;		// writing buffer to send to server
 
-// active download (one file at a time, cleared on disconnect)
+// active download (one file at a time; CL_Disconnect calls CL_StopDownload to
+// clear this — CL_ClearState does NOT, since this lives in cls not cl)
 	struct {
 		qboolean	active;
 		int		size;		// total bytes expected

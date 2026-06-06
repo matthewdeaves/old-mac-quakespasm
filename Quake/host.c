@@ -518,6 +518,15 @@ void SV_DropClient (qboolean crash)
 		Sys_Printf ("Client %s removed\n",host_client->name);
 	}
 
+// close any in-flight file download to this client (FILE* lives in the
+// reusable client slot; leaking it would slowly exhaust descriptors)
+	if (host_client->download.file)
+	{
+		fclose (host_client->download.file);
+		host_client->download.file = NULL;
+	}
+	host_client->download.active = false;
+
 // break the net connection
 	NET_Close (host_client->netconnection);
 	host_client->netconnection = NULL;
