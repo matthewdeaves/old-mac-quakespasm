@@ -158,7 +158,7 @@ Modern macOS will quarantine the unsigned bundle — either right-click → Open
 - [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
 - [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
 
-## Online multiplayer & weapon decals (new in v1.12)
+## Online multiplayer & weapon decals (new in v1.13)
 
 Two gameplay features land on top of the perf/visual tuning.
 
