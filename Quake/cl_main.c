@@ -189,8 +189,12 @@ void CL_SignonReply (void)
 	switch (cls.signon)
 	{
 	case 1:
-		MSG_WriteByte (&cls.message, clc_stringcmd);
-		MSG_WriteString (&cls.message, "prespawn");
+		// Execute any queued stuffcmds (e.g. cl_serverextension_download 1)
+		// before checking downloads so cl.protocol_dpdownload is current.
+		Cbuf_Execute ();
+		// CL_CheckDownloads sends "prespawn" itself when all content is ready.
+		// If it returns false a download is in progress; we wait.
+		CL_CheckDownloads ();
 		break;
 
 	case 2:
@@ -830,5 +834,6 @@ void CL_Init (void)
 	Cmd_AddCommand ("dumppacket", CL_DumpPacket_f);
 
 	CL_WatchLink_Init (); // companion-app UDP feed (off unless watch_host set)
+	CL_Download_Init ();
 }
 

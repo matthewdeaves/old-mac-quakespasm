@@ -707,3 +707,5 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
 2026-05-31T11:43:36Z,154aacb0,yosemite,demo1,1024x768,17.7,17.6,17.7,17.65
 2026-05-31T11:46:53Z,9b6022be,mini-g4,demo1,1024x768,52.0,52.5,52.5,52.50
 2026-05-31T11:48:11Z,aa6740fb,mini-intel,demo1,1024x768,76.5,76.4,76.4,76.40
+2026-06-06T10:07:13Z,1a978e5a,mini-intel,demo1,1024x768,71.6,71.8,71.8,71.80
+2026-06-06T10:09:20Z,1a978e5a,mini-intel,demo1,1024x768,71.4,71.8,71.6,71.70

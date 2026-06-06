@@ -379,6 +379,13 @@ void SV_SendServerinfo (client_t *client)
 	MSG_WriteByte (&client->message, svc_setview);
 	MSG_WriteShort (&client->message, NUM_FOR_EDICT(client->edict));
 
+	// Advertise DP-style download support to non-local clients when enabled.
+	if (allow_download.value && !SV_IsLocalClient (client))
+	{
+		MSG_WriteByte (&client->message, svc_stufftext);
+		MSG_WriteString (&client->message, "cl_serverextension_download 1\n");
+	}
+
 	MSG_WriteByte (&client->message, svc_signonnum);
 	MSG_WriteByte (&client->message, 1);
 

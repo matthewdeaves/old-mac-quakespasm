@@ -16,6 +16,12 @@ material.
   build-host isolation table, optimisation hot-files, codebase facts you can't
   grep for. (Per-target compiler flags + bundle assembly: [`../MacOSX/CLAUDE.md`](../MacOSX/CLAUDE.md).)
 
+## Plans — scoped work, not yet started
+
+- [`NETPLAY_DOWNLOAD_PLAN.md`](NETPLAY_DOWNLOAD_PLAN.md) — online network play +
+  auto-download of missing maps. Copies QSS's in-protocol UDP download (no TLS,
+  no curl, no new libs); phased, gated, with verified codebase integration points.
+
 ## ideas/ — forward-looking design, not yet built
 
 Blue-sky design captures. **Nothing here is on a roadmap or has code** — each

@@ -124,6 +124,15 @@ typedef struct client_s
 
 // client known data for deltas
 	int				old_frags;
+
+// active download (DP-style in-protocol file send)
+	struct {
+		qboolean	active;
+		FILE		*file;
+		int		size;		// total file bytes
+		int		sent;		// bytes sent so far (start of next chunk to send)
+		char		name[MAX_QPATH];
+	} download;
 } client_t;
 
 
@@ -243,5 +252,7 @@ void SV_CheckForNewClients (void);
 void SV_RunClients (void);
 void SV_SaveSpawnparms (void);
 void SV_SpawnServer (const char *server);
+
+void Host_DownloadAck (client_t *cl);
 
 #endif	/* QUAKE_SERVER_H */

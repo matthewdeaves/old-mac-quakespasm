@@ -330,6 +330,9 @@ extern	char	com_basedir[MAX_OSPATH];
 extern	char	com_gamedir[MAX_OSPATH];
 extern	int	file_from_pak;	// global indicating that file came from a pak
 
+extern struct cvar_s allow_download;	// master gate: 0=off, 1=on (both client and server)
+qboolean COM_DownloadNameOkay (const char *name);	// security allowlist check
+
 void COM_WriteFile (const char *filename, const void *data, int len);
 int COM_OpenFile (const char *filename, int *handle, unsigned int *path_id);
 int COM_FOpenFile (const char *filename, FILE **file, unsigned int *path_id);

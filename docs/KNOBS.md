@@ -7,7 +7,7 @@ so end-of-round code review can A/B individual contributions without
 rebuild. Per-machine shipping defaults live in
 `scripts/bundle/autoexec-<machine>.cfg`.
 
-Updated 2026-05-29.
+Updated 2026-06-06.
 
 ## AltiVec phase opt-outs (cmdline, G4 only — `-flag` to disable)
 
@@ -188,6 +188,12 @@ lightmap pipeline incidentally fixed the in-game colour-band corruption.
 Default unchanged: R128 still skips Lock automatically. Parsed in
 `gl_vidsdl.c` `GL_CheckExtensions`. G4/Lion are unaffected — they get
 CVA Lock as before.
+
+## Network / download (cvar, both targets)
+
+| Cvar | Default | What it does | File |
+|------|---------|--------------|------|
+| `allow_download` | `0` | Master gate for DP-style in-protocol file download. `0` = off (recommended for LAN and solo play on vintage unpatched OSes; no untrusted data hits the filesystem). `1` = on, enables both client fetch and server serve. Only effective over remote connections; loopback is never offered downloads. Per-machine autoexec can opt in: `allow_download 1`. Registered in `common.c`; enforces path/extension allowlist via `COM_DownloadNameOkay` regardless of value. | `common.c` `COM_InitFilesystem` |
 
 ## Hard-coded (no runtime toggle yet)
 

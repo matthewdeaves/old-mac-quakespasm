@@ -1645,6 +1645,189 @@ static void Host_Pause_f (void)
 }
 
 //===========================================================================
+// DP-style in-protocol file download (server side)
+//===========================================================================
+
+#define DL_CHUNK 1024   // bytes per download chunk
+
+/*
+Host_AppendDownloadChunk
+Read and send the next DL_CHUNK bytes from host_client->download.file.
+Appends a svcdp_downloaddata message to host_client->message.
+Sends cl_downloadfinished via stufftext when the file is exhausted.
+*/
+static void Host_AppendDownloadChunk (client_t *cl)
+{
+	byte	buf[DL_CHUNK];
+	int	n, start;
+
+	if (!cl->download.active || !cl->download.file)
+		return;
+
+	start = cl->download.sent;
+	n = fread (buf, 1, DL_CHUNK, cl->download.file);
+	if (n <= 0)
+	{
+		// File fully sent — send cl_downloadfinished.
+		unsigned short crc;
+		byte *full;
+		FILE *f;
+
+		// Compute CRC by rewinding the file we still have open.
+		crc = 0;
+		f = cl->download.file;
+		full = NULL;
+		if (cl->download.size > 0)
+		{
+			full = (byte *)malloc (cl->download.size);
+			if (full)
+			{
+				fseek (f, 0, SEEK_SET);
+				if (fread(full, 1, cl->download.size, f) == (size_t)cl->download.size)
+					crc = CRC_Block (full, cl->download.size);
+				free (full);
+			}
+		}
+
+		fclose (cl->download.file);
+		cl->download.file = NULL;
+
+		MSG_WriteByte (&cl->message, svc_stufftext);
+		MSG_WriteString (&cl->message,
+		    va("cl_downloadfinished %d %d \"%s\"\n",
+		       cl->download.size, (int)crc, cl->download.name));
+
+		cl->download.active = false;
+		cl->download.sent   = 0;
+		cl->download.name[0] = 0;
+		return;
+	}
+
+	cl->download.sent += n;
+
+	MSG_WriteByte  (&cl->message, svcdp_downloaddata);
+	MSG_WriteLong  (&cl->message, start);
+	MSG_WriteShort (&cl->message, (short)n);
+	SZ_Write       (&cl->message, buf, n);
+}
+
+/*
+Host_Download_f
+Client stringcmd: "download <file>"
+Opens the file and sends cl_downloadbegin (or cl_downloadbegin -1 on refusal).
+*/
+static void Host_Download_f (void)
+{
+	const char *name;
+	char path[MAX_OSPATH];
+	FILE *f;
+	long size;
+
+	if (cmd_source == src_command)
+	{
+		Con_Printf ("download is not valid from the console\n");
+		return;
+	}
+
+	if (!allow_download.value)
+	{
+		MSG_WriteByte (&host_client->message, svc_stufftext);
+		MSG_WriteString (&host_client->message,
+		    va("cl_downloadbegin -1 \"%s\"\n", Cmd_Argv(1)));
+		return;
+	}
+
+	name = Cmd_Argv(1);
+
+	if (!COM_DownloadNameOkay (name))
+	{
+		MSG_WriteByte (&host_client->message, svc_stufftext);
+		MSG_WriteString (&host_client->message,
+		    va("cl_downloadbegin -1 \"%s\"\n", name));
+		return;
+	}
+
+	// Only serve loose files in the current gamedir (not from paks).
+	q_snprintf (path, sizeof(path), "%s/%s", com_gamedir, name);
+	f = fopen (path, "rb");
+	if (!f)
+	{
+		MSG_WriteByte (&host_client->message, svc_stufftext);
+		MSG_WriteString (&host_client->message,
+		    va("cl_downloadbegin -1 \"%s\"\n", name));
+		return;
+	}
+
+	fseek (f, 0, SEEK_END);
+	size = ftell (f);
+	fclose (f);
+
+	if (size > 50*1024*1024)
+	{
+		MSG_WriteByte (&host_client->message, svc_stufftext);
+		MSG_WriteString (&host_client->message,
+		    va("cl_downloadbegin -1 \"%s\"\n", name));
+		return;
+	}
+
+	// Close any existing download first.
+	if (host_client->download.file)
+	{
+		fclose (host_client->download.file);
+		host_client->download.file = NULL;
+	}
+
+	host_client->download.file = fopen (path, "rb");
+	if (!host_client->download.file)
+	{
+		MSG_WriteByte (&host_client->message, svc_stufftext);
+		MSG_WriteString (&host_client->message,
+		    va("cl_downloadbegin -1 \"%s\"\n", name));
+		return;
+	}
+
+	host_client->download.size   = (int)size;
+	host_client->download.sent   = 0;
+	host_client->download.active = true;
+	q_strlcpy (host_client->download.name, name,
+	           sizeof(host_client->download.name));
+
+	MSG_WriteByte (&host_client->message, svc_stufftext);
+	MSG_WriteString (&host_client->message,
+	    va("cl_downloadbegin %d \"%s\"\n", (int)size, name));
+}
+
+/*
+Host_StartDownload_f
+Client stringcmd: "sv_startdownload"
+Client acknowledges cl_downloadbegin and is ready to receive chunks.
+*/
+static void Host_StartDownload_f (void)
+{
+	if (cmd_source == src_command)
+		return;
+	if (host_client->download.active && host_client->download.file)
+		Host_AppendDownloadChunk (host_client);
+}
+
+/*
+Host_DownloadAck
+Called when the server receives clcdp_ackdownloaddata (51) from a client.
+Advance the stream and send the next chunk.
+*/
+void Host_DownloadAck (client_t *cl)
+{
+	int	start, size;
+
+	start = MSG_ReadLong ();
+	size  = MSG_ReadShort ();
+	(void)start; (void)size; // ack received; just pump next chunk
+
+	if (cl->download.active && cl->download.file)
+		Host_AppendDownloadChunk (cl);
+}
+
+//===========================================================================
 
 /*
 ==================
@@ -2385,7 +2568,9 @@ void Host_InitCommands (void)
 	Cmd_AddCommand ("pause", Host_Pause_f);
 	Cmd_AddCommand ("spawn", Host_Spawn_f);
 	Cmd_AddCommand ("begin", Host_Begin_f);
-	Cmd_AddCommand ("prespawn", Host_PreSpawn_f);
+	Cmd_AddCommand ("prespawn",        Host_PreSpawn_f);
+	Cmd_AddCommand ("download",        Host_Download_f);
+	Cmd_AddCommand ("sv_startdownload",Host_StartDownload_f);
 	Cmd_AddCommand ("kick", Host_Kick_f);
 	Cmd_AddCommand ("ping", Host_Ping_f);
 	Cmd_AddCommand ("load", Host_Loadgame_f);

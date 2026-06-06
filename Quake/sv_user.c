@@ -568,11 +568,19 @@ nextmsg:
 					ret = 1;
 				else if (q_strncasecmp(s, "ban", 3) == 0)
 					ret = 1;
+				else if (q_strncasecmp(s, "download", 8) == 0)
+					ret = 1;
+				else if (q_strncasecmp(s, "sv_startdownload", 16) == 0)
+					ret = 1;
 
 				if (ret == 1)
 					Cmd_ExecuteString (s, src_client);
 				else
 					Con_DPrintf("%s tried to %s\n", host_client->name, s);
+				break;
+
+			case clcdp_ackdownloaddata: // 51 — client acked a download chunk
+				Host_DownloadAck (host_client);
 				break;
 
 			case clc_disconnect:

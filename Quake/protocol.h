@@ -216,6 +216,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_rawprint		49
 #define svc_servervars		50
 #define svc_seq			51
+
+// DarkPlaces-style in-protocol download (wire-compatible with QSS/DP servers).
+// Values 50/51 are unused by our server; the 2021 rerelease svc above are
+// reference-only and never sent/received on this engine.
+#define svcdp_downloaddata    50  // S->C: [long start][short size][data...]
+#define clcdp_ackdownloaddata 51  // C->S: [long start][short size]
 // Note: svc_achievement has same value as svcdp_effect!
 #define svc_achievement		52	// [string] id
 #define svc_chat		53

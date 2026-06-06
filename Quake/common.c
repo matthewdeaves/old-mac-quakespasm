@@ -1578,6 +1578,66 @@ char	com_gamedir[MAX_OSPATH];
 char	com_basedir[MAX_OSPATH];
 int	file_from_pak;		// ZOID: global indicating that file came from a pak
 
+cvar_t	allow_download = {"allow_download", "0", CVAR_NONE};
+
+/*
+================
+COM_DownloadNameOkay
+
+Security allowlist for DP-protocol file downloads (both client and server side).
+Returns true only if the name is safe to download/serve.
+================
+*/
+qboolean COM_DownloadNameOkay (const char *name)
+{
+	const char *ext;
+
+	if (!name || !name[0])
+		return false;
+
+	// path-traversal and dangerous separator checks
+	if (strstr(name, "..") || strstr(name, "//") || strstr(name, "\\"))
+		return false;
+
+	// hidden-file check: leading dot or any component starting with dot
+	if (name[0] == '.' || strstr(name, "/."))
+		return false;
+
+	// dangerous shell/filesystem characters
+	if (strpbrk(name, ":*?\"<>|"))
+		return false;
+
+	// directory allowlist: only these prefixes are downloadable
+	if (q_strncasecmp(name, "sound/", 6) &&
+	    q_strncasecmp(name, "progs/", 6) &&
+	    q_strncasecmp(name, "maps/", 5) &&
+	    q_strncasecmp(name, "models/", 7))
+		return false;
+
+	// extension allowlist
+	ext = strrchr(name, '.');
+	if (!ext)
+		return false;
+	ext++; // skip the dot
+
+	if (q_strcasecmp(ext, "bsp") &&
+	    q_strcasecmp(ext, "mdl") &&
+	    q_strcasecmp(ext, "iqm") &&
+	    q_strcasecmp(ext, "md3") &&
+	    q_strcasecmp(ext, "spr") &&
+	    q_strcasecmp(ext, "spr32") &&
+	    q_strcasecmp(ext, "wav") &&
+	    q_strcasecmp(ext, "ogg") &&
+	    q_strcasecmp(ext, "tga") &&
+	    q_strcasecmp(ext, "png") &&
+	    q_strcasecmp(ext, "lux") &&
+	    q_strcasecmp(ext, "lit2") &&
+	    q_strcasecmp(ext, "lit"))
+		return false;
+
+	return true;
+}
+
 searchpath_t	*com_searchpaths;
 searchpath_t	*com_base_searchpaths;
 
@@ -2324,6 +2384,7 @@ void COM_InitFilesystem (void) //johnfitz -- modified based on topaz's tutorial
 
 	Cvar_RegisterVariable (&registered);
 	Cvar_RegisterVariable (&cmdline);
+	Cvar_RegisterVariable (&allow_download);
 	Cmd_AddCommand ("path", COM_Path_f);
 	Cmd_AddCommand ("game", COM_Game_f); //johnfitz
 

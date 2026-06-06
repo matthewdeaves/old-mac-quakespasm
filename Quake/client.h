@@ -131,6 +131,15 @@ typedef struct
 	struct qsocket_s	*netcon;
 	sizebuf_t	message;		// writing buffer to send to server
 
+// active download (one file at a time, cleared on disconnect)
+	struct {
+		qboolean	active;
+		int		size;		// total bytes expected
+		char		current[MAX_QPATH];	// name being downloaded
+		char		temp[MAX_OSPATH];	// path to .tmp file being written
+		FILE		*file;		// open for writing; NULL when idle
+	} download;
+
 } client_static_t;
 
 extern client_static_t	cls;
@@ -202,6 +211,17 @@ typedef struct
 //
 	struct qmodel_s		*model_precache[MAX_MODELS];
 	struct sfx_s		*sound_precache[MAX_SOUNDS];
+
+// persistent precache name lists (survive after CL_ParseServerInfo returns,
+// needed by CL_CheckDownloads to request missing files)
+	char		model_name[MAX_MODELS][MAX_QPATH];
+	char		sound_name[MAX_SOUNDS][MAX_QPATH];
+
+// DP-style in-protocol download state
+	qboolean	protocol_dpdownload;	// server advertised download support
+	qboolean	worldinit;		// R_NewMap has been called this connection
+	int		model_download;		// next model index to check / download
+	int		sound_download;		// next sound index to check / download
 
 	char		mapname[128];
 	char		levelname[128];	// for display on solo scoreboard //johnfitz -- was 40.
@@ -348,6 +368,14 @@ void CL_SysReport_f (void);
 void CL_ParseServerMessage (void);
 void CL_NewTranslation (int slot);
 void CL_DumpPacket_f (void);
+
+//
+// cl_download.c
+//
+void CL_Download_Init (void);
+qboolean CL_CheckDownloads (void);	// returns true when ready to prespawn
+void CL_Download_Data (void);		// handle svcdp_downloaddata in CL_ParseServerMessage
+void CL_StopDownload (void);		// abort current download, close temp file
 
 //
 // cl_watchlink.c -- live player-state UDP feed to a companion (Apple Watch)

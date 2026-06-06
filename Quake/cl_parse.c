@@ -284,13 +284,40 @@ void CL_KeepaliveMessage (void)
 CL_ParseServerInfo
 ==================
 */
+/*
+====================
+CL_LoadPrecaches
+
+Try to load all models and sounds named in cl.model_name[]/cl.sound_name[].
+Missing files leave the slot NULL — callers must handle or download them.
+====================
+*/
+void CL_LoadPrecaches (void)
+{
+	int i;
+
+	for (i = 1; i < MAX_MODELS && cl.model_name[i][0]; i++)
+	{
+		cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+		if (cl.model_precache[i] == NULL)
+			Con_DPrintf ("missing model: %s\n", cl.model_name[i]);
+		CL_KeepaliveMessage ();
+	}
+
+	S_BeginPrecaching ();
+	for (i = 1; i < MAX_SOUNDS && cl.sound_name[i][0]; i++)
+	{
+		cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
+		CL_KeepaliveMessage ();
+	}
+	S_EndPrecaching ();
+}
+
 void CL_ParseServerInfo (void)
 {
 	const char	*str;
 	int		i;
 	int		nummodels, numsounds;
-	char	model_precache[MAX_MODELS][MAX_QPATH];
-	char	sound_precache[MAX_SOUNDS][MAX_QPATH];
 
 	Con_DPrintf ("Serverinfo packet received.\n");
 
@@ -354,8 +381,9 @@ void CL_ParseServerInfo (void)
 // happens to be in the cache, so precaching something else doesn't
 // needlessly purge it
 
-// precache models
+// precache models — store names in cl so CL_CheckDownloads can request missing files
 	memset (cl.model_precache, 0, sizeof(cl.model_precache));
+	memset (cl.model_name, 0, sizeof(cl.model_name));
 	for (nummodels = 1 ; ; nummodels++)
 	{
 		str = MSG_ReadString ();
@@ -365,7 +393,7 @@ void CL_ParseServerInfo (void)
 		{
 			Host_Error ("Server sent too many model precaches");
 		}
-		q_strlcpy (model_precache[nummodels], str, MAX_QPATH);
+		q_strlcpy (cl.model_name[nummodels], str, MAX_QPATH);
 		Mod_TouchModel (str);
 	}
 
@@ -376,8 +404,9 @@ void CL_ParseServerInfo (void)
 		Con_DWarning ("%i models exceeds standard limit of 256 (max = %d).\n", nummodels, MAX_MODELS);
 	//johnfitz
 
-// precache sounds
+// precache sounds — store names similarly
 	memset (cl.sound_precache, 0, sizeof(cl.sound_precache));
+	memset (cl.sound_name, 0, sizeof(cl.sound_name));
 	for (numsounds = 1 ; ; numsounds++)
 	{
 		str = MSG_ReadString ();
@@ -387,7 +416,7 @@ void CL_ParseServerInfo (void)
 		{
 			Host_Error ("Server sent too many sound precaches");
 		}
-		q_strlcpy (sound_precache[numsounds], str, MAX_QPATH);
+		q_strlcpy (cl.sound_name[numsounds], str, MAX_QPATH);
 		S_TouchSound (str);
 	}
 
@@ -396,35 +425,39 @@ void CL_ParseServerInfo (void)
 		Con_DWarning ("%i sounds exceeds standard limit of 256 (max = %d).\n", numsounds, MAX_SOUNDS);
 	//johnfitz
 
+// initialise download cursors (CL_CheckDownloads walks from 1)
+	cl.model_download = 1;
+	cl.sound_download = 1;
+
 //
-// now we try to load everything else until a cache allocation fails
+// try to load all precaches; missing slots stay NULL for CL_CheckDownloads
 //
 
 	// copy the naked name of the map file to the cl structure -- O.S
-	COM_StripExtension (COM_SkipPath(model_precache[1]), cl.mapname, sizeof(cl.mapname));
+	COM_StripExtension (COM_SkipPath(cl.model_name[1]), cl.mapname, sizeof(cl.mapname));
 
-	for (i = 1; i < nummodels; i++)
+	CL_LoadPrecaches ();
+
+// local state — worldmodel may be NULL if map needs downloading
+	if (cl.model_precache[1])
 	{
-		cl.model_precache[i] = Mod_ForName (model_precache[i], false);
-		if (cl.model_precache[i] == NULL)
+		cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
+		R_NewMap ();
+		cl.worldinit = true;
+	}
+	else
+	{
+		// World model is missing.  If allow_download is on and the server
+		// supports downloads, CL_CheckDownloads (called from CL_SignonReply)
+		// will request it.  Otherwise disconnect gracefully.
+		if (!allow_download.value || !cl.protocol_dpdownload)
 		{
-			Host_Error ("Model %s not found", model_precache[i]);
+			Con_Printf ("\nMap %s not found — disconnecting\n", cl.model_name[1]);
+			CL_Disconnect ();
+			return;
 		}
-		CL_KeepaliveMessage ();
+		// else: fall through; CL_CheckDownloads will gate prespawn
 	}
-
-	S_BeginPrecaching ();
-	for (i = 1; i < numsounds; i++)
-	{
-		cl.sound_precache[i] = S_PrecacheSound (sound_precache[i]);
-		CL_KeepaliveMessage ();
-	}
-	S_EndPrecaching ();
-
-// local state
-	cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
-
-	R_NewMap ();
 
 	//johnfitz -- clear out string; we don't consider identical
 	//messages to be duplicates if the map has changed in between
@@ -961,7 +994,8 @@ void CL_ParseStaticSound (int version) //johnfitz -- added argument
 	vol = MSG_ReadByte ();
 	atten = MSG_ReadByte ();
 
-	S_StaticSound (cl.sound_precache[sound_num], org, vol, atten);
+	if (cl.sound_precache[sound_num])
+		S_StaticSound (cl.sound_precache[sound_num], org, vol, atten);
 }
 
 
@@ -1335,6 +1369,12 @@ void CL_ParseServerMessage (void)
 			break;
 		case svc_localsound:
 			CL_ParseLocalSound();
+			break;
+
+		case svcdp_downloaddata: // 50 — DP-style download chunk
+			if (!cl.protocol_dpdownload)
+				Host_Error ("Received svcdp_downloaddata without download negotiation");
+			CL_Download_Data ();
 			break;
 		}
 
