@@ -65,7 +65,7 @@ cvar_t	hostname = {"hostname", "UNNAMED", CVAR_NONE};
 cvar_t	net_masterextra1 = {"net_masterextra1", "dpmaster.deathmask.net:27950", CVAR_NONE};
 cvar_t	net_masterextra2 = {"net_masterextra2", "master.frag-net.com:27950", CVAR_NONE};
 cvar_t	net_masterextra3 = {"net_masterextra3", "", CVAR_NONE};
-cvar_t	com_protocolname = {"com_protocolname", "DarkPlaces-Quake", CVAR_NONE};
+cvar_t	com_protocolname = {"com_protocolname", "FTE-Quake DarkPlaces-Quake", CVAR_NONE};
 cvar_t	sv_public        = {"sv_public", "0", CVAR_NONE};
 
 // these two macros are to make the code more readable

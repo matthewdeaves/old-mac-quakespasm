@@ -129,6 +129,13 @@ cvar_t	r_drawflat = {"r_drawflat","0",CVAR_NONE};
 cvar_t	r_flatlightstyles = {"r_flatlightstyles", "0", CVAR_NONE};
 cvar_t	r_lerplightstyles = {"r_lerplightstyles", "0", CVAR_ARCHIVE}; // PPC port -- finding #5: smooth the 10Hz lightstyle step
 cvar_t	gl_fullbrights = {"gl_fullbrights", "1", CVAR_ARCHIVE};
+// PPC port -- ATI fixed-function (R200/R300) drops the co-planar additive
+// fullbright glow pass at grazing angles (LEQUAL fails between the 2-TMU base
+// pass and the 1-TMU glow pass), flashing emissive texels black. When set,
+// bias the glow pass toward the camera so it always wins the depth test --
+// keeps the glow, unlike the gl_fullbrights 0 workaround. Default off; armed
+// per-machine on mini-g4 + imac-g5. See r_world.c fullbrights block.
+cvar_t	gl_fullbright_zbias = {"gl_fullbright_zbias", "0", CVAR_ARCHIVE};
 cvar_t	gl_farclip = {"gl_farclip", "65536", CVAR_ARCHIVE};
 cvar_t	gl_overbright = {"gl_overbright", "1", CVAR_ARCHIVE};
 cvar_t	gl_overbright_models = {"gl_overbright_models", "1", CVAR_ARCHIVE};

@@ -1240,7 +1240,10 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 	}
 
 	/* Internet: send getservers to configured masters on first xmit.
-	   Wire format (DPMaster): \xFF\xFF\xFF\xFF getservers <gamename> <proto> empty full */
+	   Wire format (DPMaster): \xFF\xFF\xFF\xFF getservers <gamename> <proto> empty full.
+	   com_protocolname may list several space-separated gamenames (default
+	   "FTE-Quake DarkPlaces-Quake"); query each so the list shows both the
+	   FTE/ProQuake servers we can join AND DarkPlaces-registered ones. */
 	if (!slistLocal && xmit && !dpmaster_queried)
 	{
 		const cvar_t *masters[3] = {
@@ -1251,15 +1254,26 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 		for (m = 0; m < 3; m++)
 		{
 			struct qsockaddr masteraddr;
-			char query[256];
-			int qlen;
+			char names[256], *p;
 			if (MasterResolveAddr(m, masters[m], &masteraddr) == -1)
 				continue;
-			/* leading 4 bytes are 0xFF (connectionless prefix) */
-			qlen = q_snprintf(query, sizeof(query),
-			           "\xFF\xFF\xFF\xFFgetservers %s %d empty full",
-			           com_protocolname.string, NET_PROTOCOL_VERSION);
-			dfunc.Write(dfunc.controlSock, (byte *)query, qlen, &masteraddr);
+			q_strlcpy(names, com_protocolname.string, sizeof(names));
+			for (p = names; *p; )
+			{
+				char query[256];
+				char *start;
+				int qlen;
+				while (*p == ' ' || *p == '\t') p++;	/* skip whitespace */
+				if (!*p) break;
+				start = p;
+				while (*p && *p != ' ' && *p != '\t') p++;
+				if (*p) *p++ = 0;			/* terminate this gamename */
+				/* leading 4 bytes are 0xFF (connectionless prefix) */
+				qlen = q_snprintf(query, sizeof(query),
+				           "\xFF\xFF\xFF\xFFgetservers %s %d empty full",
+				           start, NET_PROTOCOL_VERSION);
+				dfunc.Write(dfunc.controlSock, (byte *)query, qlen, &masteraddr);
+			}
 		}
 	}
 

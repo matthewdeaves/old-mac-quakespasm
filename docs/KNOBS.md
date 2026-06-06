@@ -195,6 +195,12 @@ CVA Lock as before.
 |------|---------|--------------|------|
 | `allow_download` | `0` | Master gate for DP-style in-protocol file download. `0` = off (recommended for LAN and solo play on vintage unpatched OSes; no untrusted data hits the filesystem). `1` = on, enables both client fetch and server serve. Only effective over remote connections; loopback is never offered downloads. Per-machine autoexec can opt in: `allow_download 1`. Registered in `common.c`; enforces path/extension allowlist via `COM_DownloadNameOkay` regardless of value. | `common.c` `COM_InitFilesystem` |
 
+## ATI emissive-glow z-bias (cvar, all targets)
+
+| Cvar | Default | What it does | File |
+|------|---------|--------------|------|
+| `gl_fullbright_zbias` | `0` | Fixes ATI fixed-function dropping the additive fullbright glow pass at grazing/far angles (light/lava/tech-panel emissive texels flash **black**). The base pass blacks out the emissive texels and a second additive pass adds the glow back; on R200/R300 the depth comparator rejects the equal-Z coincident fragments, so the glow drops out. Non-zero biases the glow pass toward the camera (`GL_PolygonOffset`, value = offset units) so `GL_LEQUAL` always passes — keeps the glow, unlike the old `gl_fullbrights 0` workaround. Armed per-machine: **imac-g5 `1`** (24-bit depth, replaced its `gl_fullbrights 0`), **mini-g4 `2`** (16-bit depth, coarser step), **quicksilver `1`** (R200, pre-emptive). Default-off on Rage128/GeForce2/Intel (don't need it; avoids 16-bit-depth bleed-through on the G3). Bump the value if any flicker survives at distance. | `r_world.c` glow block / `gl_rmain.c` |
+
 ## Hard-coded (no runtime toggle yet)
 
 Flag if a future round wants to A/B these: Phase 1 `frsqrte` mathlib,

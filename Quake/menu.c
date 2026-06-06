@@ -1717,7 +1717,10 @@ int		lanConfig_cursor_table [] = {72, 92, 124};
 
 int 	lanConfig_port;
 char	lanConfig_portname[6];
-char	lanConfig_joinname[22];
+// PPC port -- pre-fill the Join Game address with a known-connectable
+// FTE-Quake NetQuake server so the user can connect with one keystroke.
+// Persists across menu opens; the user can backspace + retype their own.
+char	lanConfig_joinname[22] = "denver.quakeone.com";
 
 void M_Menu_LanConfig_f (void)
 {

@@ -1467,14 +1467,26 @@ void R_DrawTextureChains (qmodel_t *model, entity_t *ent, texchain_t chain)
 fullbrights:
 	if (gl_fullbrights.value)
 	{
+		extern cvar_t gl_fullbright_zbias; // PPC port -- ATI glow-pass z-fight fix
 		glDepthMask (GL_FALSE);
 		glEnable (GL_BLEND);
 		glBlendFunc (GL_ONE, GL_ONE);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		glColor3f (entalpha, entalpha, entalpha);
+		// On ATI fixed-function (R200/R300) the additive glow pass and the base
+		// pass draw bit-identical vertices, but the depth comparator rejects the
+		// equal-Z coincident fragments at grazing/far angles, so the glow drops
+		// out and the emissive texels (blacked-out in the base texture) flash
+		// black. Bias the glow toward the camera so GL_LEQUAL always passes. The
+		// cvar VALUE sets the offset units (1 is enough on 24-bit depth / R300;
+		// 16-bit depth / R200 may want 2) — tunable live, no rebuild.
+		if (gl_fullbright_zbias.value)
+			GL_PolygonOffset (-(int)gl_fullbright_zbias.value);
 		Fog_StartAdditive ();
 		R_DrawTextureChains_Glow (model, ent, chain);
 		Fog_StopAdditive ();
+		if (gl_fullbright_zbias.value)
+			GL_PolygonOffset (OFFSET_NONE);
 		glColor3f (1, 1, 1);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

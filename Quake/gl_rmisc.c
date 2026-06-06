@@ -215,6 +215,10 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_showbboxes);
 	Cvar_RegisterVariable (&gl_farclip);
 	Cvar_RegisterVariable (&gl_fullbrights);
+	{
+		extern cvar_t gl_fullbright_zbias;
+		Cvar_RegisterVariable (&gl_fullbright_zbias);
+	}
 	Cvar_RegisterVariable (&gl_overbright);
 	Cvar_SetCallback (&gl_fullbrights, GL_Fullbrights_f);
 	Cvar_SetCallback (&gl_overbright, GL_Overbright_f);
