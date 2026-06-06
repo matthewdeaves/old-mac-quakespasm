@@ -158,6 +158,45 @@ Modern macOS will quarantine the unsigned bundle — either right-click → Open
 - [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
 - [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
 
+## Online multiplayer & weapon decals (new in v1.12)
+
+Two gameplay features land on top of the perf/visual tuning.
+
+### Internet multiplayer — browse, auto-download, play
+
+Full online NetQuake play, **tested against the public `denver.quakeone.com`
+server** with a PowerPC and an Intel Mac in the same match:
+
+- **Server browser** — a DPMaster master-server query lists live public servers
+  (name, map, player count, ping) so you can browse and join from the menu — no
+  manual `connect <ip>` needed.
+- **In-protocol auto-download** — joining a server hosting a map or assets you
+  don't have pulls them over the game's own UDP protocol (the QSS / DarkPlaces
+  in-protocol download — no TLS, no curl, no extra libraries), then drops you
+  into the game. Browse → join → download → play, end to end.
+- Downloads are **off by default** (`allow_download 0`) and gated — flip the
+  cvar to opt in.
+
+It runs on the whole fleet: a 449 MHz G3 on Panther and a 2019 iMac can share
+the same online server.
+
+### Weapon damage decals
+
+Every weapon now leaves a mark on walls, floors and ceilings — bullet holes
+(shotgun), smaller nail pocks (nailgun) and bigger ones (super nailgun), axe
+slashes, scorch stars (spikes), burn scars (explosions), and lightning scars.
+Ported from the sister Quake 2 port's BSP fragment clipper (Sutherland–Hodgman
+projection onto the surfaces around each impact). Runtime-gated via `r_decals`;
+count / lifetime / fade are cvars — see [`docs/KNOBS.md`](docs/KNOBS.md).
+
+And a rendering fix: the **lightning bolt** now draws its bright light-blue
+colour on every GPU in the fleet. It was rendering dark on the Radeon 9200 and
+GMA 950 — the bolt's bright core lives in fullbright-palette texels that the
+model loader splits into a separate additive mask, which the prior draw path
+wasn't emitting; the beam is now drawn fullbright-unlit (base + additive core)
+on a single GL 1.1 path that every driver renders identically. Full root-cause
+trail in [`docs/LIGHTNING_BOLT_DEBUG.md`](docs/LIGHTNING_BOLT_DEBUG.md).
+
 ## Tactical Computer — live Apple Watch companion
 
 The engine can stream the ranger's live state — health, armor, ammo, weapon,

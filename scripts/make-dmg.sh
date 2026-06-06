@@ -119,6 +119,17 @@ Supported: Mac OS X 10.3.9 Panther (G3) and up, through modern Intel macOS.
 (PowerPC G3/G4/G5 and 64-bit Intel only — pre-Lion 32-bit Intel Macs are not
 supported.)
 
+WHAT'S NEW in $VERSION
+----------------------
+* Online multiplayer: in-menu server browser (DPMaster) + in-protocol
+  auto-download of missing maps/assets. Browse, join, download, play -- tested
+  on the public denver.quakeone.com server. Downloads are off by default
+  (set allow_download 1 to opt in).
+* Weapon damage decals: shotgun bullet holes, nail pocks, axe slashes, spike
+  scorch, explosion burns and lightning scars on walls/floors/ceilings
+  (toggle with r_decals).
+* Lightning bolt renders its bright light-blue colour correctly on every GPU.
+
 INSTALL
 -------
 1. Make a folder for the game, e.g.  ~/Desktop/quake/

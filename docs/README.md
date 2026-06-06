@@ -16,11 +16,18 @@ material.
   build-host isolation table, optimisation hot-files, codebase facts you can't
   grep for. (Per-target compiler flags + bundle assembly: [`../MacOSX/CLAUDE.md`](../MacOSX/CLAUDE.md).)
 
-## Plans — scoped work, not yet started
+## Implemented features — design + post-mortem notes
 
 - [`NETPLAY_DOWNLOAD_PLAN.md`](NETPLAY_DOWNLOAD_PLAN.md) — online network play +
-  auto-download of missing maps. Copies QSS's in-protocol UDP download (no TLS,
-  no curl, no new libs); phased, gated, with verified codebase integration points.
+  DPMaster server browser + auto-download of missing maps. Copies QSS's
+  in-protocol UDP download (no TLS, no curl, no new libs); gated behind
+  `allow_download` (default 0). **DONE + hardware-verified** — full
+  browse→join→download→play loop tested against `denver.quakeone.com` and a
+  self-host rig (`scripts/selfhost-download-test.sh`).
+- [`LIGHTNING_BOLT_DEBUG.md`](LIGHTNING_BOLT_DEBUG.md) — root-cause post-mortem
+  for the dark lightning bolt on Radeon 9200 / GMA 950. Decoded the `bolt2.mdl`
+  skin (bright core is fullbright-palette texels split into the `fb` mask) and
+  fixed the beam to draw fullbright-unlit on a single GL 1.1 path. **SOLVED.**
 
 ## ideas/ — forward-looking design, not yet built
 
