@@ -1036,6 +1036,18 @@ void R_DrawAliasModel (entity_t *e)
 	lerpdata_t	lerpdata;
 	qboolean	alphatest = !!(e->model->flags & MF_HOLEY);
 	float		fovscale = 1.0f;
+	// PPC port -- lightning bolts / grapple beams are self-illuminated energy.
+	// Their skin stores the bright cyan core in fullbright-range palette
+	// indices (244-254), which Mod_CheckFullbrights splits into the fb mask --
+	// blacking that core OUT of the NOBRIGHT base texture. So the bolt only
+	// looks right when the unlit base AND the additive fb core are BOTH drawn,
+	// and it must not depend on R_LightPoint (which returns ~0 outdoors, where
+	// the lit path drew the bolt black). Route beams through a dedicated
+	// fullbright-unlit pass below -- plain GL 1.1, identical on every GPU and
+	// in every lighting condition (R300/R200/GMA950 + GLSL targets alike).
+	// See docs/LIGHTNING_BOLT_DEBUG.md for the full root-cause trail.
+	qboolean	is_beam = (strstr (e->model->name, "bolt") != NULL) ||
+			  (strstr (e->model->name, "beam") != NULL);
 	// PPC port -- Round v11 Stage 1: capture entry state-change decisions
 	// so cleanup mirrors them exactly. Pre-Stage-1 the cleanup label at
 	// the bottom of this function unconditionally reset glShadeModel and
@@ -1164,6 +1176,38 @@ void R_DrawAliasModel (entity_t *e)
 		glColor3f(1,1,1);
 		GL_DrawAliasFrame (paliashdr, lerpdata);
 		glEnable (GL_TEXTURE_2D);
+	}
+	else if (is_beam)
+	{
+		// PPC port -- self-illuminated beam: unlit base + additive fb core.
+		// The base (NOBRIGHT) carries the dim outer glow with the bright core
+		// blacked out; the fb mask carries that bright cyan/white core. Draw
+		// the base unlit at full skin brightness (so it never darkens with the
+		// world light), then add the core back in a second additive pass. fb
+		// is taken straight from the header so the core survives even on a
+		// target that runs gl_fullbrights 0. This is the engine's own
+		// r_fullbright pass shape, which every GL driver in the fleet draws
+		// identically -- no overbright-combine GPU-path variance.
+		gltexture_t *beamfb = paliashdr->fbtextures[skinnum][anim];
+		GL_Bind (tx);
+		shading = false;
+		glColor4f (1, 1, 1, entalpha);
+		GL_SetTexEnvMode (GL_MODULATE);
+		GL_DrawAliasFrame (paliashdr, lerpdata);
+		if (beamfb)
+		{
+			GL_Bind (beamfb);
+			GL_SetBlendEnabled (true);
+			glBlendFunc (GL_ONE, GL_ONE);
+			GL_SetDepthMask (GL_FALSE);
+			glColor3f (entalpha, entalpha, entalpha);
+			Fog_StartAdditive ();
+			GL_DrawAliasFrame (paliashdr, lerpdata);
+			Fog_StopAdditive ();
+			GL_SetDepthMask (GL_TRUE);
+			glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			GL_SetBlendEnabled (false);
+		}
 	}
 // call fast path if possible. if the shader compliation failed for some reason,
 // r_alias_program will be 0.
