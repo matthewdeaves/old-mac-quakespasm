@@ -438,26 +438,22 @@ void CL_ParseServerInfo (void)
 
 	CL_LoadPrecaches ();
 
-// local state — worldmodel may be NULL if map needs downloading
+// local state — worldmodel may be NULL if the map needs downloading.
 	if (cl.model_precache[1])
 	{
 		cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
 		R_NewMap ();
 		cl.worldinit = true;
 	}
-	else
-	{
-		// World model is missing.  If allow_download is on and the server
-		// supports downloads, CL_CheckDownloads (called from CL_SignonReply)
-		// will request it.  Otherwise disconnect gracefully.
-		if (!allow_download.value || !cl.protocol_dpdownload)
-		{
-			Con_Printf ("\nMap %s not found — disconnecting\n", cl.model_name[1]);
-			CL_Disconnect ();
-			return;
-		}
-		// else: fall through; CL_CheckDownloads will gate prespawn
-	}
+	// else: world model is missing. Do NOT decide whether to disconnect here —
+	// the server advertises download support via a stufftext (cl_serverextension
+	// _download) that arrives AFTER this svc_serverinfo, so cl.protocol_dpdownload
+	// isn't set yet. Leave worldmodel NULL and let the signon gate handle it:
+	// CL_SignonReply case 1 runs Cbuf_Execute() (processing that stufftext) then
+	// CL_CheckDownloads(), which requests the map if downloads are available or
+	// disconnects gracefully if not. Baselines/static ents arrive only after
+	// prespawn, which CL_CheckDownloads withholds until the world model exists,
+	// so nothing dereferences a NULL worldmodel in between.
 
 	//johnfitz -- clear out string; we don't consider identical
 	//messages to be duplicates if the map has changed in between

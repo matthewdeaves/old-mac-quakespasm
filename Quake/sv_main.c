@@ -1150,9 +1150,20 @@ void SV_SendClientMessages (void)
 		// between signon stages
 			if (!host_client->sendsignon)
 			{
-				if (realtime - host_client->last_message > 5)
-					SV_SendNop (host_client);
-				continue;	// don't send out non-signon messages
+				// No signon stage pending. Normally we only keepalive here, but
+				// an in-protocol download runs while the client waits at signon 1
+				// (it withholds prespawn until the map arrives): cl_downloadbegin,
+				// the data chunks, and cl_downloadfinished are all queued in
+				// host_client->message and MUST be flushed now or the download
+				// stalls forever. Fall through to the send block when data is
+				// pending; otherwise keepalive as before.
+				if (!host_client->message.cursize)
+				{
+					if (realtime - host_client->last_message > 5)
+						SV_SendNop (host_client);
+					continue;	// nothing but a keepalive to send
+				}
+				// else: queued reliable data (download) -- fall through to flush
 			}
 			if (host_client->sendsignon == PRESPAWN_SIGNONBUFS)
 			{
