@@ -709,3 +709,4 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
 2026-05-31T11:48:11Z,aa6740fb,mini-intel,demo1,1024x768,76.5,76.4,76.4,76.40
 2026-06-06T10:07:13Z,1a978e5a,mini-intel,demo1,1024x768,71.6,71.8,71.8,71.80
 2026-06-06T10:09:20Z,1a978e5a,mini-intel,demo1,1024x768,71.4,71.8,71.6,71.70
+2026-06-06T10:57:19Z,21505aa8,mini-intel,demo1,1024x768,71.4,71.9,72.1,72.00

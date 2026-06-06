@@ -41,6 +41,13 @@ extern int		net_hostport;
 
 extern cvar_t		hostname;
 
+// DPMaster internet server browser cvars
+extern cvar_t		net_masterextra1;	// "dpmaster.deathmask.net:27950"
+extern cvar_t		net_masterextra2;	// "master.frag-net.com:27950"
+extern cvar_t		net_masterextra3;	// user-configurable third master
+extern cvar_t		com_protocolname;	// protocol name for getservers query
+extern cvar_t		sv_public;		// 0=no heartbeat; 1=register with masters
+
 extern	double		net_time;
 extern	sizebuf_t	net_message;
 extern	int		net_activeconnections;

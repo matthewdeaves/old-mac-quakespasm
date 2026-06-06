@@ -2446,7 +2446,9 @@ void M_Search_Key (int key)
 /* SLIST MENU */
 
 int		slist_cursor;
-qboolean slist_sorted;
+int		slist_scroll;		// first visible entry (for scrolling)
+qboolean	slist_sorted;
+#define SLIST_VISIBLE	14	// rows visible at once in the 320x200 menu
 
 void M_Menu_ServerList_f (void)
 {
@@ -2455,6 +2457,7 @@ void M_Menu_ServerList_f (void)
 	m_state = m_slist;
 	m_entersound = true;
 	slist_cursor = 0;
+	slist_scroll = 0;
 	m_return_onerror = false;
 	m_return_reason[0] = 0;
 	slist_sorted = false;
@@ -2463,7 +2466,7 @@ void M_Menu_ServerList_f (void)
 
 void M_ServerList_Draw (void)
 {
-	int	n;
+	int	n, visible;
 	qpic_t	*p;
 
 	if (!slist_sorted)
@@ -2472,11 +2475,29 @@ void M_ServerList_Draw (void)
 		NET_SlistSort ();
 	}
 
+	/* Keep scroll window around the cursor */
+	if (slist_cursor < slist_scroll)
+		slist_scroll = slist_cursor;
+	if (slist_cursor >= slist_scroll + SLIST_VISIBLE)
+		slist_scroll = slist_cursor - SLIST_VISIBLE + 1;
+	if (slist_scroll < 0)
+		slist_scroll = 0;
+
 	p = Draw_CachePic ("gfx/p_multi.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
-	for (n = 0; n < hostCacheCount; n++)
-		M_Print (16, 32 + 8*n, NET_SlistPrintServer (n));
-	M_DrawCharacter (0, 32 + slist_cursor*8, 12+((int)(realtime*4)&1));
+
+	visible = hostCacheCount - slist_scroll;
+	if (visible > SLIST_VISIBLE) visible = SLIST_VISIBLE;
+	for (n = 0; n < visible; n++)
+		M_Print (16, 32 + 8*n, NET_SlistPrintServer (n + slist_scroll));
+	M_DrawCharacter (0, 32 + (slist_cursor - slist_scroll)*8,
+	                 12+((int)(realtime*4)&1));
+
+	/* Scroll indicators */
+	if (slist_scroll > 0)
+		M_PrintWhite (304, 32, "^");
+	if (slist_scroll + SLIST_VISIBLE < hostCacheCount)
+		M_PrintWhite (304, 32 + (SLIST_VISIBLE-1)*8, "v");
 
 	if (*m_return_reason)
 		M_PrintWhite (16, 148, m_return_reason);

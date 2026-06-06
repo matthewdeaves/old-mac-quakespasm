@@ -62,6 +62,12 @@ int		unreliableMessagesReceived	= 0;
 static	cvar_t	net_messagetimeout = {"net_messagetimeout","300",CVAR_NONE};
 cvar_t	hostname = {"hostname", "UNNAMED", CVAR_NONE};
 
+cvar_t	net_masterextra1 = {"net_masterextra1", "dpmaster.deathmask.net:27950", CVAR_NONE};
+cvar_t	net_masterextra2 = {"net_masterextra2", "master.frag-net.com:27950", CVAR_NONE};
+cvar_t	net_masterextra3 = {"net_masterextra3", "", CVAR_NONE};
+cvar_t	com_protocolname = {"com_protocolname", "DarkPlaces-Quake", CVAR_NONE};
+cvar_t	sv_public        = {"sv_public", "0", CVAR_NONE};
+
 // these two macros are to make the code more readable
 #define sfunc	net_drivers[sock->driver]
 #define dfunc	net_drivers[net_driverlevel]
@@ -299,6 +305,8 @@ void NET_Slist_f (void)
 	slistInProgress = true;
 	slistStartTime = Sys_DoubleTime();
 
+	Datagram_MasterQueryReset ();
+
 	SchedulePollProcedure(&slistSendProcedure, 0.0);
 	SchedulePollProcedure(&slistPollProcedure, 0.1);
 
@@ -389,10 +397,13 @@ static void Slist_Poll (void *unused)
 	if (! slistSilent)
 		PrintSlist();
 
-	if ((Sys_DoubleTime() - slistStartTime) < 1.5)
 	{
-		SchedulePollProcedure(&slistPollProcedure, 0.1);
-		return;
+		double timeout = slistLocal ? 1.5 : 6.0;
+		if ((Sys_DoubleTime() - slistStartTime) < timeout)
+		{
+			SchedulePollProcedure(&slistPollProcedure, 0.1);
+			return;
+		}
 	}
 
 	if (! slistSilent)
@@ -798,6 +809,11 @@ void NET_Init (void)
 
 	Cvar_RegisterVariable (&net_messagetimeout);
 	Cvar_RegisterVariable (&hostname);
+	Cvar_RegisterVariable (&net_masterextra1);
+	Cvar_RegisterVariable (&net_masterextra2);
+	Cvar_RegisterVariable (&net_masterextra3);
+	Cvar_RegisterVariable (&com_protocolname);
+	Cvar_RegisterVariable (&sv_public);
 
 	Cmd_AddCommand ("slist", NET_Slist_f);
 	Cmd_AddCommand ("listen", NET_Listen_f);

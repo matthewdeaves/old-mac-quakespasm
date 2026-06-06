@@ -34,6 +34,7 @@ qboolean	Datagram_CanSendMessage (qsocket_t *sock);
 qboolean	Datagram_CanSendUnreliableMessage (qsocket_t *sock);
 void		Datagram_Close (qsocket_t *sock);
 void		Datagram_Shutdown (void);
+void		Datagram_MasterQueryReset (void);
 
 #endif	/* __NET_DATAGRAM_H */
 

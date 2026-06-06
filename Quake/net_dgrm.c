@@ -1116,6 +1116,95 @@ qsocket_t *Datagram_CheckNewConnections (void)
 }
 
 
+/* =====================================================================
+   DPMaster / internet server browser
+   ===================================================================== */
+
+extern cvar_t net_masterextra1, net_masterextra2, net_masterextra3;
+extern cvar_t com_protocolname;
+
+static qboolean dpmaster_queried;
+#define DPMASTER_MAX_PENDING 256
+static struct qsockaddr dp_pending[DPMASTER_MAX_PENDING];
+static int dp_pending_count;
+static int dp_pending_next;
+
+/* Resolved master addresses (cached across slist calls to avoid repeated DNS) */
+static struct qsockaddr cached_master[3];
+static qboolean cached_master_valid[3];
+
+void Datagram_MasterQueryReset (void)
+{
+	dpmaster_queried  = false;
+	dp_pending_count  = 0;
+	dp_pending_next   = 0;
+}
+
+/* Resolve "hostname[:port]" — port defaults to 27950.
+   Only resolves once per master address; caches for subsequent slist calls. */
+static int MasterResolveAddr (int idx, const cvar_t *cv, struct qsockaddr *out)
+{
+	char host[256];
+	int  port;
+	char *colon;
+
+	if (!cv->string || !cv->string[0])
+		return -1;
+
+	/* Return cached address if already resolved */
+	if (cached_master_valid[idx])
+	{
+		*out = cached_master[idx];
+		return 0;
+	}
+
+	q_strlcpy(host, cv->string, sizeof(host));
+	port = 27950;
+	colon = strrchr(host, ':');
+	if (colon) { port = atoi(colon+1); *colon = 0; }
+
+	if (dfunc.GetAddrFromName(host, out) == -1)
+		return -1;
+
+	((struct sockaddr_in *)out)->sin_port = htons((unsigned short)port);
+	cached_master[idx]       = *out;
+	cached_master_valid[idx] = true;
+	return 0;
+}
+
+/* Extract a value from a \key\value\key\value infostring.
+   Returns valbuf on success, NULL on miss. */
+static const char *InfoStr_Get (const char *info, const char *key,
+                                char *valbuf, int vallen)
+{
+	int keylen = (int)strlen(key);
+	const char *s = info;
+	while (*s == '\\')
+	{
+		const char *k   = s + 1;
+		const char *sep = strchr(k, '\\');
+		if (!sep) break;
+		const char *v   = sep + 1;
+		const char *end = strchr(v, '\\');
+		if (!end) end = v + strlen(v);
+		if ((int)(sep - k) == keylen &&
+		    q_strncasecmp(k, key, keylen) == 0)
+		{
+			int n = (int)(end - v);
+			if (n >= vallen) n = vallen - 1;
+			memcpy(valbuf, v, n);
+			valbuf[n] = 0;
+			return valbuf;
+		}
+		s = end;
+	}
+	return NULL;
+}
+
+/* =====================================================================
+   End DPMaster state
+   ===================================================================== */
+
 static void _Datagram_SearchForHosts (qboolean xmit)
 {
 	int		ret;
@@ -1139,6 +1228,27 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 		SZ_Clear(&net_message);
 	}
 
+	/* Internet: send getservers to configured masters on first xmit */
+	if (!slistLocal && xmit && !dpmaster_queried)
+	{
+		const cvar_t *masters[3] = {
+			&net_masterextra1, &net_masterextra2, &net_masterextra3
+		};
+		int m;
+		dpmaster_queried = true;
+		for (m = 0; m < 3; m++)
+		{
+			struct qsockaddr masteraddr;
+			char query[256];
+			if (MasterResolveAddr(m, masters[m], &masteraddr) == -1)
+				continue;
+			q_snprintf(query, sizeof(query), "getservers %s 3 empty full",
+			           com_protocolname.string);
+			dfunc.Write(dfunc.controlSock, (byte *)query, (int)strlen(query),
+			            &masteraddr);
+		}
+	}
+
 	while ((ret = dfunc.Read (dfunc.controlSock, net_message.data, net_message.maxsize, &readaddr)) > 0)
 	{
 		if (ret < (int) sizeof(int))
@@ -1156,10 +1266,87 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 		MSG_BeginReading ();
 		control = BigLong(*((int *)net_message.data));
 		MSG_ReadLong();
+
 		if (control == -1)
+		{
+			/* OOB packet: check for DPMaster infoResponse */
+			if (!slistLocal && ret >= 17)
+			{
+				const byte *d = net_message.data;
+				/* \xFF\xFF\xFF\xFF infoResponse\n <infostring> */
+				if (memcmp(d+4, "infoResponse\n", 13) == 0 &&
+				    hostCacheCount < HOSTCACHESIZE)
+				{
+					char hostname_buf[16] = "unnamed";
+					char mapname_buf[16]  = "";
+					char valbuf[64];
+					const char *info = (const char *)(d + 17);
+					int  users = 0, maxusers = 0;
+					int  dup = 0;
+
+					InfoStr_Get(info, "hostname",      hostname_buf, sizeof(hostname_buf));
+					InfoStr_Get(info, "mapname",       mapname_buf,  sizeof(mapname_buf));
+					if (InfoStr_Get(info, "clients",       valbuf, sizeof(valbuf)))
+						users = atoi(valbuf);
+					if (InfoStr_Get(info, "sv_maxclients", valbuf, sizeof(valbuf)))
+						maxusers = atoi(valbuf);
+
+					/* deduplicate */
+					for (n = 0; n < hostCacheCount; n++)
+					{
+						if (dfunc.AddrCompare(&readaddr, &hostcache[n].addr) == 0)
+							{ dup = 1; break; }
+					}
+					if (!dup)
+					{
+						n = hostCacheCount++;
+						q_strlcpy(hostcache[n].name,  hostname_buf, sizeof(hostcache[n].name));
+						q_strlcpy(hostcache[n].map,   mapname_buf,  sizeof(hostcache[n].map));
+						hostcache[n].users    = users;
+						hostcache[n].maxusers = maxusers;
+						Q_memcpy(&hostcache[n].addr, &readaddr, sizeof(struct qsockaddr));
+						hostcache[n].driver  = net_driverlevel;
+						hostcache[n].ldriver = net_landriverlevel;
+						q_strlcpy(hostcache[n].cname, dfunc.AddrToString(&readaddr),
+						          sizeof(hostcache[n].cname));
+					}
+				}
+			}
 			continue;
+		}
+
 		if ((control & (~NETFLAG_LENGTH_MASK)) != (int)NETFLAG_CTL)
+		{
+			/* Non-control packet: check for DPMaster getserversResponse */
+			if (!slistLocal && ret >= 24)
+			{
+				const byte *d = net_message.data;
+				if (memcmp(d, "getserversResponse", 18) == 0)
+				{
+					int offset = 18;
+					while (offset + 6 <= ret &&
+					       dp_pending_count < DPMASTER_MAX_PENDING)
+					{
+						struct qsockaddr sa;
+						unsigned int ip;
+						unsigned short port;
+						memset(&sa, 0, sizeof(sa));
+						sa.qsa_family = AF_INET;
+						/* bytes are already in network order */
+						memcpy(&ip,   d+offset,   4);
+						memcpy(&port, d+offset+4, 2);
+						offset += 6;
+						if (ip == 0) continue; /* skip 0.0.0.0 terminator */
+						if (ip == 0xFFFFFFFFu) break; /* all-FF terminator */
+						((struct sockaddr_in *)&sa)->sin_addr.s_addr = ip;
+						((struct sockaddr_in *)&sa)->sin_port = port;
+						dp_pending[dp_pending_count++] = sa;
+					}
+				}
+			}
 			continue;
+		}
+
 		if ((control & NETFLAG_LENGTH_MASK) != ret)
 			continue;
 
@@ -1214,6 +1401,22 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 
 				i = -1;
 			}
+		}
+	}
+
+	/* After reading: send getinfo OOB to the next batch of pending servers */
+	if (!slistLocal && !xmit)
+	{
+		static const byte getinfo_pkt[12] = {
+			0xFF,0xFF,0xFF,0xFF,'g','e','t','i','n','f','o','\n'
+		};
+		int sent = 0;
+		while (dp_pending_next < dp_pending_count && sent < 5)
+		{
+			dfunc.Write(dfunc.controlSock, getinfo_pkt, (int)sizeof(getinfo_pkt),
+			            &dp_pending[dp_pending_next]);
+			dp_pending_next++;
+			sent++;
 		}
 	}
 }
