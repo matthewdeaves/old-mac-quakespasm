@@ -209,15 +209,24 @@ void CL_ParseTEnt (void)
 		R_RunParticleEffect (pos, vec3_origin, 0, 20);
 		// Stock Quake sends the SAME TE_GUNSHOT for an axe wall-hit and a
 		// shotgun/grunt bullet, so the packet can't tell them apart. But the
-		// client knows the local player's active weapon: you can't fire a gun
-		// while the axe is out, so a TE_GUNSHOT landing within melee reach of
-		// the player while the axe is equipped is an axe chop -> slash. The
-		// range gate keeps a nearby grunt's gunshots (also TE_GUNSHOT) from
-		// being mistaken for axe marks.
+		// client knows what the local player is holding: you can't fire a gun
+		// while the axe is out, so a TE_GUNSHOT landing within melee reach
+		// while the axe viewmodel is up is an axe chop -> slash. The range
+		// gate keeps a nearby grunt's gunshots (also TE_GUNSHOT) from being
+		// mistaken for axe marks.
+		//
+		// NB: do NOT test cl.stats[STAT_ACTIVEWEAPON] -- in standard_quake the
+		// server sends it as one MSG_WriteByte of ent->v.weapon, so IT_AXE
+		// (4096) truncates to 0 on the wire and never equals IT_AXE on the
+		// client (sv_main.c:979 / cl_parse.c:850). The weapon viewmodel
+		// (driven by STAT_WEAPON, which has a proper high-byte path) is the
+		// reliable, protocol-independent signal.
 		{
 			vec3_t d;
+			qboolean axe = (cl.viewent.model != NULL) &&
+				(strstr (cl.viewent.model->name, "v_axe") != NULL);
 			VectorSubtract (pos, cl_entities[cl.viewentity].origin, d);
-			if (cl.stats[STAT_ACTIVEWEAPON] == IT_AXE && VectorLength (d) < 90.0f)
+			if (axe && VectorLength (d) < 90.0f)
 				R_SpawnDecal (pos, DECALTYPE_SLASH);
 			else
 				R_SpawnDecal (pos, DECALTYPE_BULLET);
