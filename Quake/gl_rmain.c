@@ -1209,6 +1209,15 @@ void R_RenderScene (void)
 
 	Fog_DisableGFog (); //johnfitz
 
+	// PPC port -- the decal, dlight and particle passes above all change
+	// TEXTURE_ENV_MODE / DEPTH_MASK / GL_BLEND with raw glXxx calls that
+	// bypass the Round-v11 alias state cache, leaving its tracked values
+	// stale. The viewmodel is an alias model drawn through that cache, so
+	// a stale slot would make it skip a needed state change and render
+	// BLACK. Invalidate the cache here so the viewmodel re-emits real
+	// state. (No-op on the G3 slice where the cache is compiled out.)
+	R_AliasStateCache_FrameReset ();
+
 	PERF_BEGIN(PERF_VIEWMODEL);
 	R_DrawViewModel (); //johnfitz -- moved here from R_RenderView
 	PERF_END(PERF_VIEWMODEL);

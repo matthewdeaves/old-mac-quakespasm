@@ -55,12 +55,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define DECAL_VERTS_PER    64
 #define MAX_DECAL_VERTS    (MAX_DECALS * DECAL_VERTS_PER)
 
-/* ----- decal types ----- */
+/* ----- decal types (must match the DECALTYPE_* macros in glquake.h) ----- */
 enum {
-	DECAL_BULLET = 0,	/* shotgun / nail impacts (gunshot, spike, superspike) */
+	DECAL_BULLET = 0,	/* shotgun / axe wall hits */
+	DECAL_NAIL,			/* nailgun (smaller) */
+	DECAL_SUPERNAIL,	/* super nailgun (bigger) */
 	DECAL_SCORCH,		/* energy spikes (wizard, hell-knight, tarbaby) */
 	DECAL_BURN,			/* rocket / grenade explosions */
+	DECAL_LIGHTNING,	/* thunderbolt */
+	DECAL_SLASH,		/* axe melee gash */
 	DECAL_TYPE_COUNT
+};
+
+/* ----- texture atlas (several decal types share one texture) ----- */
+enum {
+	DTEX_BULLET = 0,
+	DTEX_SCORCH,
+	DTEX_BURN,
+	DTEX_LIGHTNING,
+	DTEX_SLASH,
+	DTEX_COUNT
 };
 
 typedef struct {
@@ -107,13 +121,17 @@ static int          cm_maxMarkFragments;
 static decalfrag_t *cm_markFragments;
 static decalplane_t cm_markPlanes[MAX_FRAGMENT_PLANES];
 
-static gltexture_t *r_decal_textures[DECAL_TYPE_COUNT];
+static gltexture_t *r_decal_textures[DTEX_COUNT];
 
-/* per-type sizing: decal radius (texture half-extent) and the distance
- * the surface-finding probe reaches. Explosions float in open air, so
- * BURN needs a longer reach to find the wall/floor it went off against. */
-static const float decal_radius[DECAL_TYPE_COUNT] = { 8.0f, 12.0f, 30.0f };
-static const float decal_probe [DECAL_TYPE_COUNT] = { 18.0f, 18.0f, 48.0f };
+/* per-type: which texture, the decal radius (texture half-extent), and the
+ * distance the surface-finding probe reaches. Explosions float in open air,
+ * so BURN needs a longer reach to find the wall/floor it went off against. */
+static const int   decal_tex   [DECAL_TYPE_COUNT] =
+	{ DTEX_BULLET, DTEX_BULLET, DTEX_BULLET, DTEX_SCORCH, DTEX_BURN, DTEX_LIGHTNING, DTEX_SLASH };
+static const float decal_radius[DECAL_TYPE_COUNT] =
+	{ 8.0f,        6.0f,        9.0f,        12.0f,       30.0f,     10.0f,          13.0f };
+static const float decal_probe [DECAL_TYPE_COUNT] =
+	{ 18.0f,       18.0f,       18.0f,       18.0f,       48.0f,     22.0f,          18.0f };
 
 cvar_t r_decals      = {"r_decals",      "1",  CVAR_ARCHIVE};
 cvar_t r_decal_max   = {"r_decal_max",   "32", CVAR_ARCHIVE};
@@ -410,7 +428,7 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
 
 	if (!r_decals.value || !cl.worldmodel)
 		return;
-	if (type < 0 || type >= DECAL_TYPE_COUNT || !r_decal_textures[type])
+	if (type < 0 || type >= DECAL_TYPE_COUNT || !r_decal_textures[decal_tex[type]])
 		return;
 
 	maxDecals = (int)r_decal_max.value;
@@ -469,7 +487,7 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
 	d->inUse = true;
 	d->fadeStart = now + r_decal_life.value;
 	d->fadeEnd   = d->fadeStart + r_decal_fade.value;
-	d->texture = r_decal_textures[type];
+	d->texture = r_decal_textures[decal_tex[type]];
 }
 
 /*
@@ -494,17 +512,24 @@ R_DecalProbeSurface (const vec3_t origin, float probe, vec3_t out_pos, vec3_t ou
 	float    best = 1.0f;
 	qboolean found = false;
 	vec3_t   start, end;
+	/* Back the probe start up a few units against its own direction. A
+	 * hitscan impact (shotgun) sits just off the open side of the surface,
+	 * but a projectile impact (nailgun/super-nailgun TE_SPIKE) can be a
+	 * couple of units EMBEDDED in the solid, which would make every
+	 * outward probe start in solid (startsolid) and find nothing -> no
+	 * decal. Starting BACKUP units behind origin guarantees the probe
+	 * begins in open space and still crosses the surface. */
+	const float BACKUP = 4.0f;
 
 	if (!cl.worldmodel || !cl.worldmodel->nodes)
 		return false;
-
-	VectorCopy (origin, start);
 
 	for (i = 0; i < 6; i++)
 	{
 		trace_t tr;
 
-		VectorMA (start, probe, dirs[i], end);
+		VectorMA (origin, -BACKUP, dirs[i], start);
+		VectorMA (origin, probe, dirs[i], end);
 
 		/* SV_RecursiveHullCheck follows the SV_Move convention: caller
 		 * pre-fills fraction=1 / endpos=end and seeds allsolid=true (the
@@ -657,11 +682,80 @@ GenBurn (byte *dst)	/* 128x128: big charred explosion mark with soot streaks */
 		}
 }
 
+static void
+GenLightning (byte *dst)	/* 64x64: electric scorch — dark burn ring, hot bluish core, crackle tendrils */
+{
+	int x, y, k;
+	const int S = 64, H = 32;
+	static const float tendrils[7] = { 0.4f, 1.3f, 2.1f, 3.0f, 3.9f, 4.8f, 5.6f };
+	for (y = 0; y < S; y++)
+		for (x = 0; x < S; x++)
+		{
+			float dx = x - H + 0.5f, dy = y - H + 0.5f;
+			float r = sqrt (dx * dx + dy * dy);
+			float ang = atan2 (dy, dx);
+			int a, cr, cg, cb;
+			if (r < 5)        { a = 215; cr = 180; cg = 205; cb = 255; }	/* hot bluish-white core */
+			else if (r < 13)  { float t = (r - 5) / 8.0f;  a = (int)(190 * (1.0f - t)) + 25;
+			                    cr = (int)(110 * (1 - t) + 25 * t); cg = (int)(135 * (1 - t) + 22 * t); cb = (int)(175 * (1 - t) + 28 * t); }
+			else if (r < 26)  { float t = (r - 13) / 13.0f; a = (int)(115 * (1.0f - t)); cr = 25; cg = 24; cb = 32; }
+			else              { a = 0; cr = cg = cb = 0; }
+			/* crackle tendrils — bright bluish spokes radiating out */
+			if (r > 4 && r < 30)
+			{
+				for (k = 0; k < 7; k++)
+				{
+					float dd = fabs (fmod (ang - tendrils[k] + M_PI + 2 * M_PI, 2 * M_PI) - M_PI);
+					if (dd < 0.05f)
+					{
+						int ta = (int)(175 * (1.0f - r / 30.0f));
+						if (ta > a) { a = ta; cr = 150; cg = 180; cb = 235; }
+						break;
+					}
+				}
+			}
+			if (a < 0) a = 0; if (a > 255) a = 255;
+			*dst++ = cr; *dst++ = cg; *dst++ = cb; *dst++ = a;
+		}
+}
+
+static void
+GenSlash (byte *dst)	/* 64x64: axe gash — a few tapered parallel cut scratches */
+{
+	int x, y, k;
+	const int S = 64, H = 32;
+	static const float voff[3] = { -5.0f, 1.0f, 7.0f };	/* across-gash offset */
+	static const float vlen[3] = { 22.0f, 26.0f, 18.0f };	/* half-length along gash */
+	for (y = 0; y < S; y++)
+		for (x = 0; x < S; x++)
+		{
+			float u = x - H + 0.5f;	/* along the gash */
+			float v = y - H + 0.5f;	/* across the gash */
+			int a = 0;
+			for (k = 0; k < 3; k++)
+			{
+				float dv = fabs (v - voff[k]);
+				float au = fabs (u);
+				if (au < vlen[k] && dv < 3.0f)
+				{
+					float te = 1.0f - au / vlen[k];	/* fade toward the ends */
+					float td = 1.0f - dv / 3.0f;	/* fade across the scratch */
+					int   sa = (int)(230.0f * te * td);
+					if (sa > a) a = sa;
+				}
+			}
+			if (a < 0) a = 0; if (a > 255) a = 255;
+			*dst++ = 12; *dst++ = 10; *dst++ = 8; *dst++ = a;	/* dark cut */
+		}
+}
+
 void R_InitDecals (void)
 {
 	static byte bullet_data[64 * 64 * 4];
 	static byte scorch_data[64 * 64 * 4];
 	static byte burn_data[128 * 128 * 4];
+	static byte lightning_data[64 * 64 * 4];
+	static byte slash_data[64 * 64 * 4];
 
 	Cvar_RegisterVariable (&r_decals);
 	Cvar_RegisterVariable (&r_decal_max);
@@ -670,20 +764,32 @@ void R_InitDecals (void)
 
 	GenBulletHole (bullet_data);
 	DecalBlurAlpha (bullet_data, 64, 64);
-	r_decal_textures[DECAL_BULLET] = TexMgr_LoadImage (NULL, "decal_bullet", 64, 64,
+	r_decal_textures[DTEX_BULLET] = TexMgr_LoadImage (NULL, "decal_bullet", 64, 64,
 			SRC_RGBA, bullet_data, "", (src_offset_t)bullet_data,
 			TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
 
 	GenScorch (scorch_data);
 	DecalBlurAlpha (scorch_data, 64, 64);
-	r_decal_textures[DECAL_SCORCH] = TexMgr_LoadImage (NULL, "decal_scorch", 64, 64,
+	r_decal_textures[DTEX_SCORCH] = TexMgr_LoadImage (NULL, "decal_scorch", 64, 64,
 			SRC_RGBA, scorch_data, "", (src_offset_t)scorch_data,
 			TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
 
 	GenBurn (burn_data);
 	DecalBlurAlpha (burn_data, 128, 128);
-	r_decal_textures[DECAL_BURN] = TexMgr_LoadImage (NULL, "decal_burn", 128, 128,
+	r_decal_textures[DTEX_BURN] = TexMgr_LoadImage (NULL, "decal_burn", 128, 128,
 			SRC_RGBA, burn_data, "", (src_offset_t)burn_data,
+			TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
+
+	GenLightning (lightning_data);
+	DecalBlurAlpha (lightning_data, 64, 64);
+	r_decal_textures[DTEX_LIGHTNING] = TexMgr_LoadImage (NULL, "decal_lightning", 64, 64,
+			SRC_RGBA, lightning_data, "", (src_offset_t)lightning_data,
+			TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
+
+	GenSlash (slash_data);
+	DecalBlurAlpha (slash_data, 64, 64);
+	r_decal_textures[DTEX_SLASH] = TexMgr_LoadImage (NULL, "decal_slash", 64, 64,
+			SRC_RGBA, slash_data, "", (src_offset_t)slash_data,
 			TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
 
 	R_ClearDecals ();

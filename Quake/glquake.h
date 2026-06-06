@@ -440,9 +440,13 @@ void R_ClearDecals (void);
 void R_DrawDecals (void);
 void R_SpawnDecal (const vec3_t pos, int type);
 // decal types (must match the enum in r_decals.c)
-#define DECALTYPE_BULLET	0	// shotgun / nail impacts
-#define DECALTYPE_SCORCH	1	// energy-spike impacts
-#define DECALTYPE_BURN		2	// rocket / grenade explosions
+#define DECALTYPE_BULLET	0	// shotgun / axe wall hits
+#define DECALTYPE_NAIL		1	// nailgun (smaller bullet mark)
+#define DECALTYPE_SUPERNAIL	2	// super nailgun (bigger bullet mark)
+#define DECALTYPE_SCORCH	3	// energy-spike impacts (scrag/knight/tarbaby)
+#define DECALTYPE_BURN		4	// rocket / grenade explosions
+#define DECALTYPE_LIGHTNING	5	// thunderbolt
+#define DECALTYPE_SLASH		6	// axe melee gash
 
 // PPC port -- Round v11: alias entity GL state cache. Called once per
 // frame from R_RenderScene. Compiled out of the G3 ppc750 slice via

@@ -56,7 +56,7 @@ void CL_InitTEnts (void)
 CL_ParseBeam
 =================
 */
-void CL_ParseBeam (qmodel_t *m)
+void CL_ParseBeam (qmodel_t *m, qboolean lightning)
 {
 	int		ent;
 	vec3_t	start, end;
@@ -72,6 +72,26 @@ void CL_ParseBeam (qmodel_t *m)
 	end[0] = MSG_ReadCoord (cl.protocolflags);
 	end[1] = MSG_ReadCoord (cl.protocolflags);
 	end[2] = MSG_ReadCoord (cl.protocolflags);
+
+	// PPC port -- scorch the wall where lightning terminates. The bolt is
+	// the only client signal of a thunderbolt hit (no impact temp entity),
+	// so use the beam end. Beams arrive ~10/sec while firing, so throttle:
+	// only mark when the endpoint has moved (a sweep rakes a dotted trail)
+	// or after a firing gap (re-marks a held spot), never stacking during a
+	// continuous burst on one point. (Not the grapple beam -- lightning only.)
+	if (lightning)
+	{
+		static vec3_t last_pos;
+		static float  last_time;
+		vec3_t        d;
+		VectorSubtract (end, last_pos, d);
+		if (VectorLength (d) > 24.0f || (cl.time - last_time) > 0.5)
+		{
+			R_SpawnDecal (end, DECALTYPE_LIGHTNING);
+			VectorCopy (end, last_pos);
+			last_time = cl.time;
+		}
+	}
 
 // override any beam with the same entity
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
@@ -147,7 +167,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord (cl.protocolflags);
 		pos[2] = MSG_ReadCoord (cl.protocolflags);
 		R_RunParticleEffect (pos, vec3_origin, 0, 10);
-		R_SpawnDecal (pos, DECALTYPE_BULLET);
+		R_SpawnDecal (pos, DECALTYPE_NAIL);
 		if ( rand() % 5 )
 			S_StartSound (-1, 0, cl_sfx_tink1, pos, 1, 1);
 		else
@@ -166,7 +186,7 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord (cl.protocolflags);
 		pos[2] = MSG_ReadCoord (cl.protocolflags);
 		R_RunParticleEffect (pos, vec3_origin, 0, 20);
-		R_SpawnDecal (pos, DECALTYPE_BULLET);
+		R_SpawnDecal (pos, DECALTYPE_SUPERNAIL);
 
 		if ( rand() % 5 )
 			S_StartSound (-1, 0, cl_sfx_tink1, pos, 1, 1);
@@ -187,7 +207,21 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord (cl.protocolflags);
 		pos[2] = MSG_ReadCoord (cl.protocolflags);
 		R_RunParticleEffect (pos, vec3_origin, 0, 20);
-		R_SpawnDecal (pos, DECALTYPE_BULLET);
+		// Stock Quake sends the SAME TE_GUNSHOT for an axe wall-hit and a
+		// shotgun/grunt bullet, so the packet can't tell them apart. But the
+		// client knows the local player's active weapon: you can't fire a gun
+		// while the axe is out, so a TE_GUNSHOT landing within melee reach of
+		// the player while the axe is equipped is an axe chop -> slash. The
+		// range gate keeps a nearby grunt's gunshots (also TE_GUNSHOT) from
+		// being mistaken for axe marks.
+		{
+			vec3_t d;
+			VectorSubtract (pos, cl_entities[cl.viewentity].origin, d);
+			if (cl.stats[STAT_ACTIVEWEAPON] == IT_AXE && VectorLength (d) < 90.0f)
+				R_SpawnDecal (pos, DECALTYPE_SLASH);
+			else
+				R_SpawnDecal (pos, DECALTYPE_BULLET);
+		}
 		break;
 
 	case TE_EXPLOSION:			// rocket explosion
@@ -215,20 +249,20 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TE_LIGHTNING1:				// lightning bolts
-		CL_ParseBeam (Mod_ForName("progs/bolt.mdl", true));
+		CL_ParseBeam (Mod_ForName("progs/bolt.mdl", true), true);
 		break;
 
 	case TE_LIGHTNING2:				// lightning bolts
-		CL_ParseBeam (Mod_ForName("progs/bolt2.mdl", true));
+		CL_ParseBeam (Mod_ForName("progs/bolt2.mdl", true), true);
 		break;
 
 	case TE_LIGHTNING3:				// lightning bolts
-		CL_ParseBeam (Mod_ForName("progs/bolt3.mdl", true));
+		CL_ParseBeam (Mod_ForName("progs/bolt3.mdl", true), true);
 		break;
 
 // PGM 01/21/97
 	case TE_BEAM:				// grappling hook beam
-		CL_ParseBeam (Mod_ForName("progs/beam.mdl", true));
+		CL_ParseBeam (Mod_ForName("progs/beam.mdl", true), false);
 		break;
 // PGM 01/21/97
 
