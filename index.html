@@ -6,7 +6,7 @@
 
 <!-- Primary SEO -->
 <title>Old Mac QuakeSpasm — Quake for PowerPC G3/G4/G5 &amp; Intel Macs</title>
-<meta name="description" content="Play Quake natively on vintage PowerPC G3, G4, G5 and early Intel Macs. A QuakeSpasm source port tuned for Mac OS X Panther, Tiger and Lion with automatic per-machine hardware tuning. One fat universal binary, free download.">
+<meta name="description" content="Play Quake natively on vintage PowerPC G3, G4, G5 and early Intel Macs — now with online multiplayer and weapon damage decals. A QuakeSpasm source port tuned for Mac OS X Panther, Tiger and Lion with automatic per-machine hardware tuning. One fat universal binary, free download.">
 <link rel="canonical" href="https://matthewdeaves.github.io/old-mac-quakespasm/">
 <meta name="author" content="Matthew Deaves">
 <meta name="robots" content="index, follow">
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Old Mac QuakeSpasm">
 <meta property="og:title" content="Old Mac QuakeSpasm — Quake for vintage PowerPC &amp; Intel Macs">
-<meta property="og:description" content="Heavily optimized QuakeSpasm port for PowerPC G3/G4/G5 and early Intel Macs. Runs on Mac OS X Panther through modern macOS, auto-tuned per machine. Free DMG download.">
+<meta property="og:description" content="Heavily optimized QuakeSpasm port for PowerPC G3/G4/G5 and early Intel Macs, with online multiplayer and weapon decals. Runs on Mac OS X Panther through modern macOS, auto-tuned per machine. Free DMG download.">
 <meta property="og:url" content="https://matthewdeaves.github.io/old-mac-quakespasm/">
 <meta property="og:image" content="https://matthewdeaves.github.io/old-mac-quakespasm/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
@@ -122,7 +122,7 @@
 
 <div class="wrap">
 
-<p>This is a <strong>QuakeSpasm fork</strong> tuned to look as good as possible while staying playable on <strong>six retro Macs spanning 1999–2019</strong>. One source tree builds a single <strong>fat universal binary</strong> (PowerPC G3 + PowerPC G4 with AltiVec + Intel x86_64); the right configuration for your machine is selected automatically at launch via <code>sysctl hw.model</code>. It is free and open source under the GPL, inherited from upstream QuakeSpasm.</p>
+<p>This is a <strong>QuakeSpasm fork</strong> tuned to look as good as possible while staying playable on <strong>seven retro Macs spanning 1999–2019</strong>. One source tree builds a single <strong>fat universal binary</strong> (PowerPC G3 + PowerPC G4 with AltiVec + PowerPC G5 + Intel x86_64); the right configuration for your machine is selected automatically at launch via <code>sysctl hw.model</code>. It is free and open source under the GPL, inherited from upstream QuakeSpasm.</p>
 
 <div class="shots">
   <figure><img src="assets/sawtooth_spasm0010.webp" alt="Quake on a Power Mac G4 Sawtooth with NVIDIA GeForce2 MX" loading="lazy"><figcaption>Power Mac G4 · GeForce2 MX</figcaption></figure>
@@ -139,17 +139,20 @@
     <tr><td><strong>Power Mac G4</strong> (Sawtooth AGP, 1999)</td><td>500 MHz PowerPC 7400</td><td>NVIDIA GeForce2 MX 32 MB</td><td>10.4.11 Tiger</td></tr>
     <tr><td><strong>Power Mac G4</strong> (Quicksilver, 2001)</td><td>733 MHz PowerPC 7450</td><td>ATI Radeon 9000 Pro 64 MB</td><td>10.4.11 Tiger</td></tr>
     <tr><td><strong>Mac mini G4</strong> (PowerMac10,1, 2005)</td><td>1.25 GHz PowerPC 7447A</td><td>ATI Radeon 9200 32 MB</td><td>10.4.11 Tiger</td></tr>
+    <tr><td><strong>iMac G5</strong> (PowerMac8,2, 2005)</td><td>2.0 GHz PowerPC 970</td><td>ATI Radeon 9600 128 MB</td><td>10.5.8 Leopard</td></tr>
     <tr><td><strong>Mac mini</strong> (Intel Core 2 Duo, 2007)</td><td>2.33 GHz Core 2 Duo</td><td>Intel GMA 950 64 MB</td><td>10.7.5 Lion</td></tr>
     <tr><td><strong>iMac 27"</strong> (iMac19,1, 2019)</td><td>3.7 GHz Core i5-9600K</td><td>AMD Radeon Pro 580X 8 GB</td><td>modern macOS</td></tr>
   </tbody>
 </table>
-<p>The same DMG installs on every supported Mac. It is built on Panther so it mounts on everything from <strong>Mac OS X 10.3.9</strong> through the latest macOS, and the <code>.app</code> inside is a fat binary that runs natively as PowerPC on G3/G4/G5 and as Intel x86_64 on Core 2 Duo and newer. PowerPC G5 machines run the G4 AltiVec slice. (Pre-Lion 32-bit-kernel Intel Macs are not supported.)</p>
+<p>The same DMG installs on every supported Mac. It is built on Panther so it mounts on everything from <strong>Mac OS X 10.3.9</strong> through the latest macOS, and the <code>.app</code> inside is a fat binary with a dedicated slice for each PowerPC generation (G3 750, G4 7400, G5 970) plus Intel x86_64 — including the iMac G5 on Leopard at its native panel resolution. (Pre-Lion 32-bit-kernel Intel Macs are not supported.)</p>
 
 <h2 id="features">What makes it different</h2>
 <ul>
-  <li><strong>One fat universal binary</strong> — PowerPC 750 (G3), PowerPC 7400 (G4, with hand-written AltiVec paths) and Intel x86_64, glued with <code>lipo</code> into a single <code>.app</code>.</li>
+  <li><strong>One fat universal binary</strong> — PowerPC 750 (G3), PowerPC 7400 (G4, with hand-written AltiVec paths), PowerPC 970 (G5) and Intel x86_64, glued with <code>lipo</code> into a single <code>.app</code>.</li>
   <li><strong>Automatic per-machine tuning</strong> — at launch the engine reads <code>hw.model</code> and applies a configuration profile tuned for that exact computer's CPU and GPU.</li>
   <li><strong>Visuals tuned per GPU era</strong> — translucent water, lava, slime and teleporters; alias drop-shadows; trilinear and up to 16× anisotropic filtering; smooth lightstyles; emissive dynamic lights; stencil shadows and MSAA where the hardware can take it.</li>
+  <li><strong>Online multiplayer with auto-download</strong> — an in-menu internet server browser lists live public servers; joining one auto-downloads any maps or assets you're missing over the game's own protocol, then drops you in. A 449&nbsp;MHz G3 on Panther can play online against a 2019 iMac (tested on the public denver.quakeone.com server).</li>
+  <li><strong>Weapon damage decals</strong> — shotgun bullet holes, nailgun pocks, axe slashes, spike scorch, explosion burns and lightning scars on walls, floors and ceilings.</li>
   <li><strong>Stays playable on real hardware</strong> — the 1999 Power Mac G3 with an ATI Rage 128 went from ~5 fps to ~21 fps on the dynamic-light-heavy demo3 over the course of the project.</li>
   <li><strong>Every tweak is toggleable</strong> at runtime so you can A/B individual features on your own Mac without rebuilding.</li>
 </ul>
