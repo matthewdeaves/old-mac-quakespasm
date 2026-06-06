@@ -434,6 +434,16 @@ void R_DrawParticles (void);
 void CL_RunParticles (void);
 void R_ClearParticles (void);
 
+// PPC port -- world damage-mark (decal) subsystem, r_decals.c
+void R_InitDecals (void);
+void R_ClearDecals (void);
+void R_DrawDecals (void);
+void R_SpawnDecal (const vec3_t pos, int type);
+// decal types (must match the enum in r_decals.c)
+#define DECALTYPE_BULLET	0	// shotgun / nail impacts
+#define DECALTYPE_SCORCH	1	// energy-spike impacts
+#define DECALTYPE_BURN		2	// rocket / grenade explosions
+
 // PPC port -- Round v11: alias entity GL state cache. Called once per
 // frame from R_RenderScene. Compiled out of the G3 ppc750 slice via
 // QS_DISABLE_ALIAS_STATE_CACHE; the function body is empty there.

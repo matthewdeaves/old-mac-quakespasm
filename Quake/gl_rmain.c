@@ -1199,6 +1199,8 @@ void R_RenderScene (void)
 	R_DrawEntitiesOnList (true); //johnfitz -- true means this is the pass for alpha entities
 	PERF_END(PERF_ALIAS_ALPHA);
 
+	R_DrawDecals (); // PPC port -- world damage marks, after opaque world+entities
+
 	R_RenderDlights (); //triangle fan dlights -- johnfitz -- moved after water
 
 	PERF_BEGIN(PERF_PARTICLES);

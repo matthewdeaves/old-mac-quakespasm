@@ -270,6 +270,7 @@ GLOBJS = \
 	gl_emissive.o \
 	gl_rmisc.o \
 	r_part.o \
+	r_decals.o \
 	r_world.o \
 	gl_screen.o \
 	gl_sky.o \

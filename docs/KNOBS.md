@@ -201,6 +201,30 @@ CVA Lock as before.
 |------|---------|--------------|------|
 | `gl_fullbright_zbias` | `0` | Fixes ATI fixed-function dropping the additive fullbright glow pass at grazing/far angles (light/lava/tech-panel emissive texels flash **black**). The base pass blacks out the emissive texels and a second additive pass adds the glow back; on R200/R300 the depth comparator rejects the equal-Z coincident fragments, so the glow drops out. Non-zero biases the glow pass toward the camera (`GL_PolygonOffset`, value = offset units) so `GL_LEQUAL` always passes — keeps the glow, unlike the old `gl_fullbrights 0` workaround. Armed per-machine: **imac-g5 `1`** (24-bit depth, replaced its `gl_fullbrights 0`), **mini-g4 `2`** (16-bit depth, coarser step), **quicksilver `1`** (R200, pre-emptive). Default-off on Rage128/GeForce2/Intel (don't need it; avoids 16-bit-depth bleed-through on the G3). Bump the value if any flicker survives at distance. | `r_world.c` glow block / `gl_rmain.c` |
 
+## Weapon damage marks / decals (2026-06-06)
+
+World decals (bullet holes, energy scorches, explosion burns) carved out
+of the BSP geometry at weapon-impact points. Ported from the sister Quake
+II port's fragment clipper (`r_decals.c`). Q1 temp-entity packets carry no
+surface normal, so each impact traces six cardinal axes against the world
+hull (`SV_RecursiveHullCheck`) to recover the nearest surface + normal
+before clipping. Textures are generated procedurally at startup (like the
+particle textures) — nothing ships in `id1/`. Drawn alpha-blended in
+`R_RenderScene` after the opaque world/entities, before dlights, with a
+camera-ward `GL_PolygonOffset` so the coplanar marks never z-fight.
+
+| Cvar | Default | What it does | File |
+|------|---------|--------------|------|
+| `r_decals`     | `1` (on)  | Master on/off for the whole decal subsystem. When off, `R_SpawnDecal`/`R_DrawDecals` both early-out (the draw pass also early-outs every frame when no decal is currently live, so an idle subsystem costs only one bool scan — matters on the Tiger ATI driver which flushes the pipeline on each GL enable/disable). | `r_decals.c` |
+| `r_decal_max`  | `32`      | Max simultaneous decals (FIFO-recycled). Capped at 128. Each slot owns a fixed 64-vertex window of the pool, so recycling a slot can never stomp a still-live decal's geometry. Shrinking at runtime leaves already-placed decals in slots ≥ the new cap drawing until they fade (cosmetic over-budget, not a leak). | `r_decals.c` |
+| `r_decal_life` | `30`      | Seconds a decal stays fully opaque before it starts to fade. | `r_decals.c` |
+| `r_decal_fade` | `5`       | Seconds the fade-out takes once life expires. `0` = pop out instantly (guarded — no divide-by-zero). | `r_decals.c` |
+
+All four are `CVAR_ARCHIVE`. Per-machine sizing belongs in the autoexec
+cfgs — e.g. drop `r_decal_max` (or `r_decals 0`) on yosemite (Rage128
+16 MB VRAM) if end-of-round bench shows the extra blended quads cost it
+the 20-fps floor; bump it on imac-2019 (Polaris) headroom.
+
 ## Hard-coded (no runtime toggle yet)
 
 Flag if a future round wants to A/B these: Phase 1 `frsqrte` mathlib,

@@ -243,6 +243,7 @@ void R_Init (void)
 	Cvar_SetCallback (&r_slimealpha, R_SetSlimealpha_f);
 
 	R_InitParticles ();
+	R_InitDecals (); // PPC port -- world damage-mark subsystem
 	R_SetClearColor_f (&r_clearcolor); //johnfitz
 
 	Sky_Init (); //johnfitz
@@ -527,6 +528,7 @@ void R_NewMap (void)
 
 	r_viewleaf = NULL;
 	R_ClearParticles ();
+	R_ClearDecals (); // PPC port -- drop marks from the previous level
 
 	GL_BuildLightmaps ();
 	GL_BuildBModelVertexBuffer ();
