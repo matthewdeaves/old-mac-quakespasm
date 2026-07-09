@@ -59,6 +59,18 @@ with everything turned on. Every machine stays above its target (≥ 60 fps on t
 G4/G5/Lion machines, ≥ 20 on the G3); full history and all three demos in
 [`benchmarks/results.csv`](benchmarks/results.csv).
 
+## How it's built and benchmarked
+
+One Ubuntu box drives all seven Macs over SSH. The Lion mini does double duty:
+it cross-builds the four PowerPC/Intel slices and benches itself. These diagrams
+cover the setup, the build pipeline and the timedemo bench loop.
+
+![Build and bench rack: one Ubuntu box drives seven Macs via the Lion mini cross-build host](docs/images/architecture.svg)
+
+![Build pipeline: four slices (ppc750, ppc7400, ppc970, x86_64) lipo'd into one fat binary](docs/images/build-pipeline.svg)
+
+![Bench loop: Ubuntu launches a timedemo over SSH, reads qconsole.log back, and the median lands in results.csv](docs/images/bench-loop.svg)
+
 ## Features
 
 - **One fat binary** (PPC G3 + G4 AltiVec + G5 + Intel x86_64); runs on Mac OS X
