@@ -1,16 +1,24 @@
-# QuakeSpasm — seven old Macs, one fat binary
+# QuakeSpasm — old-Mac port
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
-[![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#the-bench-fleet)
-[![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#the-bench-fleet)
-[![Engine: QuakeSpasm fork](https://img.shields.io/badge/Engine-QuakeSpasm%20fork-red.svg)](https://github.com/sezero/quakespasm)
+[![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#tested-machines)
+[![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#tested-machines)
 [![Download: latest .dmg](https://img.shields.io/badge/Download-latest%20.dmg-brightgreen.svg)](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
 
 <p align="center">
-  <img src="docs/images/quakespasm-icon-256.png" width="200" alt="QuakeSpasm icon" />
+  <img src="docs/images/quakespasm-icon-256.png" width="180" alt="QuakeSpasm icon" />
 </p>
 
-A QuakeSpasm fork tuned to look as good as possible while staying playable on **seven retro Macs spanning 1999–2019**. One source tree, one fat universal binary (PPC G3 + PPC G4 AltiVec + PPC G5 + Intel x86_64), per-machine config picked at boot via `sysctl hw.model`.
+A QuakeSpasm build as one fat PowerPC + Intel binary, tested on a range of old
+Macs — G3, G4, G5 and Intel, from a 1999 Power Mac to a 2019 iMac. It reads the
+machine model at boot (`sysctl hw.model`) and loads settings tuned to run well on
+that hardware.
+
+> **About this project.** A personal project — I love Quake and I collect and
+> tinker with old Macs. My part is the setup and testing: the build, deploy and
+> benchmark scripts, and the per-machine settings. The engine and config changes
+> were made mostly **with AI (Claude), which I directed and checked against real
+> benchmarks on the machines** — not hand-written from scratch.
 
 <p align="center">
   <img src="docs/screenshots/sawtooth_spasm0010.webp" width="24%" alt="Sawtooth G4 / GeForce2 MX" />
@@ -19,11 +27,7 @@ A QuakeSpasm fork tuned to look as good as possible while staying playable on **
   <img src="docs/screenshots/imac-2019_spasm0010.webp" width="24%" alt="iMac 27&quot; 2019 / Radeon Pro 580X" />
 </p>
 
-## Headline
-
-On the 1999 B&W G3 (449 MHz PPC 750, Rage 128 16 MB AGP), the dlight-heavy `demo3` at 1024×768 went from **5.10 fps to 20.95 fps (+311 %)** across the project — with translucent water, alias drop-shadows, emissive-fullbright dynamic lights, watervis NoVis (auto-engine), classic warped water (Rage 128 framebuffer-copy refraction bug), reduced particles, coarser warp tessellation, `gl_clear 0`, and a per-frame dynamic-light distance gate. Lava / slime / teleporter alpha was dropped on G3 in [Round v8 followup](MISTAKES.md) — `r_lavaalpha 0.6` alone dropped demo3 1024 by 26 % on Rage 128, pushing G3 below the 20-fps floor. Full per-cell, per-machine breakdown below.
-
-## The bench fleet
+## Tested machines
 
 | Machine | CPU | GPU | OS | Default res |
 |---|---|---|---|---:|
@@ -33,195 +37,75 @@ On the 1999 B&W G3 (449 MHz PPC 750, Rage 128 16 MB AGP), the dlight-heavy `demo
 | **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger | 1024×768 |
 | **iMac G5** (PowerMac8,2, 2005) | 2.0 GHz PPC 970 | ATI Radeon 9600 128 MB | 10.5.8 Leopard | 1440×900 (native) |
 | **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
-| **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7.5 Sequoia | 2560×1440 |
+| **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7 Sequoia | 2560×1440 |
 
-GPU eras: fixed-function (Rage 128, GeForce2 MX), early shader-era ATI (Radeon 9000/9200/9600), Intel integrated GMA, modern AMD discrete. The iMac G5's Radeon 9600 is the only OpenGL-2.0 GPU in the fleet — it's forced onto the GL 1.x fixed-function path because its Leopard GLSL driver hard-hangs the GPU (see the engine's ATI R300 gate).
+## Framerate
 
-## Before vs after — first compiled build → Round v11.1
+`timedemo demo1`, with the per-machine settings each Mac actually ships with
+(translucent water, shadows, dynamic lights, trilinear), median of runs 2 & 3:
 
-Each cell shows the **first-build baseline fps** for that machine + demo + resolution → the latest Round v11.1 fps, with the cumulative delta. `timedemo demo1/2/3` × 1024×768 + 640×480, median of runs 2 + 3. Bold cells = ≥ +50 % cumulative gain.
-
-| Machine | demo1 1024 | demo2 1024 | demo3 1024 | demo1 640 | demo2 640 | demo3 640 |
-|---|---:|---:|---:|---:|---:|---:|
-| Yosemite (G3 / Rage 128) | **7.70 → 17.35 (+125%)** | **5.80 → 15.25 (+163%)** | **5.10 → 20.95 (+311%)** | 23.90 → 34.45 (+44%) | **20.30 → 33.40 (+65%)** | **15.60 → 36.85 (+136%)** |
-| Sawtooth (G4 / GeForce2 MX) | 52.95 → 40.25 (−24%) | 54.60 → 32.70 (−40%) | 39.45 → 46.90 (+19%) | 74.15 → 55.65 (−25%) | 89.20 → 50.15 (−44%) | 43.95 → 57.55 (+31%) |
-| Quicksilver (G4 / Radeon 9000) | 108.40 → 62.75 (−42%) | 105.95 → 60.10 (−43%) | 91.00 → 84.05 (−8%) | 145.45 → 70.30 (−52%) | 156.00 → 68.00 (−56%) | 119.70 → 95.35 (−20%) |
-| Mac mini G4 (G4 / Radeon 9200) | 74.10 → 48.45 (−35%) | 69.70 → 37.40 (−46%) | 67.30 → 65.60 (−3%) | 146.30 → 86.30 (−41%) | 145.70 → 73.85 (−49%) | 117.55 → 113.20 (−4%) |
-| Mac mini Intel (Lion / GMA 950) | 96.60 → 72.85 (−25%) | 90.10 → 54.50 (−40%) | 44.70 → 44.60 (−0%) | 225.50 → 163.95 (−27%) | 210.25 → 130.70 (−38%) | 189.25 → 185.90 (−2%) |
-| iMac 27" (Sequoia / Radeon Pro 580X) | 2042.65 → 1610.95 (−21%) | 2017.95 → 1490.20 (−26%) | 1544.80 → 1575.15 (+2%) | 2326.60 → 1894.45 (−19%) | 2125.25 → 1876.20 (−12%) | 1714.00 → 1907.25 (+11%) |
-
-> **Negative deltas are deliberate visual trade-offs, not regressions.** Each G4 / Intel machine's first build was vanilla QuakeSpasm with engine defaults. Each visual feature landed in a dedicated commit that measured its fps cost across the matrix and weighed it against the visual gain — `7540b45d` ("Goal pivot — §13.6 G4 visuals re-enabled": drop-shadows + trilinear + 16× anisotropy), `c027c86f` ("Round v5 wrap pass 2": `r_wateralpha 0.6` + Lion `r_shadow_distance 512`), `9825b5f3` ("Round v6 watervis": translucent water on un-vis'd id1 maps), `4f40e119` ("Round v7 phase 2": emissive-fullbright dynamic lights). Today every machine renders a hand-tuned visual stack (see [next section](#what-each-machine-renders-by-default)) — anisotropic filtering, trilinear, alias drop-shadows, translucent water / lava / slime / teleporters, watervis NoVis (cross-leaf transparent water), emissive-fullbright dynamic lights, `gl_zfix`, etc. — and the negative cells are the fps cost of those features on each GPU class:
-> - **Sawtooth** (GeForce2 MX, 1999): fixed-function fillrate-bound at 1024. Picked up trilinear, drop-shadows, watervis NoVis, three translucent liquid types, emissive lights, and the watervis re-mark pass since first build. Demo3 1024 still gained **+19 %** because Round v11.1's alias state cache pays back the dlight cost; demo3 640 **+31 %** for the same reason.
-> - **Quicksilver** (Radeon 9000, 2001) and **Mac mini G4** (Radeon 9200, 2005): everything Sawtooth has, plus **16× anisotropy** and `gl_texture_lodbias -1.5` (sharper distant brick). Demo1/demo2 1024 are now fillrate-bound on a 64 MB / 32 MB Radeon.
-> - **Mac mini Intel** (GMA 950, 2007): trilinear + 16× anisotropy + drop-shadows + translucent liquids. Shared-memory GMA 950 saturates fillrate at 1024; the 5K-res-capable iMac doesn't.
-> - **iMac 27"** (Radeon Pro 580X, 2019): not a playability concern — the negatives are headroom we're spending on visuals at >1500 fps because there's plenty.
->
-> Project goal on G4 / Intel: **best-looking Quake above the playability floor** (≥ 60 fps G4 / Lion, ≥ 20 fps G3). Every feature is runtime-toggleable (cvar or `-flag`) so you can A/B individual contributions on your own hardware; see [`docs/KNOBS.md`](docs/KNOBS.md) for the full inventory.
->
-> **Round v11.1 highlight** — per-frame GL state cache in `R_DrawAliasModel` (Round v11). Landed **+19 % to +46 % on demo3 1024** across every cached machine in same-session A/B vs the Round v8 wrap (`84d35972`) baseline. Cache is compiled out of the G3 ppc750 slice via `QS_DISABLE_ALIAS_STATE_CACHE`; same-session A/B confirmed Yosemite is neutral. See [`CLAUDE.md` "Per-machine gating is a legitimate pattern"](CLAUDE.md) for the gating mechanism and [`docs/archive/PPC_PERF_R7.md`](docs/archive/PPC_PERF_R7.md) for the static-analysis-driven round before this one.
-
-Baseline sources (all in `benchmarks/results.csv`): **Yosemite + Quicksilver** = vanilla v2 baseline at commit `4c165e6f` (unmodified upstream + the four Panther/Tiger build patches only — see [`docs/archive/PPC_PLAN_v2-v11.md §17.7.1`](docs/archive/PPC_PLAN_v2-v11.md)). **Sawtooth** = historical backfill at `1615d99a` (first commit where the source compiled; benchmarked retroactively when sawtooth joined the matrix on 2026-05-09). **Mac mini G4 + Mac mini Intel** = each machine's earliest first-bench rows (`cea45842` / `5480d89c` and `016a0ef4` / `5480d89c` respectively — both joined the matrix in the Phase 4.x era, no further-back vanilla baseline exists). **iMac 27"** = first-bench row at `016a0ef4` (added as the 6th bench machine on 2026-05-09).
-
-## v1.5 real-conditions baseline (2026-05-24)
-
-The v11.1 "after" cells above were measured with `bench.sh` passing `-noarchautoexec` — which correctly skipped the CFBundle per-machine layer, but ALSO meant the per-machine visual stack didn't apply during bench. Numbers came out artificially high (vanilla engine defaults, not what the deployed .app actually renders). v1.5's `bench.sh` stages the per-arch + per-machine autoexec on the target before each run, so cells below reflect real play conditions (translucent water, shadows, dlights, trilinear, etc. as per the "What each machine renders" table). Methodology fix in commit `e33f39be`; bench rows in `2987b71d`.
-
-| Machine | demo1 1024×768 | demo1 640×480 |
+| Machine | 1024×768 | 640×480 |
 |---|---:|---:|
-| Yosemite (G3 / Rage 128)        | 17.55  | 36.50 |
-| Sawtooth (G4 / GeForce2 MX)     | 40.45  | 55.80 |
-| Quicksilver (G4 / Radeon 9000)  | 65.75  | 71.35 |
-| Mac mini G4 (G4 / Radeon 9200)  | 51.40  | 89.65 |
-| Mac mini Intel (Lion / GMA 950) | 76.25  | 172.45 |
+| Yosemite (G3 / Rage 128) | 17.6 | 36.5 |
+| Sawtooth (G4 / GeForce2 MX) | 40.5 | 55.8 |
+| Quicksilver (G4 / Radeon 9000) | 65.8 | 71.4 |
+| Mac mini G4 (Radeon 9200) | 51.4 | 89.7 |
+| Mac mini Intel (Lion / GMA 950) | 76.3 | 172.5 |
 
-All four G4 / Lion machines are actually **faster** under the new methodology, not slower — the per-machine autoexec ships more performance optimizations (`r_dynamic_distance`, `gl_clear 0`, etc.) than visual costs.
+The iMac G5 runs native 1440×900 only (its Leopard driver hangs on a mode
+switch) at ~100 fps; the 2019 iMac sits well over 1500 fps. Yosemite ships at
+800×600 — its default — where demo1/2/3 run ~27/25/30, comfortably above 20 fps
+with everything turned on. Every machine stays above its target (≥ 60 fps on the
+G4/G5/Lion machines, ≥ 20 on the G3); full history and all three demos in
+[`benchmarks/results.csv`](benchmarks/results.csv).
 
-**Yosemite ship-resolution playability** (800×600 — the default `vid_width`/`vid_height` the yosemite autoexec sets, since 1024 is a stress test on Rage 128): demo1 27.15 fps / demo2 25.40 fps / demo3 30.05 fps. All comfortably above the 20-fps floor with translucent water + alias drop-shadows + emissive-fullbright dynamic lights + classic warp + trilinear filtering all on.
+## Features
 
-## What each machine renders by default
+- **One fat binary** (PPC G3 + G4 AltiVec + G5 + Intel x86_64); runs on Mac OS X
+  10.3.9 Panther through modern macOS.
+- **Per-machine settings** picked at boot via `sysctl hw.model` — each Mac gets
+  a config tuned to stay playable on it. Every setting is a runtime cvar.
+- **Visual features** — trilinear + up to 16× anisotropic filtering, alias
+  drop-shadows, translucent water / lava / slime / teleporters, watervis on
+  un-vis'd maps, emissive-fullbright dynamic lights, `gl_zfix`, and 8× MSAA on
+  the modern iMac.
+- **Weapon damage decals** — bullet holes, nail pocks, axe slashes, scorch
+  stars, burn scars and lightning scars on walls, floors and ceilings (a BSP
+  fragment clipper ported from the sister Quake II port; gated via `r_decals`).
+- **Online multiplayer** — a server browser (DPMaster query) plus in-protocol
+  auto-download, so a 449 MHz G3 and a 2019 iMac can share the same public
+  server. Downloads off by default (`allow_download 0`).
+- Optional **Apple Watch "tactical computer" companion** (`watchlink`) — streams
+  the ranger's live state to an iPhone + Watch; off by default. Shared with the
+  Quake II port ([quake2-tactical-watch](https://github.com/matthewdeaves/quake2-tactical-watch)).
 
-Per-machine `autoexec-<machine>.cfg` is selected at boot by `sysctl hw.model`. Every entry below is a runtime cvar — flip without rebuild — *except* the Watervis NoVis row, which is auto-engine behaviour applied to non-watervised BSPs at load (see `Quake/gl_model.c:2456+`, `Quake/r_world.c:152`).
+## Get the latest release
 
-|  | Yosemite | Sawtooth | Quicksilver | Mini-G4 | Mini-Intel | iMac |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Anisotropic filtering | — | — | 16× | 16× | 16× | 16× |
-| Trilinear (`GL_LINEAR_MIPMAP_LINEAR`) | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Smooth lightstyles (`r_lerplightstyles`) | — | — | ✓ | ✓ | — | ✓ |
-| Alias drop-shadows | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 24-bit depth + stencil shadow mask (`vid_bpp 32`) | — | — | ✓ | — (9200 wedges) | — | ✓ |
-| MSAA (`vid_fsaa`) | — | — | — | — | — | 8× |
-| `r_shadow_distance` | default | 512 | 512 | 512 | 512 | default |
-| Translucent water | ✓ classic warp | ✓ classic warp | ✓ shader water | ✓ shader water | ✓ classic warp | ✓ shader water |
-| Translucent lava / slime / tele | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Watervis NoVis (X-ray fix) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Emissive-fullbright lights | ✓ r 0.5 / cap 4 | ✓ r 0.5 / cap 6 | ✓ r 1.0 / cap 12 | ✓ r 1.0 / cap 12 | ✓ r 0.75 / cap 8 | ✓ r 1.5 / cap 32 |
-| `r_dynamic_distance` | 768 | 768 | default | default | default | default |
-| `gl_clear 0` (skip backbuffer) | ✓ | — (driver quirk) | ✓ | ✓ | ✓ | ✓ |
-| `gl_texture_lodbias -1.5` | ✓ | inert (probe) | ✓ | ✓ | — | — |
-| Reduced particles (`r_particles 2`) | ✓ | — | — | — | — | — |
-| Coarser warp tess (`gl_subdivide_size 256`) | ✓ | — | — | — | — | — |
+Download the latest disk image from
+[**Releases**](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
+(`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac —
+built on Panther so it mounts on everything from 10.3.9 through modern macOS, and
+the `.app` inside is a fat binary that runs natively on each.
 
-<p align="center">
-  <img src="docs/screenshots/yosemite_spasm0010.webp" width="32%" alt="Yosemite (G3 / Rage 128)" />
-  <img src="docs/screenshots/sawtooth_spasm0010.webp" width="32%" alt="Sawtooth (G4 / GeForce2 MX)" />
-  <img src="docs/screenshots/quicksilver_spasm0040.webp" width="32%" alt="Quicksilver (G4 / Radeon 9000)" />
-</p>
-<p align="center">
-  <img src="docs/screenshots/mini-g4_spasm0070.webp" width="32%" alt="Mac mini G4 (Radeon 9200)" />
-  <img src="docs/screenshots/mini-intel_spasm0070.webp" width="32%" alt="Mac mini Intel (Lion / GMA 950)" />
-  <img src="docs/screenshots/imac-2019_spasm0040.webp" width="32%" alt="iMac 27&quot; 2019 (Radeon Pro 580X)" />
-</p>
-
-## How the fat binary picks its config
-
-<p align="center">
-  <img src="docs/images/architecture.svg" width="92%" alt="Architecture: arch baseline → per-machine layer → autoexec dispatch" />
-</p>
-
-Two extra `.cfg` layers execute on top of the regular `quake.rc` → `default.cfg` → `config.cfg` → `autoexec.cfg` chain: the per-architecture baseline (`autoexec-ppc750.cfg` / `autoexec-ppc7400.cfg` / `autoexec-ppc970.cfg` / `autoexec-x86_64.cfg`) picked by C macros at compile time, then the per-machine layer (`autoexec-<machine>.cfg`) picked at runtime by `sysctlbyname("hw.model", ...)` — see [`Quake/host.c`](Quake/host.c) `QS_ExecConfigFromBundle`. Both layers ship inside `Quakespasm.app/Contents/Resources/` and are loaded via CFBundle, so the .app is a self-contained distribution unit. The per-machine layer runs last so its cvars win over everything above.
-
-## How it's built
-
-<p align="center">
-  <img src="docs/images/build-pipeline.svg" width="92%" alt="Build pipeline: rsync sources from Ubuntu → cross-compile on Lion → lipo four slices → fat .app bundle" />
-</p>
-
-Cross-builds run on the Mac mini Intel — the last machine with a working `gcc-4.0` + `MacOSX10.3.9.sdk` + `MacOSX10.4u.sdk` + `MacOSX10.5.sdk` toolchain (Xcode 3.2.6 era). Four sub-builds (G3 with 10.3.9 SDK, G4 with 10.4u SDK + `-maltivec`, G5 with 10.5 SDK + `-mcpu=970`, Intel with Lion default SDK), glued with `lipo -create` into one fat `quakespasm-fat`. The `.app` bundle ships identically to every supported Mac.
-
-## How it's benched
-
-<p align="center">
-  <img src="docs/images/bench-loop.svg" width="92%" alt="Bench loop: code edit → build fat → deploy 7 machines → parallel timedemo → CSV append → commit" />
-</p>
-
-```bash
-scripts/build-fat.sh                              # 4-arch universal binary
-scripts/deploy.sh <machine>                       # ship to one of the 6 hosts
-scripts/bench.sh <machine> demo1 1024x768 3       # 3 timedemo runs, append to CSV
-scripts/parallel-bench.sh                         # full matrix, all 6 legs concurrent
-```
-
-Every phase that lands gets a smoke bench (demo1 × 2 res × 3 runs) committed alongside the code change. Full grid (3 demos × 2 res × 3 runs) at end-of-round. CSV in [`benchmarks/results.csv`](benchmarks/results.csv) is a rolling history — every cell tagged with the commit hash that produced it.
-
-## Running it
-
-**Download the latest disk image from [Releases](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)** (`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac — it's built on Panther so it mounts on everything from Mac OS X 10.3.9 through modern macOS, and the `.app` inside is a fat binary (PPC G3 + PPC G4 + PPC G5 + Intel x86_64) that runs natively on each — including the iMac G5 on Leopard at its native panel resolution.
-
-Open the `.dmg`, then drag both `Quakespasm.app` and `quakespasm.pak` into a folder (e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak` (shareware) or `pak0.pak` + `pak1.pak` (registered — buy on [Steam](https://store.steampowered.com/app/2310/QUAKE/) / [GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click `Quakespasm.app`. (Pre-Lion 32-bit-kernel Intel Macs are not supported.)
-
-Modern macOS will quarantine the unsigned bundle — either right-click → Open, or `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app`. Panther / Tiger / Lion don't need this.
-
-## Dig deeper
-
-- [**`docs/archive/PPC_PLAN_v2-v11.md`**](docs/archive/PPC_PLAN_v2-v11.md) — archived working plan covering rounds v2 → v11.1: every phase, every decision, every reverted experiment.
-- [**`MISTAKES.md`**](MISTAKES.md) — append-only log of approaches that broke and why.
-- [**`docs/KNOBS.md`**](docs/KNOBS.md) — full inventory of toggleable cvars + cmdline flags.
-- [**`CLAUDE.md`**](CLAUDE.md) — operational tribal knowledge: gating philosophy, SSH legacy crypto, bench-and-commit cadence. Sub-area detail in `scripts/CLAUDE.md` (tooling) and `MacOSX/CLAUDE.md` (bundle layout, Tiger/Panther patches, fat-SDL recipe).
-
-## Online multiplayer & weapon decals (new in v1.13)
-
-Two gameplay features land on top of the perf/visual tuning.
-
-### Internet multiplayer — browse, auto-download, play
-
-Full online NetQuake play, **tested against the public `denver.quakeone.com`
-server** with a PowerPC and an Intel Mac in the same match:
-
-- **Server browser** — a DPMaster master-server query lists live public servers
-  (name, map, player count, ping) so you can browse and join from the menu — no
-  manual `connect <ip>` needed.
-- **In-protocol auto-download** — joining a server hosting a map or assets you
-  don't have pulls them over the game's own UDP protocol (the QSS / DarkPlaces
-  in-protocol download — no TLS, no curl, no extra libraries), then drops you
-  into the game. Browse → join → download → play, end to end.
-- Downloads are **off by default** (`allow_download 0`) and gated — flip the
-  cvar to opt in.
-
-It runs on the whole fleet: a 449 MHz G3 on Panther and a 2019 iMac can share
-the same online server.
-
-### Weapon damage decals
-
-Every weapon now leaves a mark on walls, floors and ceilings — bullet holes
-(shotgun), smaller nail pocks (nailgun) and bigger ones (super nailgun), axe
-slashes, scorch stars (spikes), burn scars (explosions), and lightning scars.
-Ported from the sister Quake 2 port's BSP fragment clipper (Sutherland–Hodgman
-projection onto the surfaces around each impact). Runtime-gated via `r_decals`;
-count / lifetime / fade are cvars — see [`docs/KNOBS.md`](docs/KNOBS.md).
-
-And a rendering fix: the **lightning bolt** now draws its bright light-blue
-colour on every GPU in the fleet. It was rendering dark on the Radeon 9200 and
-GMA 950 — the bolt's bright core lives in fullbright-palette texels that the
-model loader splits into a separate additive mask, which the prior draw path
-wasn't emitting; the beam is now drawn fullbright-unlit (base + additive core)
-on a single GL 1.1 path that every driver renders identically. Full root-cause
-trail in [`docs/LIGHTNING_BOLT_DEBUG.md`](docs/LIGHTNING_BOLT_DEBUG.md).
-
-## Tactical Computer — live Apple Watch companion
-
-The engine can stream the ranger's live state — health, armor, ammo, weapon,
-powerups, pickups and damage — out over UDP to a wrist-worn "tactical computer".
-An iPhone receives it on the LAN and relays it to an Apple Watch rendering an
-amber-phosphor terminal HUD with damage haptics. It's the **same companion** that
-drives [old-mac-quake2](https://github.com/matthewdeaves/old-mac-quake2): same
-JSON wire format, same UDP port, same Bonjour service — so one app handles both
-games. Quake 1 has no in-game help computer, so the watch shows a graceful
-cut-down HUD (sector + vitals, no objectives panel).
-
-**Off by default** — the whole thing is gated on the `watch_host` cvar (empty ⇒
-no socket, no per-frame work, no packets), so the fleet build and benchmarks are
-untouched. Point it at a host (`set watch_host "192.168.1.50"`) or let it find
-the phone over Bonjour (`set watch_host "auto"`). Debug with `nc -ul 27999`.
-
-The companion app (iPhone relay + watchOS app) lives in its own repo:
-**[quake2-tactical-watch](https://github.com/matthewdeaves/quake2-tactical-watch)**.
-Engine details in [`docs/WATCHLINK.md`](docs/WATCHLINK.md).
+Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder
+(e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak`
+(shareware) or `pak0.pak` + `pak1.pak` (registered — buy on
+[Steam](https://store.steampowered.com/app/2310/QUAKE/) /
+[GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click
+`Quakespasm.app`. On modern macOS, clear Gatekeeper with
+`xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app` (not needed on
+Panther/Tiger/Lion; pre-Lion 32-bit-kernel Intel Macs are not supported).
 
 ## Sister projects
 
-- [**old-mac-quake2**](https://github.com/matthewdeaves/old-mac-quake2) — the same six-machine PPC + Intel fleet, same tooling, applied to **yquake2 5.11** as base. Shares the cross-build host, scripts, and per-machine autoexec pattern; cross-pollinates features (GL_FOG cvar layer, underwater warp magnitude dial, anisotropic caps) between the two engines.
-- [**old-mac-quake3**](https://github.com/matthewdeaves/old-mac-quake3) — **Quake III Arena** on the same fleet (early WIP). Pinned to the last SDL 1.2 commit of ioquake3 so it runs on Panther/Tiger, where modern SDL2 ioquake3 can't. Same fat-binary (ppc750 + ppc7400 + x86_64) and cross-build approach; build + first bench baseline done (Q3 runs on a 449 MHz G3!), per-machine tuning not started yet.
+Same machines, same tooling, other id engines:
+[**old-mac-quake2**](https://github.com/matthewdeaves/old-mac-quake2) (Quake II)
+and [**old-mac-quake3**](https://github.com/matthewdeaves/old-mac-quake3)
+(Quake III Arena).
 
 ## License
 
-GPL-2.0-or-later, inherited verbatim from upstream QuakeSpasm. See [`LICENSE.txt`](LICENSE.txt). Chain: id Software (1996–2001) → John Fitzgibbons / FitzQuake (2002–2009) → QuakeSpasm developers ([sezero/quakespasm](https://github.com/sezero/quakespasm), 2010–present). Bundled SDL 1.2.15 is zlib-licensed.
+GPL-2.0-or-later, inherited verbatim from upstream QuakeSpasm. See
+[`LICENSE.txt`](LICENSE.txt). Chain: id Software (1996–2001) → John Fitzgibbons /
+FitzQuake → QuakeSpasm developers ([sezero/quakespasm](https://github.com/sezero/quakespasm)).
+Bundled SDL 1.2.15 is zlib-licensed.
