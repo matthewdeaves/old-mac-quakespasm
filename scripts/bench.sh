@@ -49,6 +49,19 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 W="${RES%x*}"
 H="${RES#*x}"
 
+# Reject a malformed resolution instead of silently benching nonsense. In the
+# Quake II port, `bench.sh mini-g4 demo1 1` (meaning "1 run" — runs is the FOURTH
+# arg) split to W=1 H=1, so the engine rendered a 1x1 pixel frame and reported
+# 108-128 fps. Nine such rows were recorded and then quoted in the docs and
+# machine configs as evidence for a config decision. A bench that measures the
+# wrong thing is worse than no bench, because it gets quoted downstream.
+case "$RES" in
+  [0-9]*x[0-9]*) ;;
+  *) echo "bench.sh: resolution must be WxH (e.g. 1024x768), got '$RES'" >&2
+     echo "  usage: $0 <machine> <demo> <WxH> [runs]  — runs is the FOURTH arg" >&2
+     exit 2 ;;
+esac
+
 # TARGET == SSH alias after the rename round; TIMEOUT scales with CPU class
 # (Lion finishes timedemo in seconds; the G3 needs minutes).
 #
@@ -58,19 +71,26 @@ H="${RES#*x}"
 # `sysctl hw.model`, which reports PowerMac1,1 on both — so both legs must stage
 # autoexec-yosemite.cfg or the bench wouldn't match what a Finder launch does.
 case "$TARGET" in
-  yosemite)    HOST="yosemite";    TIMEOUT=240; ARCH_CFG="ppc750"  ;;
+  yosemite)    HOST="yosemite";    TIMEOUT=240; ARCH_CFG="ppc750"; COOLDOWN=5 ;;
   yosemite-tiger)
-               HOST="yosemite-tiger"; TIMEOUT=240; ARCH_CFG="ppc750"
+               HOST="yosemite-tiger"; TIMEOUT=240; ARCH_CFG="ppc750"; COOLDOWN=5
                MACHINE_CFG="yosemite" ;;  # same PowerMac1,1, Tiger partition
-  sawtooth)    HOST="sawtooth";    TIMEOUT=180; ARCH_CFG="ppc7400" ;;  # 500 MHz G4 AGP — slower than other G4s
-  quicksilver) HOST="quicksilver"; TIMEOUT=120; ARCH_CFG="ppc7400" ;;
-  mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400" ;;
-  mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64"  ;;
-  imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64"  ;;  # i5-9600K + Radeon Pro 580X — fastest
-  imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970"  ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
+  sawtooth)    HOST="sawtooth";    TIMEOUT=180; ARCH_CFG="ppc7400"; COOLDOWN=3 ;;  # 500 MHz G4 AGP — slower than other G4s
+  quicksilver) HOST="quicksilver"; TIMEOUT=120; ARCH_CFG="ppc7400"; COOLDOWN=2 ;;
+  mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400"; COOLDOWN=2 ;;
+  mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;
+  imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # i5-9600K + Radeon Pro 580X — fastest
+  imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 MACHINE_CFG="${MACHINE_CFG:-$TARGET}"
+# COOLDOWN = settle time AFTER each run, before the next launch. The Rage 128
+# (G3) and R300 (G5) drivers leave the display in a fragile state for a few
+# seconds after a fullscreen exit, and launching straight back into fullscreen
+# can hang the machine. The Quake II port has carried these values for months;
+# this script had none. Default is deliberately non-zero so a machine added to
+# the table above without a COOLDOWN still gets a settle.
+COOLDOWN="${COOLDOWN:-2}"
 
 # Stable hash through a long matrix run: callers (parallel-bench.sh,
 # bench-and-commit.sh) resolve HEAD once and export $COMMIT so every cell
@@ -101,9 +121,18 @@ scp -q "$TMP_AE" "$HOST:Desktop/quake/id1/autoexec.cfg" || \
   echo "[bench] WARN: failed to stage autoexec.cfg on $HOST — bench will run vanilla" >&2
 rm -f "$TMP_AE"
 cleanup_autoexec () {
-  ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg' 2>/dev/null || true
+  # Also stop an engine left running. The per-run teardown covers the normal
+  # path; this only matters when the SCRIPT dies (Ctrl-C, parent shell gone,
+  # killed background job) with quakespasm still up on the target. That orphan
+  # keeps the display captured and the next thing to launch goes fullscreen on
+  # top of it — the Rage 128 / R300 wedge. Same TERM-grace-KILL policy as the
+  # run loop. Costs nothing normally: there is no engine left to find.
+  ssh -o ConnectTimeout=10 "$HOST" 'if killall -TERM quakespasm 2>/dev/null; then sleep 3; fi
+    killall -KILL quakespasm 2>/dev/null
+    rm -f ~/Desktop/quake/id1/autoexec.cfg
+    true' 2>/dev/null || true
 }
-trap cleanup_autoexec EXIT
+trap cleanup_autoexec EXIT INT TERM
 
 declare -a FPS
 for i in $(seq 1 $RUNS); do
@@ -147,6 +176,9 @@ for i in $(seq 1 $RUNS); do
     sleep 2
     killall -KILL quakespasm 2>/dev/null
     wait \$PID 2>/dev/null
+    # Settle before the next run: the display driver needs a few seconds after a
+    # fullscreen exit, and going straight into the next launch can hang the box.
+    sleep $COOLDOWN
     true" 2>&1 | grep -v "^$" | tail -3 || true
 
   LOG_NAME="${COMMIT}_${TARGET}_${DEMO}_${RES}_run${i}.log"
