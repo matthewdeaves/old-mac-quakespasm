@@ -1,7 +1,8 @@
 # scripts/ — build, deploy, bench tooling for QuakeSpasm
 
-Multi-host workflow: edit on the orchestration Mac → build on `mini-intel` (Lion) →
-run on the 7 bench machines. SSH config aliases (`yosemite`,
+Multi-host workflow: edit on the orchestration Mac → build on a claimed Intel
+Lion mini (`mini-intel` or `mini-intel2` — `build.sh` / `build-fat.sh` ask
+`pick-build-host.sh --acquire` for a free one) → run on the 7 bench machines. SSH config aliases (`yosemite`,
 `yosemite-tiger`, `sawtooth`, `quicksilver`, `mini-g4`, `imac-g5`,
 `mini-intel`, `imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard
 needs the same legacy-crypto block as the other PPC boxes).
@@ -28,7 +29,9 @@ For LLM-facing per-script notes see `scripts/CLAUDE.md`.
 GLSL driver hard-hangs the GPU — and benches **native-res only** (1440×900);
 a non-native fullscreen mode-switch wedges the R300. See `/MISTAKES.md`.
 
-`mini-intel` is both the cross-build host AND a runnable bench reference.
+`mini-intel` is both A cross-build host AND a runnable bench reference. `mini-intel2`
+is an identical second build box (Macmini2,1 / 10.7.5) but appears in no bench or
+deploy host list, so it is build-only as the tooling stands.
 The matrix spans the GPU axis from fixed-function (Rage 128, GeForce2 MX)
 through programmable-pre-shader-2.0 (Radeon 9000/9200) and early Intel
 integrated (GMA 950) to modern discrete (Radeon Pro 580X) — useful for
@@ -42,7 +45,8 @@ The two Intel machines share `build/quakespasm-lion`.
 
 ```bash
 # Build the fat binary (composes ppc750 + ppc7400 + ppc970 + x86_64
-# sub-builds on mini-intel; build.sh g3/g4/g5/lion runs as sub-steps).
+# sub-builds on ONE claimed Intel mini, held for the whole run so the slices
+# lipo together; build.sh g3/g4/g5/lion runs as sub-steps).
 scripts/build-fat.sh
 
 # Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host).
