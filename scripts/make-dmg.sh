@@ -115,20 +115,33 @@ on retro Macs from 1999 to today. ONE universal binary (PowerPC G3 + PowerPC
 G4/AltiVec + PowerPC G5/970 + Intel x86_64); the right code slice and the
 right per-machine visual/perf config are picked automatically at launch.
 
-Supported: Mac OS X 10.3.9 Panther (G3) and up, through modern Intel macOS.
-(PowerPC G3/G4/G5 and 64-bit Intel only — pre-Lion 32-bit Intel Macs are not
-supported.)
+WHICH MAC OS X YOU NEED
+-----------------------
+The slice is chosen by CPU, and the OS plays no part in that choice, so each
+CPU family has a real floor:
+
+   G3  (750)               10.3.9 Panther or later     tested on 10.3.9 + 10.4.11
+   G4  (7400/7450/7447A)   10.3.9 Panther or later     tested on 10.4.11
+   G5  (970)               10.5 Leopard ONLY           tested on 10.5.8
+   Intel, 64-bit           10.6 Snow Leopard or later  tested on 10.7.5 + 15.7
+
+A G4 on Panther and an Intel Mac on Snow Leopard should both work, but neither
+has been run on real hardware — there is no such machine here to try it on. The
+G5 line is a genuine floor, not an untested gap: its slice needs 10.5.
+
+32-bit-only Intel Macs (Core Duo / Core Solo) have no slice and cannot run this.
+On Apple Silicon the Intel slice runs under Rosetta 2; there is no native arm64
+slice.
 
 WHAT'S NEW in $VERSION
 ----------------------
-* Online multiplayer: in-menu server browser (DPMaster) + in-protocol
-  auto-download of missing maps/assets. Browse, join, download, play -- tested
-  on the public denver.quakeone.com server. Downloads are off by default
-  (set allow_download 1 to opt in).
-* Weapon damage decals: shotgun bullet holes, nail pocks, axe slashes, spike
-  scorch, explosion burns and lightning scars on walls/floors/ceilings
-  (toggle with r_decals).
-* Lightning bolt renders its bright light-blue colour correctly on every GPU.
+* The G3 slice is now tested on Tiger as well as Panther. Every PowerPC slice
+  carries its exact CPU subtype (ppc750 / ppc7400 / ppc970), which is what lets
+  Tiger and Leopard grade the fat binary correctly on a G3.
+* The G4 slice is built for 10.3.9 instead of 10.4, so a G4 left on Panther can
+  load it. AltiVec is unchanged and the Tiger G4s bench identically.
+* The Intel slice is built for 10.6 instead of 10.7, covering 64-bit Macs left
+  on Snow Leopard.
 
 INSTALL
 -------
