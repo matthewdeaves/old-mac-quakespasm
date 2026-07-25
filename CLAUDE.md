@@ -23,7 +23,7 @@ written from that evidence.
 
 ## Goal in one line
 
-Best-looking QuakeSpasm port for G3 Panther + G4 Tiger + G5 Leopard + Lion Intel,
+Best-looking QuakeSpasm port for G3 Panther/Tiger + G4 Tiger + G5 Leopard + Lion Intel,
 keeping framerate comfortably playable on each (≥ 60 fps on G4, ≥ 60 fps on G5,
 ≥ 60 fps on Lion, ≥ 20 fps on G3). Visual upgrades that cost 10–15% fps are in
 scope when they leave the cell above its playability threshold. Lion + iMac-2019
@@ -51,10 +51,61 @@ external-display Macs keep their tuned fixed res. See MISTAKES.md 2026-05-31.
 - **Bench every change on all targets**, 3× runs median of 2 & 3, commit the
   numbers (code commit + bench commit). Full cadence: `docs/BENCHMARKING.md`.
 
+## Hard rule — slice stamping (exact cpusubtype, never generic ppc ALL)
+
+Every PPC slice must carry its EXACT cpusubtype — **ppc750** (9), **ppc7400**
+(10), **ppc970** (100) — which `build.sh` gets for free because Apple's gcc-4.0
+propagates `-mcpu=750/7400/970` into the Mach-O header. Verify it every time:
+`lipo -detailed_info build/quakespasm-fat` must list `CPU_SUBTYPE_POWERPC_750 /
+_7400 / _970`, never `_ALL`. (`file` prints subtype 9 as `ppc_650`; that's a
+naming quirk in modern `file`, not a wrong stamp — trust `lipo`.)
+
+A generic `ppc (ALL)` slice is not merely imprecise, it is a launch blocker: it
+loads under Panther's lax 2003 dyld, but the Tiger/Leopard **kernel** mis-grades a
+fat of `[ppc ALL, ppc7400, ppc970]` on a 750 host and refuses to exec at all.
+Proven on hardware in the sister Half-Life port (its v1.0.0 could not launch on
+the G3 under Tiger for exactly this reason; fixed by re-stamping to ppc750).
+
+## Hard rule — build verification and version stamping
+
+**Never trust "done" or exit 0.** After every build:
+
+1. Confirm each `build/quakespasm-{g3,g4,g5,lion}` has a fresh mtime from THIS
+   run, not a mix of old and new (the `.o` race in "Operational gotchas" can
+   silently ship a stale or wrongly-stamped slice).
+2. `lipo -detailed_info build/quakespasm-fat` — four slices, exact subtypes.
+3. After `deploy.sh`, check its md5 comparison passed. It warns rather than
+   fails; a WARN line means the target is NOT running what you built.
+
+**Bump the version for every build that gets deployed or released.**
+`QS_PORT_VERSION` (default `git describe --tags --always --dirty`) is stamped
+into the binary, so a tagged build self-identifies and an untagged one is
+visibly `-N-g…-dirty`. That stamp is the only way to confirm from a running copy
+which build is on a machine — don't ship an ambiguous one.
+
+## Hard rule — releases
+
+- The DMG must be **content-verified**, not just `hdiutil verify`: md5 every
+  shipped binary inside the image against source (`make-dmg.sh` does this — read
+  its output, don't assume). MISTAKES.md 2026-05-31 "DMG byte-flip" is why.
+- Build it on a Tiger host, never the G3 (flaky hdiutil) or Lion (writes a UDIF
+  Panther can't mount).
+- Install it the end-user way (`deploy-dmg.sh` + `smoke-dmg.sh`) on at least the
+  oldest and newest targets before publishing.
+- **Fact-check the docs in the same commit.** README, `scripts/README.md`, the
+  per-CPU OS table and the tested-machines table must state what this build
+  actually supports — the per-CPU/per-OS floors, not an aspirational range.
+- The GitHub release gets a **real description** (what changed, what was verified
+  on which machine, what is known-unverified), not a bare tag.
+
 ## Tooling — DON'T reinvent inline
 
 Contracts in `scripts/CLAUDE.md`; host matrix in `scripts/README.md`. Target
-names (`g3`/`g4`/`g5`/`lion`) = chip family + SDK, NOT machines. Top of mind:
+names (`g3`/`g4`/`g5`/`lion`) = chip family + SDK, NOT machines. `yosemite` and
+`yosemite-tiger` are ONE Mac (PowerMac1,1) on ONE IP with two OS installs —
+Panther and Tiger, one booted at a time — so they are mutually exclusive bench
+legs, never concurrent. Both run the `ppc750` slice and both read
+`hw.model = PowerMac1,1`, so both get the `autoexec-yosemite` overlay. Top of mind:
 
 - `scripts/build-fat.sh` — 4-arch (ppc750+ppc7400+ppc970+x86_64) lipo'd binary,
   the only binary we deploy (`build.sh <g3|g4|g5|lion>` builds one slice)
@@ -93,6 +144,14 @@ uses `sleep 1` for this reason.
 `killall -KILL quakespasm` after a brief SIGTERM grace. **Don't use `pkill`** —
 not on Tiger or Panther. A hard KILL in fullscreen wedges the Rage 128 (G3) and
 hangs the R300 (G5), so TERM-before-KILL on those.
+
+**The orchestration host needs a REAL rsync, not Apple's openrsync.** macOS 15+
+replaced `/usr/bin/rsync` with openrsync, which always sends `--dirs` — an option
+that did not exist before rsync 2.6.4. Panther's rsync 2.5.x and the G3 Tiger
+partition's 2.6.3 both reject it (`--dirs: unknown option`), so `deploy.sh` fails
+on exactly the two oldest boxes. Fix is on this end: `brew install rsync` (3.x
+negotiates down correctly) and make sure `/opt/homebrew/bin` precedes `/usr/bin`
+on PATH. `--protocol=28/29` does NOT help — the option is sent regardless.
 
 **Old-Mac SSH (Lion + PPC) needs legacy crypto.** `~/.ssh/config` carries the
 required `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,

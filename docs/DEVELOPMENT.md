@@ -20,7 +20,7 @@ per CPU subtype (ppc970 prefers the g5 slice, G4s fall back to ppc7400, the
 universal ppc750 floor runs on any PPC).
 
 **Release version stamping.** `build.sh` / `build-fat.sh` compute `QS_PORT_VERSION`
-via `git describe --tags --always --dirty` on the Ubuntu host (the rsync excludes
+via `git describe --tags --always --dirty` on the orchestration host (the rsync excludes
 `.git`, so the build host can't) and pass it as a quote-free make token;
 `Makefile.darwin` turns a non-empty token into `-DQUAKESPASM_VER_SUFFIX`, so the
 binary self-identifies as e.g. `QuakeSpasm 0.97.0-oldmac-v1.9` (overriding the

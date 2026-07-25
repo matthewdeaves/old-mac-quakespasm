@@ -4,6 +4,7 @@
 #
 # Machines (Apple-codename / form-factor naming):
 #   yosemite     PowerMac G3 B&W 449 MHz, Rage 128, 10.3.9 Panther
+#   yosemite-tiger  the SAME G3, booted from its 10.4.11 Tiger partition (opt-in)
 #   sawtooth     PowerMac G4 AGP 500 MHz, GeForce2 MX, 10.4.11 Tiger
 #   quicksilver  PowerMac G4    733 MHz, Radeon 9000, 10.4.11 Tiger
 #   mini-g4      Mac mini G4   1.25 GHz, Radeon 9200, 10.4.11 Tiger
@@ -19,6 +20,9 @@
 #   --keep-csv: deprecated no-op (kept for backward compat with old muscle memory).
 #   --quick:    demo1 only × both res × 3 runs (forwarded to full-bench.sh).
 #   --no-yosemite     skip the G3 leg (rarely wanted — G3 is the playability floor)
+#   --yosemite-tiger  bench the G3 from its Tiger partition INSTEAD of Panther.
+#                     Both are the same Mac on the same IP with one OS booted, so
+#                     they are mutually exclusive: this flag implies --no-yosemite.
 #   --no-sawtooth     skip the Sawtooth G4 leg
 #   --no-quicksilver  skip the Quicksilver G4 leg
 #   --no-mini-g4      skip the Mac mini G4 leg
@@ -48,6 +52,8 @@ set -euo pipefail
 RESET=0
 declare -A SKIP
 SKIP[yosemite]=0
+# Opt-in only: same physical Mac as yosemite, so it can never run alongside it.
+SKIP[yosemite-tiger]=1
 SKIP[sawtooth]=0
 SKIP[quicksilver]=0
 SKIP[mini-g4]=0
@@ -61,6 +67,8 @@ for arg in "$@"; do
     --keep-csv)         ;;  # deprecated no-op
     --quick)            PASSTHRU+=("$arg") ;;
     --no-yosemite)      SKIP[yosemite]=1 ;;
+    --yosemite-tiger)   SKIP[yosemite-tiger]=0; SKIP[yosemite]=1 ;;
+    --no-yosemite-tiger) SKIP[yosemite-tiger]=1 ;;
     --no-sawtooth)      SKIP[sawtooth]=1 ;;
     --no-quicksilver)   SKIP[quicksilver]=1 ;;
     --no-mini-g4)       SKIP[mini-g4]=1 ;;
@@ -102,11 +110,19 @@ fi
 
 # Active legs — preserve fastest → slowest order so the wall-time tail
 # corresponds to the G3.
-ALL_LEGS=(imac-2019 mini-intel imac-g5 quicksilver mini-g4 sawtooth yosemite)
+ALL_LEGS=(imac-2019 mini-intel imac-g5 quicksilver mini-g4 sawtooth yosemite yosemite-tiger)
 ACTIVE_LEGS=()
 for LEG in "${ALL_LEGS[@]}"; do
   [ "${SKIP[$LEG]}" -eq 0 ] && ACTIVE_LEGS+=("$LEG")
 done
+
+# yosemite and yosemite-tiger are two OS installs on ONE Mac at one IP. Running
+# both would have two legs fighting over the same box (and only one could
+# possibly be booted), so refuse rather than produce a half-bogus grid.
+if [ "${SKIP[yosemite]}" -eq 0 ] && [ "${SKIP[yosemite-tiger]}" -eq 0 ]; then
+  echo "[parallel-bench] yosemite and yosemite-tiger are the same machine — pick one" >&2
+  exit 2
+fi
 
 if [ "${#ACTIVE_LEGS[@]}" -eq 0 ]; then
   echo "[parallel-bench] all legs skipped — nothing to do" >&2

@@ -22,16 +22,28 @@
 	<string>????</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.action-games</string>
+	<!--
+	  Floors corrected to what is actually built (issue #4). This plist belongs
+	  to the Xcode project, which is NOT the shipping build path — the release
+	  bundle uses scripts/bundle/Info.plist, assembled by scripts/deploy.sh and
+	  scripts/make-dmg.sh. It is kept accurate so it can't mislead.
+
+	  The key is deliberately absent from the shipped plist: LaunchServices keys
+	  it on ARCHITECTURE (ppc / x86_64), not CPU subtype, so a single "ppc" entry
+	  cannot express that the ppc750 and ppc7400 slices need 10.3.9 while the
+	  ppc970 slice needs 10.5. A wrong value there would block machines that work
+	  today, and Panther ignores the key anyway. The per-CPU floors are stated in
+	  the README instead.
+
+	  No i386 slice is built (no 32-bit-only Intel Mac to test on) and no arm64
+	  slice is built (out of scope — the x86_64 slice runs under Rosetta 2).
+	-->
 	<key>LSMinimumSystemVersionByArchitecture</key>
 	<dict>
-		<key>i386</key>
-		<string>10.4.0</string>
 		<key>ppc</key>
-		<string>10.4.0</string>
+		<string>10.3.9</string>
 		<key>x86_64</key>
 		<string>10.6.0</string>
-		<key>arm64</key>
-		<string>11.0.0</string>
 	</dict>
 	<key>NSMainNibFile</key>
 	<string>Launcher</string>

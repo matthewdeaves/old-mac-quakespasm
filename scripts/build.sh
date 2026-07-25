@@ -30,7 +30,7 @@ LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines be
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Port release label stamped into the binary's version string. Computed HERE on
-# the Ubuntu host (the rsync below excludes .git, so the cross-build host has no
+# the orchestration host (the rsync below excludes .git, so the cross-build host has no
 # git metadata). `git describe` yields the release tag exactly on a tagged build
 # (e.g. "v1.9"), or a descriptive "v1.9-3-gabc123" / "-dirty" off-tag so dev
 # builds self-identify. Makefile.darwin turns QS_PORT_VERSION into
@@ -79,11 +79,33 @@ case "$TARGET" in
     fi
     ;;
   g4)
+    # Built against the 10.3.9 SDK at min-10.3, NOT 10.4u/min-10.4 (issue #1).
+    # dyld grades slices by CPU subtype alone, so a G4 booted on Panther is
+    # handed this ppc7400 slice regardless of its OS floor — there is no
+    # fallback to the min-10.3 ppc750 slice. Building at min-10.3 makes the one
+    # slice cover G4s on 10.3, 10.4 and 10.5. AltiVec codegen is orthogonal to
+    # the SDK (it comes from -mcpu=7400/-maltivec, and the 750 never sees this
+    # slice), so nothing is given up on the Tiger G4s — verified by bench.
+    # Same fix as the sister Half-Life port's v1.1.0.
     MACH_TYPE=ppc
     CC=/usr/bin/gcc-4.0
-    SDK=/Developer/SDKs/MacOSX10.4u.sdk
-    VMIN=10.4
-    CPUFLAGS='-mcpu=7400 -maltivec -mabi=altivec -O3 -mtune=7450'
+    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
+    VMIN=10.3
+    #
+    # -isystem <gcc-4.0 include>: gl_texmgr.c's AltiVec mip path includes
+    # <altivec.h>, which is a COMPILER header, not an SDK one. The 10.4u SDK
+    # happened to satisfy it; the 10.3.9 SDK does not, and -isysroot confines
+    # the search to the sysroot, so point at gcc-4.0's own include dir
+    # explicitly. Same workaround the Half-Life port needed for its min-10.3
+    # G4 slice. (The path is on the cross-build host, mini-intel.)
+    #
+    # -faltivec: enables Apple's context-sensitive `vector` keyword. REQUIRED
+    # here and not under 10.4u, because the 10.3.9 SDK's Carbon
+    # MachineExceptions.h declares an AltiVec `vector` field (pulled in via
+    # AppController.m / pl_osx.m) and won't parse without it. -maltivec alone is
+    # codegen only. Same requirement the Half-Life port hit on its min-10.3 G4
+    # slice.
+    CPUFLAGS='-mcpu=7400 -faltivec -maltivec -mabi=altivec -O3 -mtune=7450 -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include'
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
     ;;
@@ -131,11 +153,21 @@ case "$TARGET" in
     # instrumentation actually emitted). `-flto` does work and produces
     # a valid binary. Opt-in via LTO=1; see CLAUDE.md "Toggleable
     # knobs" for what's runtime-flippable vs. built-in.
+    #
+    # min-10.6, not 10.7 (issue #4): dyld grades by CPU alone, so a 64-bit Intel
+    # Mac left on Snow Leopard is handed this slice regardless of its OS — there
+    # is no lower Intel slice to fall back to. Lion's SDK weak-links correctly
+    # for a 10.6 deployment target, and the bundled codec dylibs are already
+    # built at min 10.6, so nothing else has to move. The engine is plain C, so
+    # the libc++-on-10.6 problem that keeps the sister Half-Life port at 10.7
+    # does not apply here. NOTE: there is no Snow Leopard machine in the fleet —
+    # this is build-correct and verified to still run on 10.7, but 10.6 itself
+    # is untested. The README says so.
     MACH_TYPE=x86_64
     CC=/usr/bin/clang
     SDK=""
-    VMIN=10.7
-    CPUFLAGS='-arch x86_64 -mmacosx-version-min=10.7 -O3 -Qunused-arguments'
+    VMIN=10.6
+    CPUFLAGS='-arch x86_64 -mmacosx-version-min=10.6 -O3 -Qunused-arguments'
     if [ "${LTO:-0}" = "1" ]; then
       CPUFLAGS="$CPUFLAGS -flto"
       EXTRA_LDFLAGS='-flto'
@@ -150,7 +182,7 @@ case "$TARGET" in
     ;;
 esac
 
-echo "[build] sync sources Ubuntu → $LION"
+echo "[build] sync sources orchestrator → $LION"
 # exclude prereqs/ (5 GB of installer DMGs; only used locally for setup)
 # and benchmarks/raw/ + build/ (output dirs that shouldn't bounce through Lion)
 rsync -av --partial --inplace --delete \
@@ -181,3 +213,35 @@ mkdir -p "$REPO_ROOT/build"
 echo "[build] fetch → build/quakespasm-$TARGET"
 scp -q "$LION:quakespasm/Quake/quakespasm-$TARGET" "$REPO_ROOT/build/quakespasm-$TARGET"
 file "$REPO_ROOT/build/quakespasm-$TARGET"
+
+# --- exact cpusubtype enforcement -------------------------------------------
+# Every PPC slice MUST carry its exact cpusubtype (ppc750=9, ppc7400=10,
+# ppc970=100). A generic `ppc (ALL)` slice is a launch BLOCKER, not a cosmetic
+# imprecision: Panther's lax 2003 dyld accepts it, but the Tiger/Leopard KERNEL
+# mis-grades a fat of [ppc ALL, ppc7400, ppc970] on a 750 host and refuses to
+# exec — proven on hardware in the sister Half-Life port, whose v1.0.0 could not
+# launch on the G3 under Tiger for exactly this reason.
+#
+# Apple's gcc-4.0 normally derives the stamp from -mcpu=, but NOT reliably:
+# `-faltivec` (required by the g4 slice's 10.3.9 SDK, see its case above) makes
+# the linker emit ALL instead of 7400. So don't trust the compiler — assert the
+# subtype here and re-stamp if it drifted. Thin 32-bit big-endian Mach-O:
+# cpusubtype is the 4-byte big-endian field at offset 8. Idempotent.
+case "$TARGET" in
+  g3)   WANT_SUBTYPE=9;   WANT_NAME=ppc750  ;;
+  g4)   WANT_SUBTYPE=10;  WANT_NAME=ppc7400 ;;
+  g5)   WANT_SUBTYPE=100; WANT_NAME=ppc970  ;;
+  *)    WANT_SUBTYPE=""                     ;;  # lion: x86_64, nothing to fix
+esac
+if [ -n "$WANT_SUBTYPE" ]; then
+  BIN="$REPO_ROOT/build/quakespasm-$TARGET"
+  GOT=$(lipo -info "$BIN" | sed 's/.*: //')
+  if [ "$GOT" != "$WANT_NAME" ]; then
+    echo "[build] cpusubtype is '$GOT', re-stamping → $WANT_NAME ($WANT_SUBTYPE)"
+    printf "$(printf '\\%03o\\%03o\\%03o\\%03o' 0 0 0 "$WANT_SUBTYPE")" \
+      | dd of="$BIN" bs=1 seek=8 count=4 conv=notrunc 2>/dev/null
+    GOT=$(lipo -info "$BIN" | sed 's/.*: //')
+    [ "$GOT" = "$WANT_NAME" ] || { echo "[build] FAILED to stamp $WANT_NAME (got '$GOT')" >&2; exit 1; }
+  fi
+  echo "[build] cpusubtype OK: $GOT"
+fi

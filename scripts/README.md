@@ -1,21 +1,22 @@
 # scripts/ — build, deploy, bench tooling for QuakeSpasm
 
-Multi-host workflow: edit on Ubuntu → build on `mini-intel` (Lion) →
+Multi-host workflow: edit on the orchestration Mac → build on `mini-intel` (Lion) →
 run on the 7 bench machines. SSH config aliases (`yosemite`,
-`sawtooth`, `quicksilver`, `mini-g4`, `imac-g5`, `mini-intel`,
-`imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard needs the
-same legacy-crypto block as the other PPC boxes).
+`yosemite-tiger`, `sawtooth`, `quicksilver`, `mini-g4`, `imac-g5`,
+`mini-intel`, `imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard
+needs the same legacy-crypto block as the other PPC boxes).
 
 Project goal, toggleability requirement, and the full perf-knob
 inventory live in `/CLAUDE.md` and `docs/KNOBS.md`. Per-machine
 shipping defaults: `scripts/bundle/autoexec-<machine>.cfg`.
 For LLM-facing per-script notes see `scripts/CLAUDE.md`.
 
-**Bench machines (7 machines, 4 distinct binaries):**
+**Bench machines (7 Macs / 8 OS installs, 4 distinct binaries):**
 
 | machine     | hardware                                                              | binary                |
 |-------------|-----------------------------------------------------------------------|-----------------------|
 | yosemite    | PowerMac1,1  G3 B&W 449 MHz, Rage 128 16 MB, Panther 10.3.9           | `quakespasm-g3`       |
+| yosemite-tiger | the SAME Mac, 2nd partition, Tiger 10.4.11                         | `quakespasm-g3`       |
 | sawtooth    | PowerMac3,1  G4 AGP 500 MHz, GeForce2 MX 32 MB, Tiger 10.4.11         | `quakespasm-g4`       |
 | quicksilver | PowerMac3,5  G4 QS  733 MHz, Radeon 9000 Pro 64 MB, Tiger 10.4.11    | `quakespasm-g4`       |
 | mini-g4     | PowerMac10,1 Mac mini G4 1.25 GHz, Radeon 9200 32 MB, Tiger 10.4.11   | `quakespasm-g4`       |

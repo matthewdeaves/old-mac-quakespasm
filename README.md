@@ -32,12 +32,36 @@ that hardware.
 | Machine | CPU | GPU | OS | Default res |
 |---|---|---|---|---:|
 | **Yosemite** (PowerMac1,1 B&W G3, 1999) | 449 MHz PPC 750 | ATI Rage 128 16 MB | 10.3.9 Panther | 800×600 |
+| **Yosemite on Tiger** (same Mac, 2nd partition) | 449 MHz PPC 750 | ATI Rage 128 16 MB | 10.4.11 Tiger | 800×600 |
 | **Sawtooth** (PowerMac3,1 G4 AGP, 1999) | 500 MHz PPC 7400 | NVIDIA GeForce2 MX 32 MB | 10.4.11 Tiger | 1024×768 |
 | **Quicksilver** (PowerMac3,5, 2001) | 733 MHz PPC 7450 | ATI Radeon 9000 Pro 64 MB | 10.4.11 Tiger | 1024×768 |
 | **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger | 1024×768 |
 | **iMac G5** (PowerMac8,2, 2005) | 2.0 GHz PPC 970 | ATI Radeon 9600 128 MB | 10.5.8 Leopard | 1440×900 (native) |
 | **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
 | **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7 Sequoia | 2560×1440 |
+
+### Which OS each CPU needs
+
+The binary carries one slice per CPU family, each stamped with its exact CPU subtype:
+
+| CPU | Slice | OS needed | Tested on |
+|---|---|---|---|
+| G3 (750) | `ppc750` | 10.3.9 Panther or later | 10.3.9 and 10.4.11 |
+| G4 (7400 / 7450 / 7447A) | `ppc7400` | 10.3.9 Panther or later | 10.4.11 |
+| G5 (970) | `ppc970` | **10.5 Leopard — a G5 on 10.3 or 10.4 is not supported** | 10.5.8 |
+| Intel, 64-bit | `x86_64` | 10.6 Snow Leopard or later | 10.7.5 and 15.7 |
+
+`dyld` picks a slice by CPU alone; the OS plays no part in it. A Mac running an OS
+older than its slice needs gets that slice anyway rather than falling back to a lower
+one, and won't launch — which is why the G3 and G4 slices are both built at min 10.3
+even though no G4 here runs Panther. Two rows are honest about the gap between what
+is built and what is tested: **a G4 on Panther and an Intel Mac on Snow Leopard should
+both work but neither has been run on hardware** (no such machine in the fleet). The G5
+is the exception — its slice genuinely needs 10.5, so that row is a real floor, not a
+gap in testing.
+
+32-bit-only Intel Macs (Core Duo / Core Solo, 2006) have no slice at all: there is no
+`i386` build, and no such machine here to make one on.
 
 ## Framerate
 
@@ -61,20 +85,22 @@ G4/G5/Lion machines, ≥ 20 on the G3); full history and all three demos in
 
 ## How it's built and benchmarked
 
-One Ubuntu box drives all seven Macs over SSH. The Lion mini does double duty:
+One modern Mac drives the whole fleet over SSH. The Lion mini does double duty:
 it cross-builds the four PowerPC/Intel slices and benches itself. These diagrams
 cover the setup, the build pipeline and the timedemo bench loop.
 
-![Build and bench rack: one Ubuntu box drives seven Macs via the Lion mini cross-build host](docs/images/architecture.svg)
+![Build and bench rack: one orchestration box drives the fleet via the Lion mini cross-build host](docs/images/architecture.svg)
 
 ![Build pipeline: four slices (ppc750, ppc7400, ppc970, x86_64) lipo'd into one fat binary](docs/images/build-pipeline.svg)
 
-![Bench loop: Ubuntu launches a timedemo over SSH, reads qconsole.log back, and the median lands in results.csv](docs/images/bench-loop.svg)
+![Bench loop: The orchestration Mac launches a timedemo over SSH, reads qconsole.log back, and the median lands in results.csv](docs/images/bench-loop.svg)
 
 ## Features
 
 - **One fat binary** (PPC G3 + G4 AltiVec + G5 + Intel x86_64); runs on Mac OS X
-  10.3.9 Panther through modern macOS.
+  10.3.9 Panther through modern macOS. Every PowerPC slice carries its exact CPU
+  subtype (`ppc750` / `ppc7400` / `ppc970`) so Tiger and Leopard grade it
+  correctly on a G3.
 - **Per-machine settings** picked at boot via `sysctl hw.model` — each Mac gets
   a config tuned to stay playable on it. Every setting is a runtime cvar.
 - **Visual features** — trilinear + up to 16× anisotropic filtering, alias
@@ -106,7 +132,9 @@ Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder
 [GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click
 `Quakespasm.app`. On modern macOS, clear Gatekeeper with
 `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app` (not needed on
-Panther/Tiger/Lion; pre-Lion 32-bit-kernel Intel Macs are not supported).
+Panther/Tiger/Leopard/Lion). On an Apple Silicon Mac the `x86_64` slice runs under
+Rosetta 2 — there is no native `arm64` slice. The only Macs with no slice at all are
+the 32-bit-only Core Duo / Core Solo models.
 
 ## Sister projects
 

@@ -12,7 +12,7 @@
 # kernel even if Finder/display state is borked.
 #
 # usage: scripts/install-host-tools.sh [host [host...]]
-#   default hosts: yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5
+#   default hosts: yosemite yosemite-tiger sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5
 # env:
 #   HOSTS=...   override host list
 
@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO_ROOT/scripts/host-bin"
 
 HOSTS=("$@")
-[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5})
+[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite yosemite-tiger sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5})
 
 for host in "${HOSTS[@]}"; do
     echo "=== $host ==="

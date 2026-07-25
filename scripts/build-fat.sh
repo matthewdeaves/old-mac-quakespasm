@@ -63,7 +63,7 @@ done
 
 # lipo lives on Lion's build host, not necessarily on the orchestration
 # host. Send the four slices over, lipo there, scp the fat back. (lipo
-# is also in /usr/bin/ on macOS only — Linux Ubuntu doesn't ship it by
+# is also in /usr/bin/ on macOS only — a Linux orchestrator would not ship it by
 # default. Doing the merge on Lion keeps the toolchain assumption
 # uniform with build.sh.)
 LION="${BUILD_HOST:-${LION:-mini-intel}}"

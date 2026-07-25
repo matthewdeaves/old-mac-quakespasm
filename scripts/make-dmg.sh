@@ -5,7 +5,7 @@
 # The .app is staged exactly like deploy.sh (fat 4-arch binary + SDL +
 # codec dylibs + per-machine autoexec cfgs + icon). Linux has no hdiutil,
 # so a Mac (the cross-build host by default) does the actual hdiutil
-# create; we stage on Ubuntu, ship the folder over, build the .dmg there,
+# create; we stage locally, ship the folder over, build the .dmg there,
 # and fetch it back.
 #
 # usage: scripts/make-dmg.sh [version-label]

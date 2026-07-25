@@ -14,6 +14,34 @@ we learned. Newest at the top.
 > respectively (and the new `sawtooth` G4 AGP tower joined the matrix).
 > Same hardware, just renamed. See CLAUDE.md "Hosts" for the full table.
 
+## 2026-07-25 — `-faltivec` silently un-stamps the ppc7400 cpusubtype
+
+**Tried:** rebuilding the G4 slice against the 10.3.9 SDK at min-10.3 (so a G4
+booted on Panther can load it, issue #1). The 10.3.9 SDK's Carbon
+`MachineExceptions.h` declares an AltiVec `vector` field and won't parse without
+Apple's `-faltivec`, so that flag was added alongside the existing
+`-mcpu=7400 -maltivec -mabi=altivec`.
+
+**What went wrong:** the resulting slice came out as generic `ppc (ALL)` instead
+of `ppc7400`. `-mcpu=7400` normally propagates into the Mach-O cpusubtype;
+`-faltivec` defeats that. Nothing in the build complained — `lipo -info` was the
+only signal.
+
+**Why it matters:** this is not cosmetic. Panther's lax 2003 dyld accepts a
+generic `ppc` slice, but the Tiger/Leopard **kernel** mis-grades a fat of
+`[ppc ALL, ppc7400, ppc970]` on a 750 host and refuses to exec it at all. The
+sister Half-Life port shipped exactly that bug in its v1.0.0 and could not launch
+on the G3 under Tiger.
+
+**Fix:** `build.sh` now asserts the expected cpusubtype after every PPC build and
+re-stamps the Mach-O header (4-byte big-endian field at offset 8) if the compiler
+drifted. Idempotent, and it fails loudly if the stamp doesn't take.
+
+**Learned:** don't trust the compiler to stamp the subtype. Assert it. A build
+that exits 0 and produces a runnable-looking binary can still be unlaunchable on
+a machine you didn't test.
+
+
 ---
 
 ## 2026-05-31 — DMG pipeline could ship a silently-corrupt binary (caught on the Q2 sister port)

@@ -8,8 +8,8 @@
 # DMG wasn't). See MISTAKES.md.
 #
 # usage: scripts/deploy-dmg.sh <machine> [version]
-#   machine: yosemite | sawtooth | quicksilver | mini-g4 | imac-g5 |
-#            mini-intel | imac-2019  (ssh alias)
+#   machine: yosemite | yosemite-tiger | sawtooth | quicksilver | mini-g4 |
+#            imac-g5 | mini-intel | imac-2019  (ssh alias)
 #   version: e.g. v1.8  (default: newest dist/QuakeSpasm-OldMac-*.dmg)
 #
 # Preserves the user's game data: the id1/ folder (pak0.pak / pak1.pak / saves /

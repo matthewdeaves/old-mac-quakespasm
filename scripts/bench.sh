@@ -2,13 +2,17 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
 #
 # Machines (Apple-codename / form-factor naming):
 #   yosemite     PowerMac1,1   B&W G3 449 MHz / Rage 128 / 10.3.9 Panther
+#   yosemite-tiger  SAME BOX as yosemite, 2nd partition on 10.4.11 Tiger. Only
+#                   one OS is booted at a time, so these two legs can never run
+#                   concurrently — it is a separate CSV row for the Panther/Tiger
+#                   A/B, not a separate machine.
 #   sawtooth     PowerMac3,1   G4 AGP 500 MHz / GeForce2 MX / 10.4.11 Tiger
 #   quicksilver  PowerMac3,5   G4 QS  733 MHz / Radeon 9000 / 10.4.11 Tiger
 #   mini-g4      PowerMac10,1  Mac mini G4 1.25 GHz / Radeon 9200 / 10.4.11
@@ -36,7 +40,7 @@
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <yosemite|sawtooth|quicksilver|mini-g4|mini-intel> <demo> <WxH> [runs]}"
+TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel> <demo> <WxH> [runs]}"
 DEMO="${2:?demo name required (demo1|demo2|demo3)}"
 RES="${3:?resolution required (e.g. 1024x768)}"
 RUNS="${4:-3}"
@@ -47,8 +51,17 @@ H="${RES#*x}"
 
 # TARGET == SSH alias after the rename round; TIMEOUT scales with CPU class
 # (Lion finishes timedemo in seconds; the G3 needs minutes).
+#
+# MACHINE_CFG is the per-machine autoexec overlay to stage, and defaults to
+# TARGET. It differs only where one physical Mac appears under two TARGETs: the
+# G3 has a Panther and a Tiger install, and the overlay is chosen at runtime by
+# `sysctl hw.model`, which reports PowerMac1,1 on both — so both legs must stage
+# autoexec-yosemite.cfg or the bench wouldn't match what a Finder launch does.
 case "$TARGET" in
   yosemite)    HOST="yosemite";    TIMEOUT=240; ARCH_CFG="ppc750"  ;;
+  yosemite-tiger)
+               HOST="yosemite-tiger"; TIMEOUT=240; ARCH_CFG="ppc750"
+               MACHINE_CFG="yosemite" ;;  # same PowerMac1,1, Tiger partition
   sawtooth)    HOST="sawtooth";    TIMEOUT=180; ARCH_CFG="ppc7400" ;;  # 500 MHz G4 AGP — slower than other G4s
   quicksilver) HOST="quicksilver"; TIMEOUT=120; ARCH_CFG="ppc7400" ;;
   mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400" ;;
@@ -57,6 +70,7 @@ case "$TARGET" in
   imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970"  ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
+MACHINE_CFG="${MACHINE_CFG:-$TARGET}"
 
 # Stable hash through a long matrix run: callers (parallel-bench.sh,
 # bench-and-commit.sh) resolve HEAD once and export $COMMIT so every cell
@@ -82,7 +96,7 @@ mkdir -p "$RAW_DIR"
 # autoexec to double-apply on top of CFBundle).
 TMP_AE=$(mktemp -t qsbenchae.XXXXXX)
 cat "$REPO_ROOT/scripts/bundle/autoexec-$ARCH_CFG.cfg" \
-    "$REPO_ROOT/scripts/bundle/autoexec-$TARGET.cfg" > "$TMP_AE"
+    "$REPO_ROOT/scripts/bundle/autoexec-$MACHINE_CFG.cfg" > "$TMP_AE"
 scp -q "$TMP_AE" "$HOST:Desktop/quake/id1/autoexec.cfg" || \
   echo "[bench] WARN: failed to stage autoexec.cfg on $HOST — bench will run vanilla" >&2
 rm -f "$TMP_AE"
