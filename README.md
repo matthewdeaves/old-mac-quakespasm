@@ -70,17 +70,24 @@ gap in testing.
 
 | Machine | 1024×768 | 640×480 |
 |---|---:|---:|
-| Yosemite (G3 / Rage 128) | 17.6 | 36.5 |
-| Sawtooth (G4 / GeForce2 MX) | 40.5 | 55.8 |
-| Quicksilver (G4 / Radeon 9000) | 65.8 | 71.4 |
-| Mac mini G4 (Radeon 9200) | 51.4 | 89.7 |
-| Mac mini Intel (Lion / GMA 950) | 76.3 | 172.5 |
+| Yosemite (G3 / Panther / Rage 128) | 17.2 | 33.6 |
+| Yosemite (G3 / Tiger / Rage 128) | 15.9 | 32.5 |
+| Quicksilver (G4 / Radeon 9000) | 63.6 | 71.2 |
+| Mac mini G4 (Radeon 9200) | 48.7 | 86.0 |
+| Mac mini Intel (Lion / GMA 950) | 71.3 | 161.4 |
+| Sawtooth (G4 / GeForce2 MX) † | 40.5 | 55.8 |
+
+† Sawtooth was offline for this round; its figures are from the previous
+release. Everything else is measured on the v1.14 build.
 
 The iMac G5 runs native 1440×900 only (its Leopard driver hangs on a mode
-switch) at ~100 fps; the 2019 iMac sits well over 1500 fps. Yosemite ships at
-800×600 — its default — where demo1/2/3 run ~27/25/30, comfortably above 20 fps
-with everything turned on. Every machine stays above its target (≥ 60 fps on the
-G4/G5/Lion machines, ≥ 20 on the G3); full history and all three demos in
+switch) at ~102 fps; the 2019 iMac sits well over 1500 fps. The G3 ships at
+800×600 — its default — where demo1 runs 25.5 on Panther and 25.1 on Tiger,
+comfortably above 20 fps with everything turned on. That pair is the same Mac
+booted from two partitions, running the byte-identical binary out of the same
+disk image: the OS costs the G3 a couple of percent and nothing else. Every
+machine stays above its target (≥ 60 fps on the G4/G5/Lion machines, ≥ 20 on the
+G3); full history and all three demos in
 [`benchmarks/results.csv`](benchmarks/results.csv).
 
 ## How it's built and benchmarked

@@ -15,7 +15,7 @@
 # as-launched artifact. See MISTAKES.md.
 #
 # usage: scripts/smoke-dmg.sh <machine> [demo]
-#   machine: yosemite | sawtooth | quicksilver | mini-g4 | imac-g5 |
+#   machine: yosemite | yosemite-tiger | sawtooth | quicksilver | mini-g4 | imac-g5 |
 #            mini-intel | imac-2019
 #   demo:    demo1 (default) | demo2 | demo3
 #
@@ -29,6 +29,8 @@ DEMO="${2:-demo1}"
 
 case "$HOST" in
   yosemite)    TIMEOUT=240; COOLDOWN=5 ;;
+  # Same PowerMac1,1 as yosemite, booted from its Tiger partition.
+  yosemite-tiger) TIMEOUT=240; COOLDOWN=5 ;;
   sawtooth)    TIMEOUT=180; COOLDOWN=3 ;;
   quicksilver) TIMEOUT=120; COOLDOWN=2 ;;
   mini-g4)     TIMEOUT=120; COOLDOWN=2 ;;
