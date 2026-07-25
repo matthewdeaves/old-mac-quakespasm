@@ -158,17 +158,31 @@ required `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
 pre-2014 `KexAlgorithms`, and RSA key `id_rsa_tiger`. Ad-hoc `ssh user@ip`
 without these fails.
 
-**`mini-intel` sleeps aggressively.** If `build.sh` fails with `ssh: connect to
-host ... No route to host`, it's asleep — wake it and retry.
+**The Intel minis sleep aggressively.** If `build.sh` fails with `ssh: connect to
+host ... No route to host`, that mini is asleep — wake it and retry.
+`pick-build-host.sh` treats an unreachable host as unusable and simply picks the
+other one, so a sleeping box no longer blocks a build.
 
 ## Build + codebase essentials
 
 Build via `Quake/Makefile.darwin` (`MACH_TYPE=ppc`, SDK + `-mcpu` via
-`CPUFLAGS`/`LDFLAGS`) — **NOT** the Xcode project. `mini-intel` is the shared
-cross-build host for this port AND the Q2 sister project (`~/quake2/`); they're
-isolated by separate rsync dirs + flocks, and the 10.3.9 / 10.4u SDKs are
-**read-only shared — never modify** (multi-hour Q2 recovery). Per-target flags +
-the isolation table: `docs/DEVELOPMENT.md`, `MacOSX/CLAUDE.md`.
+`CPUFLAGS`/`LDFLAGS`) — **NOT** the Xcode project. There are now **TWO
+interchangeable Intel cross-build minis**: `mini-intel` (10.188.1.190) and
+`mini-intel2` (10.188.1.216) — same Macmini2,1 / 10.7.5 / identical toolchain.
+`build.sh` and `build-fat.sh` no longer hardcode a host: they call
+`scripts/pick-build-host.sh --acquire` to take one that is reachable and idle,
+and release it on exit. So this port and the Q2/Q3 sister projects can now build
+**at the same time on different minis**. Set `BUILD_HOST=<alias>` to pin one.
+Within a single host the old isolation still holds (separate rsync dirs +
+flock), and the 10.3.9 / 10.4u SDKs remain **read-only shared — never modify**
+(multi-hour Q2 recovery). Per-target flags + the isolation table:
+`docs/DEVELOPMENT.md`, `MacOSX/CLAUDE.md`.
+
+**Why the claim lives on the mini, not in the repo:** a per-checkout `flock`
+cannot see a build the Q2 repo (or another Claude) started on the same box.
+`pick-build-host.sh` locks `/tmp/.retro-build-lock` ON the host and also treats
+running compiler processes as busy, so it detects builds started outside this
+mechanism entirely.
 
 Codebase facts that bite: **no software renderer** (GL-only — no "palette blit
 hot path"); the two `SSE` mentions are defensive `double` casts, not SSE code.

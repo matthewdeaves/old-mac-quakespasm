@@ -18,16 +18,37 @@
 #
 # usage: scripts/build.sh <g3|g4|g5|lion>
 # output: build/quakespasm-<target>
-# env:    BUILD_HOST (ssh alias for the cross-build host, default 'mini-intel')
+# env:    BUILD_HOST (ssh alias for the cross-build host; default: auto-picked
+#         from the free Intel minis by scripts/pick-build-host.sh)
+#         BUILD_HOSTS / BUILD_LOCK_WAIT — see scripts/pick-build-host.sh
 
 set -euo pipefail
 
 TARGET="${1:?usage: $0 <g3|g4|g5|lion>}"
-# The cross-build host is the Intel Mac mini (mini-intel). Variable name
-# kept as BUILD_HOST for clarity; LION still accepted for backward compat.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The cross-build host is an Intel Mac mini — there are now TWO interchangeable
+# ones (mini-intel, mini-intel2: same Macmini2,1 / 10.7.5 / same toolchain). When
+# the caller has not pinned one, ask pick-build-host.sh for a host that is both
+# reachable and not already compiling for some other repo/agent, and CLAIM it for
+# the duration so nobody grabs it mid-build. The claim is a lock ON the mini, so
+# it is visible to the other quake repos and to other workstations — the flock
+# below only serialises builds from THIS checkout.
+# build-fat.sh pins BUILD_HOST for all four slices, so this only fires for a
+# standalone build.sh run. LION is still accepted for backward compat.
+BUILD_HOST_CLAIMED=0
+if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
+	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
+		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build.sh $TARGET")" || {
+		echo "build.sh: no free Intel build host; see scripts/pick-build-host.sh --status" >&2
+		exit 1
+	}
+	BUILD_HOST_CLAIMED=1
+	echo "[build] claimed build host: $BUILD_HOST"
+fi
 BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
 LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines below
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
 
 # Port release label stamped into the binary's version string. Computed HERE on
 # the orchestration host (the rsync below excludes .git, so the cross-build host has no

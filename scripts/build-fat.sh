@@ -41,6 +41,27 @@ cd "$REPO_ROOT"
 export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
 echo "[build-fat] stamping port version: $QS_PORT_VERSION"
 
+# Pin ONE Intel build host for the whole fat build and claim it up front.
+# This MUST be a single host for the entire run: the four slices accumulate in
+# that host's quakespasm/Quake/ tree and the final lipo happens there, so letting
+# individual sub-builds drift onto different minis would lipo an incomplete set.
+# Claiming once also stops another repo/agent taking the box between sub-builds.
+# An explicit BUILD_HOST (or LION) from the caller always wins.
+if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
+	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
+		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build-fat")" || {
+		echo "[build-fat] no free Intel build host; see scripts/pick-build-host.sh --status" >&2
+		exit 1
+	}
+	export BUILD_HOST
+	# Absolute path: the trap must still resolve if anything ever cd's away.
+	trap '"$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
+	echo "[build-fat] claimed build host: $BUILD_HOST (held for all four slices)"
+else
+	export BUILD_HOST="${BUILD_HOST:-$LION}"
+	echo "[build-fat] using caller-supplied build host: $BUILD_HOST"
+fi
+
 echo "[build-fat] sub-build 1/4: g3"
 scripts/build.sh g3
 
@@ -66,7 +87,12 @@ done
 # is also in /usr/bin/ on macOS only — a Linux orchestrator would not ship it by
 # default. Doing the merge on Lion keeps the toolchain assumption
 # uniform with build.sh.)
-LION="${BUILD_HOST:-${LION:-mini-intel}}"
+# BUILD_HOST was pinned (and claimed) at the top of this script, so the lipo runs
+# on the SAME mini that built the slices. Assert rather than re-defaulting: a second
+# "${BUILD_HOST:-mini-intel}" here could silently fuse on a different box than the
+# one the slices were built on.
+: "${BUILD_HOST:?internal error: build host should have been pinned above}"
+LION="$BUILD_HOST"
 echo "[build-fat] lipo -create on $LION (cross-build host)"
 scp -q build/quakespasm-g3 build/quakespasm-g4 build/quakespasm-g5 build/quakespasm-lion \
   "$LION:/tmp/" >/dev/null
