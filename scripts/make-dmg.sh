@@ -92,6 +92,23 @@ mkdir -p "$APP/Contents/MacOS" "$RESOURCES"
 
 echo "[make-dmg] stage Quakespasm.app (same layout as deploy.sh)"
 cp    "$REPO_ROOT/scripts/bundle/Info.plist" "$APP/Contents/Info.plist"
+
+# Stamp the PORT release version into the bundle so a human can tell which build
+# is installed from Finder's Get Info, not just from the engine console. The
+# static plist carries upstream's engine version (0.97.0), which never changes
+# between our releases and so identifies nothing. Same source of truth as the
+# binary's own version string: QS_PORT_VERSION, i.e. `git describe`.
+QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+/usr/libexec/PlistBuddy \
+  -c "Set :CFBundleShortVersionString 0.97.0-oldmac-$QS_PORT_VERSION" \
+  -c "Add :CFBundleVersion string $QS_PORT_VERSION" \
+  "$APP/Contents/Info.plist" >/dev/null 2>&1 || \
+/usr/libexec/PlistBuddy \
+  -c "Set :CFBundleShortVersionString 0.97.0-oldmac-$QS_PORT_VERSION" \
+  -c "Set :CFBundleVersion $QS_PORT_VERSION" \
+  "$APP/Contents/Info.plist" >/dev/null
+echo "[make-dmg] bundle version: 0.97.0-oldmac-$QS_PORT_VERSION"
+
 cp    "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$RESOURCES/"
 cp -r "$REPO_ROOT/MacOSX/English.lproj"      "$RESOURCES/"
 cp    "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$APP/Contents/MacOS/"
