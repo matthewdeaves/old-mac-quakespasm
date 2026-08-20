@@ -37,8 +37,19 @@ case "$HOST" in
   imac-g5)     TIMEOUT=110; COOLDOWN=2 ;;
   mini-intel)  TIMEOUT=60;  COOLDOWN=1 ;;
   imac-2019)   TIMEOUT=45;  COOLDOWN=1 ;;
+  g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger)
+               TIMEOUT=120; COOLDOWN=2 ;;
+  mini-intel2) TIMEOUT=60;  COOLDOWN=1 ;;
   *) echo "unknown machine: $HOST" >&2; exit 2 ;;
 esac
+
+# Both are overridable. The per-machine defaults are tuned for this port's
+# demo at that machine's production settings, and a heavier config or a busy
+# box can exceed them. When that happens the run is reported as a crash or
+# hang, which is far more alarming than the truth, and it leaves the engine
+# running for the NEXT run to trip over.
+TIMEOUT="${SMOKE_TIMEOUT:-$TIMEOUT}"
+COOLDOWN="${SMOKE_COOLDOWN:-$COOLDOWN}"
 
 echo "[smoke $HOST] launching DMG-installed Quakespasm.app with PRODUCTION config (as a human would), demo=$DEMO"
 # Production launch: -basedir . (so id1/ + quakespasm.pak resolve) + -condebug
