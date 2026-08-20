@@ -24,6 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "net_sys.h"
 #include "quakedef.h"
 #include "net_defs.h"
+/* Datagram_MasterQueryReset lives here. Without this include the call in
+   NET_Slist_f is an implicit declaration, which gcc 4.0 accepts with a warning
+   and clang 21 rejects outright, so the file compiles for the PowerPC and
+   Intel slices and fails for arm64. */
+#include "net_dgrm.h"
 
 qsocket_t	*net_activeSockets = NULL;
 qsocket_t	*net_freeSockets = NULL;
