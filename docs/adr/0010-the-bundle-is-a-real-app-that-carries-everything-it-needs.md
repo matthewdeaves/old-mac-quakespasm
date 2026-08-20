@@ -1,4 +1,4 @@
-# 10. The bundle is a real .app, location-agnostic, carrying everything it needs
+# 10. The bundle is a real .app: location-agnostic, carrying everything it needs
 
 Date: 2026-08-20
 Status: accepted
@@ -52,17 +52,17 @@ paths, not a binary requirement.
 **Four source patches are required and are committed in tree.** None is
 upstream-able without sniff macros.
 
-1. `Quake/pl_osx.m:92-95` — Objective-C 2.0 dot-notation replaced with
+1. `Quake/pl_osx.m:92-95`, Objective-C 2.0 dot-notation replaced with
    traditional setter calls (`setAlertStyle:`, `setMessageText:`,
    `setInformativeText:`). `gcc-4.0` cannot parse dot-notation.
-2. `MacOSX/QuakeArguments.m` — `[NSString stringWithCString:encoding:]` and
+2. `MacOSX/QuakeArguments.m`, `[NSString stringWithCString:encoding:]` and
    `[NSString cStringUsingEncoding:]` are 10.4+ APIs; wrapped in
    `QSpasmStringFromCString` / `QSpasmCStringFromString` macros that route to
    the deprecated `cString` / `stringWithCString:` variants on Panther. Without
    this the binary crashes inside `[QuakeArguments init]` with "unrecognized
    selector" when targeting 10.3.
-3. `MacOSX/AppController.m:173` — the same NSString encoding fix.
-4. `Quake/gl_vidsdl.c:1381-1390` — the multi-threaded OpenGL block wrapped in
+3. `MacOSX/AppController.m:173`, the same NSString encoding fix.
+4. `Quake/gl_vidsdl.c:1381-1390`, the multi-threaded OpenGL block wrapped in
    `#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1040`. `kCGLCEMPEngine` is 10.4.8+ and
    does not exist in the 10.3.9 SDK headers. The B&W G3 is single-core, so the
    `host_parms->numcpus > 1` runtime check would skip the call anyway.

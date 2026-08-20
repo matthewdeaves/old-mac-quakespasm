@@ -67,7 +67,7 @@ generated Makefile before compiling (`MacOSX/SDL-rebuild.md`).
   trust "done" or exit 0. Confirm each `build/quakespasm-{g3,g4,g5,lion}` has a
   fresh mtime from this run and not a mix of old and new; run
   `lipo -detailed_info` on the fat; and after `deploy.sh`, read its md5
-  comparison, which **warns rather than fails** — a WARN line means the target
+  comparison, which **warns rather than fails**, a WARN line means the target
   is not running what you built.
 - A build that exits 0 and produces a runnable-looking binary can still be
   unlaunchable on a machine you did not test.

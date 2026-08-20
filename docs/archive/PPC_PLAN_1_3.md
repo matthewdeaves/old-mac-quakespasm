@@ -1,6 +1,6 @@
-# PPC Plan 1.3 — Throttled SGIS mipmap for liquids (G4 only)
+# PPC Plan 1.3: Throttled SGIS mipmap for liquids (G4 only)
 
-> **STATUS: ARCHIVED — not worth the effort right now.**
+> **STATUS: ARCHIVED, not worth the effort right now.**
 >
 > This plan is technically sound and could be executed in a few hours, but
 > the expected return is too thin to justify the spend. **Best case** on G4
@@ -16,13 +16,13 @@
 >   fps of headroom is acceptable to spend on liquid quality.
 > - If we discover the SGIS extension *isn't* exposed on Radeon 9000 at
 >   all (in which case the plan becomes "manual CPU mipchain", a
->   different and larger effort — see Cuts).
+>   different and larger effort, see Cuts).
 >
 > Archived 2026-05-06.
 
 ## Deliverable: copy this plan to repo root
 
-(Already done — this file is the archive copy. If revived, update the
+(Already done, this file is the archive copy. If revived, update the
 1.3 row in `PPC_PLAN.md` to point here.)
 
 ## Context
@@ -30,7 +30,7 @@
 QuakeSpasm liquid (water/lava/slime/teleport) rendering on the G4 path
 (`r_oldwater 0`, framebuffer-copy refraction) currently produces
 **shimmering aliased water at distance** because warp textures bind with
-`GL_LINEAR` — no mipmaps. Root cause: `gl_vidsdl.c:1305-1322` only
+`GL_LINEAR`, no mipmaps. Root cause: `gl_vidsdl.c:1305-1322` only
 probes `glGenerateMipmap` (ARB / GL 3.0) and `glGenerateMipmapEXT`
 (EXT_framebuffer_object). Apple's Tiger GL stack on Radeon 9000 exposes
 neither, so `GL_GenerateMipmap` is left `NULL`, the warpimage's
@@ -49,11 +49,11 @@ through to a software mipchain generator on every frame. Reverted.
 gates the entire warp update (copy + regen) to once every N frames.
 Water *animation* runs at framerate/N; mipmap quality is preserved. At
 sensible N values the visual cost is invisible and the perf is
-*acceptable* — but only barely, which is why this is archived.
+*acceptable*, but only barely, which is why this is archived.
 
 **G3 is out of scope.** Per `autoexec.cfg`, G3 is pinned to
 `r_oldwater 1`. `R_UpdateWarpTextures()` short-circuits via
-`R_OldWaterEffective()` at `gl_warp.c:243-244` — no `glCopyTexSubImage2D`,
+`R_OldWaterEffective()` at `gl_warp.c:243-244`, no `glCopyTexSubImage2D`,
 no per-frame mipgen. The classic warp uses base liquid textures with
 `WARPCALC` UV displacement (`gl_warp.c:194-221`); those base textures
 already carry `TEXPREF_MIPMAP` at load. **G3 distant water already has
@@ -78,7 +78,7 @@ mipmaps.** This plan only touches G4-relevant code paths.
 - `host_framecount` is available globally (used for cadence in many
   engine subsystems).
 
-## Strategy: 3 phases, each independently buildable + benchable + revertable
+## Strategy: 3 phases: each independently buildable + benchable + revertable
 
 | #     | Phase                                                | Files                            | Risk    | G4 1024 expected   | G4 640 |
 |-------|------------------------------------------------------|----------------------------------|---------|--------------------|--------|
@@ -88,12 +88,12 @@ mipmaps.** This plan only touches G4-relevant code paths.
 
 Phases ordered by risk and reversibility. Each lands as a single commit;
 full bench matrix between commits per existing methodology
-(`scripts/full-bench.sh both`, 3× runs, median of 2&3, both targets — even
+(`scripts/full-bench.sh both`, 3× runs, median of 2&3, both targets, even
 though G3 won't move, run it to verify zero regression).
 
 ---
 
-## Phase 1.3a — SGIS detection + capability flag
+## Phase 1.3a: SGIS detection + capability flag
 
 **Files:** `Quake/glquake.h`, `Quake/gl_vidsdl.c`
 
@@ -129,7 +129,7 @@ without rebuilding.
 
 ---
 
-## Phase 1.3b — r_waterupdaterate cvar + frame-cadence throttle
+## Phase 1.3b: r_waterupdaterate cvar + frame-cadence throttle
 
 **File:** `Quake/gl_warp.c`
 
@@ -155,28 +155,28 @@ Modify `R_UpdateWarpTextures()` near `gl_warp.c:243`, after the
 }
 ```
 
-Range-clamp at use, not at registration — keeps cvar idempotent and
+Range-clamp at use, not at registration, keeps cvar idempotent and
 allows runtime experimentation. No `Cvar_SetCallback` needed.
 
 At `r_waterupdaterate = 1` (default) the throttle is a single
 modulo-against-1 = always-zero check, fully benign. **Phase 1.3b is
-zero-impact in default configuration** — provides only the lever for
+zero-impact in default configuration**, provides only the lever for
 1.3c.
 
 **Smoke test:** boot, set `r_waterupdaterate 30` in console, look at
-water — animation should visibly stutter (one update every half-second
+water, animation should visibly stutter (one update every half-second
 at 60fps). Set back to 1, animation smooth.
 
 ---
 
-## Phase 1.3c — SGIS warpimage path + per-target tuning
+## Phase 1.3c: SGIS warpimage path + per-target tuning
 
 **Files:** `Quake/gl_model.c`, `Quake/gl_texmgr.c`, `Quake/gl_warp.c`,
 `MacOSX/g4-autoexec.cfg`
 
 This phase has three pieces:
 
-### 1.3c.1 — Drop `TEXPREF_MIPMAP` gate to admit SGIS
+### 1.3c.1: Drop `TEXPREF_MIPMAP` gate to admit SGIS
 
 `gl_model.c:864-868`: change the warpimage flag to also set
 `TEXPREF_MIPMAP` when SGIS is available (not just when
@@ -187,7 +187,7 @@ TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE |
 ((GL_GenerateMipmap || gl_sgis_mipmap_able) ? TEXPREF_MIPMAP : 0)
 ```
 
-### 1.3c.2 — Set the SGIS texture parameter at warpimage creation
+### 1.3c.2: Set the SGIS texture parameter at warpimage creation
 
 In `gl_texmgr.c`, at the point where `TEXPREF_MIPMAP` textures get their
 filter applied (find via `GL_LINEAR_MIPMAP_LINEAR`, around line 107-108
@@ -200,7 +200,7 @@ if (gl_sgis_mipmap_able && !GL_GenerateMipmap)
 ```
 
 Place this inside the upload routine that handles `TEXPREF_MIPMAP`. The
-parameter is sticky on the texture — set once at creation. SGIS then
+parameter is sticky on the texture, set once at creation. SGIS then
 triggers automatically on every subsequent `glCopyTexSubImage2D` to that
 texture.
 
@@ -208,7 +208,7 @@ If neither SGIS nor `GL_GenerateMipmap` is active, the existing path
 falls back to `GL_LINEAR` (no mipmaps). Status quo preserved on hardware
 without either extension.
 
-### 1.3c.3 — Drop the explicit `GL_GenerateMipmap` call when SGIS is the path
+### 1.3c.3: Drop the explicit `GL_GenerateMipmap` call when SGIS is the path
 
 In `R_UpdateWarpTextures()` at `gl_warp.c:276-277`:
 
@@ -217,15 +217,15 @@ if (GL_GenerateMipmap)
     GL_GenerateMipmap(GL_TEXTURE_2D);
 /* SGIS path: regeneration is automatic via the texture parameter set
    in TexMgr_Upload, triggered by glCopyTexSubImage2D above. No explicit
-   call needed (and would crash — GL_GenerateMipmap is NULL when SGIS is
+   call needed (and would crash, GL_GenerateMipmap is NULL when SGIS is
    the active path). */
 ```
 
-No code change required — the existing `if (GL_GenerateMipmap)` guard
+No code change required, the existing `if (GL_GenerateMipmap)` guard
 already handles the NULL case. SGIS path runs the auto-regen via the
 preceding `glCopyTexSubImage2D` automatically.
 
-### 1.3c.4 — Per-target tuning
+### 1.3c.4: Per-target tuning
 
 Update `MacOSX/g4-autoexec.cfg` with a recommended starting value:
 
@@ -236,7 +236,7 @@ Update `MacOSX/g4-autoexec.cfg` with a recommended starting value:
 r_waterupdaterate 4
 ```
 
-Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
+Leave `MacOSX/g3-autoexec.cfg` alone, G3 path is untouched by
 `R_OldWaterEffective` short-circuit.
 
 ---
@@ -246,9 +246,9 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
 - **Per-distance LOD-style throttle.** Tempting (close water gets full
   rate, distant water gets throttled) but warpimage is per-texture not
   per-surface, so the throttle decision can't see distance. Skip.
-- **Throttle just the regen, not the copy.** Impossible with SGIS — the
+- **Throttle just the regen, not the copy.** Impossible with SGIS, the
   parameter triggers regen *on* the copy. We'd have to switch off SGIS
-  per-frame, which is a `glTexParameteri` call per skip — adds work
+  per-frame, which is a `glTexParameteri` call per skip, adds work
   rather than saves it. Skip.
 - **Manual mipchain generation** (compute mips in CPU and `glTexImage2D`
   level-by-level). Bypasses SGIS entirely. Big code surface, possibly
@@ -281,7 +281,7 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
    target) gives 15fps water animation. `WARP_CYCLE = 128`
    (`gl_warp.c:WARPCALC` macro family) means a single warp cycle takes
    ~32 seconds at scene `cl.time` rate; per-frame phase delta at 60fps
-   is ~0.02 radian. At N=4 the phase jump per update is ~0.08 radian —
+   is ~0.02 radian. At N=4 the phase jump per update is ~0.08 radian,
    imperceptible. N=8 would jump ~0.16 radian, faintly visible on still
    water. Don't go above N=8 by default.
 
@@ -289,16 +289,16 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
 
 ## Critical files
 
-- `Quake/glquake.h` — `extern qboolean gl_sgis_mipmap_able;`
-- `Quake/gl_vidsdl.c:147,1305-1322` — flag init, SGIS detection branch
-- `Quake/gl_warp.c:33` — `r_waterupdaterate` cvar registration
-- `Quake/gl_warp.c:243` — frame-cadence gate
-- `Quake/gl_warp.c:276-277` — comment update; no logic change (existing
+- `Quake/glquake.h`, `extern qboolean gl_sgis_mipmap_able;`
+- `Quake/gl_vidsdl.c:147,1305-1322`, flag init, SGIS detection branch
+- `Quake/gl_warp.c:33`, `r_waterupdaterate` cvar registration
+- `Quake/gl_warp.c:243`, frame-cadence gate
+- `Quake/gl_warp.c:276-277`, comment update; no logic change (existing
   NULL guard handles SGIS path)
-- `Quake/gl_model.c:864-868` — warpimage flag includes SGIS
-- `Quake/gl_texmgr.c:~107` — SGIS texture parameter set on
+- `Quake/gl_model.c:864-868`, warpimage flag includes SGIS
+- `Quake/gl_texmgr.c:~107`, SGIS texture parameter set on
   `TEXPREF_MIPMAP` uploads
-- `MacOSX/g4-autoexec.cfg` — per-target `r_waterupdaterate 4`
+- `MacOSX/g4-autoexec.cfg`, per-target `r_waterupdaterate 4`
 
 ---
 
@@ -306,7 +306,7 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
 
 **Per-phase smoke test:**
 
-1. `scripts/build.sh g3 && scripts/build.sh g4` — both must compile
+1. `scripts/build.sh g3 && scripts/build.sh g4`, both must compile
    clean.
 2. Phase 1.3a: confirm log line `FOUND: GL_SGIS_generate_mipmap` (or
    the ARB/EXT line if those exist) on each target. G4 expected to hit
@@ -321,7 +321,7 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
 
 **Per-phase bench protocol:**
 
-- `scripts/full-bench.sh both` — 3 runs × demo1/demo2/demo3 × G3/G4 ×
+- `scripts/full-bench.sh both`, 3 runs × demo1/demo2/demo3 × G3/G4 ×
   640/1024
 - Median of runs 2 and 3 per cell
 - Phase 1.3a: confirm both targets at baseline ±1 fps (zero behavior).
@@ -330,7 +330,7 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
 - Phase 1.3c at G4 with `r_waterupdaterate 4`: target ±3 fps vs 1.3b
   with mipmapped distance water visible. **If we see >5 fps loss at
   N=4, bump default to N=8 and re-bench. If still >5 fps loss at N=8,
-  shelve SGIS path entirely** — manual mipchain becomes the
+  shelve SGIS path entirely**, manual mipchain becomes the
   alternative.
 - G3 at all phases: must remain at baseline (unchanged code path).
 
@@ -340,7 +340,7 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
   pool) before and after. Look for mipmap LOD transitions on distant
   water (smoother gradient, no shimmer).
 - Compare against G3 baseline (which already has mipmaps in classic
-  warp path) — G4 should now look closer to G3 quality on liquid
+  warp path), G4 should now look closer to G3 quality on liquid
   surfaces.
 - A/B with `-nosgis` command-line flag to flip back to no-mipmap
   baseline at runtime.
@@ -350,6 +350,6 @@ Leave `MacOSX/g3-autoexec.cfg` alone — G3 path is untouched by
 within 3 fps of pre-1.3 baseline; mipmap visual quality recovered.
 
 **Revert safety:** every phase is one commit on top of HEAD. 1.3a–1.3c
-each fully revertable via `git revert <hash>` without touching others —
+each fully revertable via `git revert <hash>` without touching others,
 they share only the additive `gl_sgis_mipmap_able` global, which is
 harmless to leave in even if 1.3b/1.3c revert.

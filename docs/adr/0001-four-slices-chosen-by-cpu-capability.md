@@ -1,4 +1,4 @@
-# 1. Four slices, chosen by CPU capability and not by OS version
+# 1. Four slices: chosen by CPU capability and not by OS version
 
 Date: 2026-08-20
 Status: accepted
@@ -48,7 +48,7 @@ never machine identity.
   Intel Mac left on Snow Leopard gets `x86_64` or nothing. Lion's SDK weak-links
   correctly for a 10.6 target and the bundled codec dylibs are already built at
   min 10.6. The engine is plain C, so the libc++-on-10.6 problem that pins the
-  sister Half-Life port at 10.7 does not apply. **10.6 itself is untested** —
+  sister Half-Life port at 10.7 does not apply. **10.6 itself is untested**,
   there is no Snow Leopard machine in the fleet.
 - **`ppc970` exists for scheduling, not compatibility.** The 970 has AltiVec, so
   it could run `ppc7400`, but its deep out-of-order pipeline has different
@@ -84,7 +84,7 @@ slice would be the only one on SDL2 (ADR 0003).
 
 **One PowerPC slice with runtime AltiVec dispatch.** `-maltivec` changes the ABI
 globally: vector-register save and restore in prologues, and alignment. So the
-engine cannot be compiled with `-maltivec` throughout and gated at runtime — the
+engine cannot be compiled with `-maltivec` throughout and gated at runtime, the
 G3 would crash on the first vector-aware function epilogue. Static initialisers
 and file-scope vector constants are the obvious footgun: a
 `const vector float foo = …` in a `-maltivec` translation unit runs

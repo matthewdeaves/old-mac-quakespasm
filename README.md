@@ -1,4 +1,4 @@
-# QuakeSpasm — old-Mac port
+# QuakeSpasm: old-Mac port
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
 [![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#tested-machines)
@@ -10,15 +10,15 @@
 </p>
 
 A QuakeSpasm build as one fat PowerPC + Intel binary, tested on a range of old
-Macs — G3, G4, G5 and Intel, from a 1999 Power Mac to a 2019 iMac. It reads the
+Macs, G3, G4, G5 and Intel, from a 1999 Power Mac to a 2019 iMac. It reads the
 machine model at boot (`sysctl hw.model`) and loads settings tuned to run well on
 that hardware.
 
-> **About this project.** A personal project — I love Quake and I collect and
+> **About this project.** A personal project, I love Quake and I collect and
 > tinker with old Macs. My part is the setup and testing: the build, deploy and
 > benchmark scripts, and the per-machine settings. The engine and config changes
 > were made mostly **with AI (Claude), which I directed and checked against real
-> benchmarks on the machines** — not hand-written from scratch.
+> benchmarks on the machines**, not hand-written from scratch.
 
 <p align="center">
   <img src="docs/screenshots/sawtooth_spasm0010.webp" width="24%" alt="Sawtooth G4 / GeForce2 MX" />
@@ -48,16 +48,16 @@ The binary carries one slice per CPU family, each stamped with its exact CPU sub
 |---|---|---|---|
 | G3 (750) | `ppc750` | 10.3.9 Panther or later | 10.3.9 and 10.4.11 |
 | G4 (7400 / 7450 / 7447A) | `ppc7400` | 10.3.9 Panther or later | 10.4.11 |
-| G5 (970) | `ppc970` | **10.5 Leopard — a G5 on 10.3 or 10.4 is not supported** | 10.5.8 |
+| G5 (970) | `ppc970` | **10.5 Leopard, a G5 on 10.3 or 10.4 is not supported** | 10.5.8 |
 | Intel, 64-bit | `x86_64` | 10.6 Snow Leopard or later | 10.7.5 and 15.7 |
 
 `dyld` picks a slice by CPU alone; the OS plays no part in it. A Mac running an OS
 older than its slice needs gets that slice anyway rather than falling back to a lower
-one, and won't launch — which is why the G3 and G4 slices are both built at min 10.3
+one, and won't launch, which is why the G3 and G4 slices are both built at min 10.3
 even though no G4 here runs Panther. Two rows are honest about the gap between what
 is built and what is tested: **a G4 on Panther and an Intel Mac on Snow Leopard should
 both work but neither has been run on hardware** (no such machine in the fleet). The G5
-is the exception — its slice genuinely needs 10.5, so that row is a real floor, not a
+is the exception, its slice genuinely needs 10.5, so that row is a real floor, not a
 gap in testing.
 
 32-bit-only Intel Macs (Core Duo / Core Solo, 2006) have no slice at all: there is no
@@ -82,7 +82,7 @@ release. Everything else is measured on the v1.14 build.
 
 The iMac G5 runs native 1440×900 only (its Leopard driver hangs on a mode
 switch) at ~102 fps; the 2019 iMac sits well over 1500 fps. The G3 ships at
-800×600 — its default — where demo1 runs 25.5 on Panther and 25.1 on Tiger,
+800×600, its default, where demo1 runs 25.5 on Panther and 25.1 on Tiger,
 comfortably above 20 fps with everything turned on. That pair is the same Mac
 booted from two partitions, running the byte-identical binary out of the same
 disk image: the OS costs the G3 a couple of percent and nothing else. Every
@@ -108,19 +108,19 @@ cover the setup, the build pipeline and the timedemo bench loop.
   10.3.9 Panther through modern macOS. Every PowerPC slice carries its exact CPU
   subtype (`ppc750` / `ppc7400` / `ppc970`) so Tiger and Leopard grade it
   correctly on a G3.
-- **Per-machine settings** picked at boot via `sysctl hw.model` — each Mac gets
+- **Per-machine settings** picked at boot via `sysctl hw.model`, each Mac gets
   a config tuned to stay playable on it. Every setting is a runtime cvar.
-- **Visual features** — trilinear + up to 16× anisotropic filtering, alias
+- **Visual features**, trilinear + up to 16× anisotropic filtering, alias
   drop-shadows, translucent water / lava / slime / teleporters, watervis on
   un-vis'd maps, emissive-fullbright dynamic lights, `gl_zfix`, and 8× MSAA on
   the modern iMac.
-- **Weapon damage decals** — bullet holes, nail pocks, axe slashes, scorch
+- **Weapon damage decals**, bullet holes, nail pocks, axe slashes, scorch
   stars, burn scars and lightning scars on walls, floors and ceilings (a BSP
   fragment clipper ported from the sister Quake II port; gated via `r_decals`).
-- **Online multiplayer** — a server browser (DPMaster query) plus in-protocol
+- **Online multiplayer**, a server browser (DPMaster query) plus in-protocol
   auto-download, so a 449 MHz G3 and a 2019 iMac can share the same public
   server. Downloads off by default (`allow_download 0`).
-- Optional **Apple Watch "tactical computer" companion** (`watchlink`) — streams
+- Optional **Apple Watch "tactical computer" companion** (`watchlink`), streams
   the ranger's live state to an iPhone + Watch; off by default. Shared with the
   Quake II port ([quake2-tactical-watch](https://github.com/matthewdeaves/quake2-tactical-watch)).
 
@@ -128,19 +128,19 @@ cover the setup, the build pipeline and the timedemo bench loop.
 
 Download the latest disk image from
 [**Releases**](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
-(`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac —
+(`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac,
 built on Tiger so it mounts on everything from 10.3.9 through modern macOS, and
 the `.app` inside is a fat binary that runs natively on each.
 
 Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder
 (e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak`
-(shareware) or `pak0.pak` + `pak1.pak` (registered — buy on
+(shareware) or `pak0.pak` + `pak1.pak` (registered, buy on
 [Steam](https://store.steampowered.com/app/2310/QUAKE/) /
 [GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click
 `Quakespasm.app`. On modern macOS, clear Gatekeeper with
 `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app` (not needed on
 Panther/Tiger/Leopard/Lion). On an Apple Silicon Mac the `x86_64` slice runs under
-Rosetta 2 — there is no native `arm64` slice. The only Macs with no slice at all are
+Rosetta 2, there is no native `arm64` slice. The only Macs with no slice at all are
 the 32-bit-only Core Duo / Core Solo models.
 
 ## Sister projects

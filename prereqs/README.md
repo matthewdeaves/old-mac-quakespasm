@@ -1,4 +1,4 @@
-# prereqs/ — installers and source tarballs
+# prereqs/: installers and source tarballs
 
 > **Not in git.** This directory is `.gitignore`d (~5 GB). Download the files
 > below into `prereqs/` once on a fresh clone; `scripts/setup-lion.sh` expects
@@ -43,7 +43,7 @@ md5sum *.dmg *.tar.gz
 
 ## What each is for
 
-**`xcode_3.2.6_and_ios_sdk_4.3.dmg`** — primary toolchain on the Lion
+**`xcode_3.2.6_and_ios_sdk_4.3.dmg`**, primary toolchain on the Lion
 build host. Provides `gcc-4.0` (Apple's last gcc with full PPC support),
 the 10.4u SDK (G4 target), and the 10.5 SDK. Install on Lion via:
 
@@ -53,7 +53,7 @@ export COMMAND_LINE_INSTALL=1
 open "/Volumes/Xcode and iOS SDK/Xcode and iOS SDK.mpkg"
 ```
 
-The `COMMAND_LINE_INSTALL=1` is required on Lion — the GUI installer
+The `COMMAND_LINE_INSTALL=1` is required on Lion, the GUI installer
 refuses to launch otherwise. Inside the GUI you'll want **System Tools**,
 **UNIX Development**, and to manually run the SDK packages individually
 afterwards (the "Mac OS X 10.4 SDK" top-level checkbox is misleading; it
@@ -62,14 +62,14 @@ shows "Zero KB" and doesn't actually install anything). After the GUI:
 ```sh
 sudo installer -pkg "/Volumes/Xcode and iOS SDK/Packages/MacOSX10.4.Universal.pkg" -target /
 sudo installer -pkg "/Volumes/Xcode and iOS SDK/Packages/MacOSX10.5.pkg"          -target /
-# Both packages have a buggy install path — they land at /SDKs/, not /Developer/SDKs/
+# Both packages have a buggy install path, they land at /SDKs/, not /Developer/SDKs/
 sudo mv /SDKs/MacOSX10.4u.sdk /Developer/SDKs/
 sudo mv /SDKs/MacOSX10.5.sdk  /Developer/SDKs/
 sudo rmdir /SDKs
 ```
 
-**`xcode25_8m2558_developerdvd.dmg`** — only used to extract the 10.3.9
-SDK (for G3 target). **Don't install Xcode 2.5 in full** on Lion —
+**`xcode25_8m2558_developerdvd.dmg`**, only used to extract the 10.3.9
+SDK (for G3 target). **Don't install Xcode 2.5 in full** on Lion,
 its installer has a host-OS check that refuses on 10.7. Instead extract
 the SDK package's payload directly:
 
@@ -81,7 +81,7 @@ sudo mv ./SDKs/MacOSX10.3.9.sdk /Developer/SDKs/
 hdiutil detach "/Volumes/Xcode Tools"
 ```
 
-**`SDL-1.2.15.tar.gz`** — needed to build a 10.3-compatible SDL.framework
+**`SDL-1.2.15.tar.gz`**, needed to build a 10.3-compatible SDL.framework
 binary for the G3 deployment. The bundled `MacOSX/SDL.framework` (built
 against 10.6 SDK) crashes on Panther inside `SDL_VideoInit`. The compiled
 result of building from this tarball is committed at `MacOSX/SDL-panther.dylib`
@@ -110,6 +110,6 @@ backend exclusively on this project anyway.
 ## Why these MD5s matter
 
 If any of these are ever re-downloaded from Apple/libsdl.org, the MD5s
-should match. If they don't, treat the new file as suspect — Apple has
+should match. If they don't, treat the new file as suspect, Apple has
 been known to silently re-pack DMGs, and a different binary may behave
 slightly differently with our patches.

@@ -39,7 +39,7 @@ exactly why the gate cannot key on the slice.
 
 **Capture the display at its current mode; never switch modes on a fragile
 GPU.** `vid_desktopfullscreen 1` (cvar, default 0) makes fullscreen use the
-captured desktop resolution and depth — a same-mode display *capture*, not a
+captured desktop resolution and depth, a same-mode display *capture*, not a
 mode *switch*. The R300 driver survives a capture but not a switch. It also
 auto-selects each panel's native maximum with no per-model hard-coding (17"
 iMac G5 1440×900, 20" 1680×1050). Set to 1 in `autoexec-ppc970.cfg`, engine
@@ -48,8 +48,8 @@ SDL 1.2 this is a hand-written substitution of the captured `display_*` values
 in `VID_SetMode` (ADR 0003).
 
 **Lock the mode on the machines that cannot survive a switch.** `vid_lock` is
-exposed as a console command — upstream only locked internally during gamedir
-changes — and is called as the **last** line of `autoexec-ppc750.cfg` (G3) and
+exposed as a console command, upstream only locked internally during gamedir
+changes, and is called as the **last** line of `autoexec-ppc750.cfg` (G3) and
 `autoexec-ppc970.cfg` (G5), after the boot `vid_restart` has set the safe
 resolution. It makes `vid_restart`, `vid_test`, alt-enter (`VID_Toggle`) and the
 three video-menu choosers (`VID_Menu_ChooseNextMode` / `Bpp` / `Rate`) inert
@@ -80,7 +80,7 @@ Validated first with the existing `-noglsl -novbo -notexturenpot
 -nowarpmipmaps` flags, no rebuild, then confirmed with the baked-in gate
 auto-firing with zero flags. Result: stable **119 fps at native 1440×900
 fullscreen 32bpp** with the full GL-1.x visual stack, the same stack the G4s
-run. **GL 1.x here is not a compromise** — R300 GLSL is partly software-emulated
+run. **GL 1.x here is not a compromise**, R300 GLSL is partly software-emulated
 and likely slower. No meaningful fps or visuals are left on the table.
 
 **G3 resolution switch.** The proximate cause was a config bug, not the user:

@@ -1,32 +1,32 @@
 ---
 name: fleet-optimize
-description: Find and apply the next fps or graphics-quality win for the old-Mac QuakeSpasm (Quake 1) port across the shared bench fleet (G3/Rage128, G4/GeForce2·Radeon9000·9200, Intel-Lion/GMA950, G5/Radeon9600). Re-runnable — each run profiles one target machine class, forms ONE bottleneck-matched hypothesis, implements it cvar-first (then code, gated behind a cvar so one fat binary auto-tunes per machine), benches it safely, keeps or reverts, records it, and says whether more wins remain. Use whenever the user wants more fps, more graphical features, or asks to "optimise/tune" any old Mac.
+description: Find and apply the next fps or graphics-quality win for the old-Mac QuakeSpasm (Quake 1) port across the shared bench fleet (G3/Rage128, G4/GeForce2·Radeon9000·9200, Intel-Lion/GMA950, G5/Radeon9600). Re-runnable, each run profiles one target machine class, forms ONE bottleneck-matched hypothesis, implements it cvar-first (then code, gated behind a cvar so one fat binary auto-tunes per machine), benches it safely, keeps or reverts, records it, and says whether more wins remain. Use whenever the user wants more fps, more graphical features, or asks to "optimise/tune" any old Mac.
 ---
 
-# fleet-optimize — one optimization iteration for the old-Mac fleet (QuakeSpasm / Quake 1)
+# fleet-optimize: one optimization iteration for the old-Mac fleet (QuakeSpasm / Quake 1)
 
 Goal: the best-looking build that stays **playable** on each machine class,
 controlled entirely by **cvars from one fat binary** (auto-config by `hw.model`).
-This skill runs **one disciplined iteration** — invoke it again for the next.
+This skill runs **one disciplined iteration**, invoke it again for the next.
 It is the optimization *loop*; it uses the build/deploy/bench mechanics (see the
 `ppc-ops` skill), it does not reinvent them.
 
-## Before you touch anything — read these (they encode hard-won limits)
-- `MISTAKES.md` — what already broke. **Never re-chase a recorded negative.**
-- `docs/adr/` — the standing decisions and their evidence; ADR 0008 (gating) and
+## Before you touch anything: read these (they encode hard-won limits)
+- `MISTAKES.md`, what already broke. **Never re-chase a recorded negative.**
+- `docs/adr/`, the standing decisions and their evidence; ADR 0008 (gating) and
   ADR 0009 (bench discipline) are the two this loop runs inside.
-- `docs/DEVELOPMENT.md` — the optimisation hot-file list and profiling tooling.
-- `docs/KNOBS.md` — the exact cvar names and what each one measured.
-- `benchmarks/results.csv` — current per-machine fps (your baseline).
-- `scripts/bundle/autoexec-*.cfg` — each machine's shipped config.
+- `docs/DEVELOPMENT.md`, the optimisation hot-file list and profiling tooling.
+- `docs/KNOBS.md`, the exact cvar names and what each one measured.
+- `benchmarks/results.csv`, current per-machine fps (your baseline).
+- `scripts/bundle/autoexec-*.cfg`, each machine's shipped config.
 
 ## Non-negotiable rules
 1. **cvar-first, one fat binary.** Every machine-specific knob is a cvar in the
    per-machine autoexec; auto-config picks them by `hw.model`. Drop to code only
-   when config is exhausted or the win needs it — and then **gate the new
+   when config is exhausted or the win needs it, and then **gate the new
    behaviour behind a cvar / GL-extension check** so the single fat binary still
    serves every machine and self-tunes. This is the whole deployment model.
-2. **Bench safely — never wedge a machine.** Use `scripts/bench.sh <machine>
+2. **Bench safely, never wedge a machine.** Use `scripts/bench.sh <machine>
    <demo> <WxH>` only; it encodes the fleet's safe single-session bench pattern.
    **Never KILL a fullscreen app** (it can wedge the GPU driver until a reboot).
    Recover a wedged Mac with `ssh <m> '~/bin/qsreboot.sh'` and confirm it cycles.
@@ -42,49 +42,49 @@ It is the optimization *loop*; it uses the build/deploy/bench mechanics (see the
    **Push only to my forks (the `github` remote), never `origin`/upstream.**
 
 ## The loop (one iteration)
-1. **ORIENT** — read the baseline (csv) + the machine configs. Pick ONE target
+1. **ORIENT**, read the baseline (csv) + the machine configs. Pick ONE target
    machine class and a goal: raise fps toward its target, or add a graphical
    feature within its budget.
-2. **PROFILE** — where does the frame go on that class? CPU-bound → CPU levers;
+2. **PROFILE**, where does the frame go on that class? CPU-bound → CPU levers;
    fill-bound → pixel/fill levers. Use the toolbox below.
-3. **HYPOTHESIZE** — pick ONE change from the search space, matched to the
+3. **HYPOTHESIZE**, pick ONE change from the search space, matched to the
    bottleneck AND to what that GPU actually supports (see the class table).
-4. **IMPLEMENT** — edit the machine's autoexec cvar (preferred) or the engine
+4. **IMPLEMENT**, edit the machine's autoexec cvar (preferred) or the engine
    code (`Quake/`), gated behind a cvar.
-5. **BUILD + DEPLOY** — config only: re-deploy the cfg. Code: `scripts/build-fat.sh`
+5. **BUILD + DEPLOY**, config only: re-deploy the cfg. Code: `scripts/build-fat.sh`
    (serialized) then `scripts/deploy.sh <machine>`; sanity-check the slice chip.
-6. **BENCH** — `scripts/bench.sh <machine> <demo> <WxH>`, 3 runs vs baseline.
+6. **BENCH**, `scripts/bench.sh <machine> <demo> <WxH>`, 3 runs vs baseline.
    For a graphics change, also grab a screenshot and eyeball it.
-7. **EVALUATE** — keep if fps improved, or a feature was added without dropping
+7. **EVALUATE**, keep if fps improved, or a feature was added without dropping
    below the floor and it looks right. Otherwise **revert**.
-8. **RECORD** — append to `benchmarks/results.csv`; commit (code then bench);
+8. **RECORD**, append to `benchmarks/results.csv`; commit (code then bench);
    update the docs with what you learned, negatives included.
-9. **REPORT** — state the win/loss and whether this class's search space is now
+9. **REPORT**, state the win/loss and whether this class's search space is now
    exhausted. If **every** class has only recorded negatives left → declare done.
 
-## Machine classes — what each supports & where the wins are
+## Machine classes: what each supports & where the wins are
 | Class (machine) | GPU envelope | Bound by | Best levers |
 |---|---|---|---|
-| **G3** (yosemite) | Rage 128, 16 MB, **no S3TC, no AltiVec**, GL 1.2, fixed-function | GPU fill + ATI driver | 16-bit textures/framebuffer, resolution, particle/effect detail, **sound mix rate**. Config only — compiler flags proven useless on the G3. |
+| **G3** (yosemite) | Rage 128, 16 MB, **no S3TC, no AltiVec**, GL 1.2, fixed-function | GPU fill + ATI driver | 16-bit textures/framebuffer, resolution, particle/effect detail, **sound mix rate**. Config only, compiler flags proven useless on the G3. |
 | **G4** (sawtooth GeForce2 MX / quicksilver Radeon 9000 / mini-g4 Radeon 9200) | AltiVec CPU, S3TC, 32–64 MB, fixed-function, no GLSL | mixed | **S3TC / texture compression** (free detail), **VBO/vertex-array** submission, **AltiVec** in profiled hot loops, aniso where fill headroom. |
 | **Intel-Lion** (mini-intel GMA 950) | GL 1.4, no GLSL, weak fill, **strong 2-core CPU** | fill at native res | 16-bit framebuffer, texture compression, **vsync** (tearing), threading where the engine supports it. |
-| **G5** (imac-g5 Radeon 9600) | DX9-class, S3TC, aniso, AltiVec, fast | most headroom | push aniso, higher internal quality, more effects — least constrained; MAX it. |
-| **Modern** (imac-2019 Sequoia) | huge | never the target | reference only — separates CPU-bound from GPU-bound effects. |
+| **G5** (imac-g5 Radeon 9600) | DX9-class, S3TC, aniso, AltiVec, fast | most headroom | push aniso, higher internal quality, more effects, least constrained; MAX it. |
+| **Modern** (imac-2019 Sequoia) | huge | never the target | reference only, separates CPU-bound from GPU-bound effects. |
 
-Startup console prints `GL_RENDERER` + the extension list — **read it to know
+Startup console prints `GL_RENDERER` + the extension list, **read it to know
 exactly what a GPU supports** before enabling a code path for it.
 
 ## Optimization search space (cheapest → deepest)
-**Config / cvar (no rebuild — always try first):** texture detail + **bit depth**
+**Config / cvar (no rebuild, always try first):** texture detail + **bit depth**
 (16-bit = fill/bandwidth win), texture **compression** (where supported),
-anisotropy; **framebuffer depth** (16-bit — fill win on Rage128/GMA); lighting /
+anisotropy; **framebuffer depth** (16-bit, fill win on Rage128/GMA); lighting /
 dynamic lights / particle detail; geometry & world detail; present (vsync,
 maxfps); **sound mix rate** (CPU win on the G3); vertex-array / submission mode.
 *Consult `docs/KNOBS.md` for QuakeSpasm's exact cvar names* (`gl_texturemode`,
 `r_particles`, `host_maxfps`, etc. differ from other id engines).
 
-**Code (rebuild — when config is exhausted or the win needs it):**
-- **Vertex submission** — prefer VBO / vertex arrays where the GPU supports it;
+**Code (rebuild, when config is exhausted or the win needs it):**
+- **Vertex submission**, prefer VBO / vertex arrays where the GPU supports it;
   cuts per-frame CPU submission churn. Gate by GPU / GL extension.
 - **AltiVec** the profiled hot loops on ppc7400/G5; verify codegen with `otool -tV`.
 - Cut overdraw / tighten culling; remove per-frame allocations in the frame loop.
@@ -96,11 +96,11 @@ Expose every new behaviour as a cvar → the one fat binary enables it per class
 **This host (orchestration Mac):** read/grep the source (`Quake/`); `git log`
 for prior attempts; cross-build via `build-fat.sh` on a claimed Intel mini.
 **On the Macs (analysis):**
-- `/usr/bin/sample` (Panther→Lion, no Xcode) — statistical profiler; build a
+- `/usr/bin/sample` (Panther→Lion, no Xcode), statistical profiler; build a
   non-stripped slice, trigger on load-complete, sample the render thread.
 - **mini-intel + Xcode (Lion):** Instruments (Time Profiler, System Trace),
   **OpenGL Driver Monitor / OpenGL Profiler** (GL call counts, driver stalls,
-  VRAM), `otool -tV` (disasm — verify AltiVec/codegen), `atos`, `gcc -pg`/gprof.
+  VRAM), `otool -tV` (disasm, verify AltiVec/codegen), `atos`, `gcc -pg`/gprof.
 - CHUD/Shark on Tiger/Leopard (G4/G5) for deeper PPC profiling if present.
 
 ## Stop condition

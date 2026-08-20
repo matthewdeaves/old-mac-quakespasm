@@ -6,7 +6,7 @@ every session. Reasoning, evidence and rejected alternatives live in
 `docs/adr/`; recorded negative results live in `MISTAKES.md`.
 
 **There is no current plan doc.** The round v2 → v11.1 plan is archived at
-`docs/archive/PPC_PLAN_v2-v11.md` — historical context, not a roadmap. New
+`docs/archive/PPC_PLAN_v2-v11.md`, historical context, not a roadmap. New
 optimisation work starts from a fresh evidence pass and a new plan.
 
 ## Goal in one line
@@ -15,7 +15,7 @@ Best-looking QuakeSpasm on G3 Panther/Tiger, G4 Tiger, G5 Leopard and Lion
 Intel, staying playable on each: **≥ 20 fps on the G3, ≥ 60 fps on the G4s, G5
 and Lion**, uncapped on modern hardware. Above the floor, effects beat fps.
 
-## Commands — do not reinvent these inline
+## Commands: do not reinvent these inline
 
 Per-script contracts are in `scripts/CLAUDE.md`; the host matrix and the full
 script table are in `scripts/README.md`.
@@ -49,7 +49,7 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
 - **Never trust "done" or exit 0.** After every build: fresh mtimes on each
   `build/quakespasm-{g3,g4,g5,lion}` from THIS run; `lipo -detailed_info
   build/quakespasm-fat` showing four slices at their exact subtypes; and after
-  `deploy.sh`, read its md5 comparison — it WARNS rather than fails, and a WARN
+  `deploy.sh`, read its md5 comparison, it WARNS rather than fails, and a WARN
   means the target is not running what you built. ADR 0002.
 - **Every PowerPC slice carries its exact cpusubtype**, never generic `ppc
   (ALL)`, which is a launch blocker on Tiger and Leopard. `build.sh` asserts and
@@ -62,7 +62,7 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   rebuild, and a change that helps some machines and hurts others gets gated,
   not dropped. ADR 0008, inventory in `docs/KNOBS.md`.
 - **Releases:** content-verify the DMG (md5 every binary inside it against
-  source — `make-dmg.sh` does it, read the output), build it on a Tiger host and
+  source, `make-dmg.sh` does it, read the output), build it on a Tiger host and
   never the G3 or Lion, install it the end-user way on at least the oldest and
   newest targets, fact-check the README's per-CPU OS floors in the same commit,
   and give the GitHub release a real description. ADR 0005.
@@ -73,17 +73,17 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   then `killall -KILL quakespasm`. ADR 0007.
 - **We ship code, not content.** ADR 0012.
 
-## Operational gotchas — every session
+## Operational gotchas: every session
 
 - **Do not run `build.sh g3` and `g4` in parallel.** Both rsync to the same tree
   on the build host and `make -j2` in it; the `.o` race produces a wrongly
   stamped binary that crashes Panther during AppKit NIB init. `build.sh` flocks;
-  if you bypass it, serialise. `parallel-bench.sh` is fine — it parallelises
+  if you bypass it, serialise. `parallel-bench.sh` is fine, it parallelises
   bench legs, not builds.
 - **Do not run `bench.sh` legs in parallel from one shell.** Local ssh-stack
   contention gave a wrong G3 reading, 14.7 vs 23.1 fps for the same binary.
 - **No `pkill` on Tiger or Panther.** `killall` by name, out of `ps` if needed.
-- **Panther's `/bin/sleep` is integer-only** — `sleep 0.2` returns immediately
+- **Panther's `/bin/sleep` is integer-only**, `sleep 0.2` returns immediately
   on 10.3 (Tiger fixes it). Poll loops on the G3 use `sleep 1`.
 - **Leopard's `sudo` has no `-n`**, so `qsreboot.sh`'s Tier-1 silently fails on
   10.5; plain `sudo /sbin/reboot` works with the NOPASSWD entry.
@@ -102,7 +102,7 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   means that mini is asleep; `pick-build-host.sh` treats it as unusable and
   picks the other one.
 - **The shared SDKs on the minis are read-only.** Never modify
-  `/Developer/SDKs/*` — the Q2 port depends on the same install and reinstalling
+  `/Developer/SDKs/*`, the Q2 port depends on the same install and reinstalling
   is multi-hour recovery. ADR 0005.
 
 ## Codebase facts you cannot grep for
@@ -117,12 +117,12 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
 
 ## Read on demand
 
-- `docs/adr/` — the decisions and their evidence. Index in `docs/adr/README.md`.
-- `MISTAKES.md` — recorded negative results. **Read before lighting up an idea
+- `docs/adr/`, the decisions and their evidence. Index in `docs/adr/README.md`.
+- `MISTAKES.md`, recorded negative results. **Read before lighting up an idea
   that smells "easy" or "load-time only, zero risk".**
-- `docs/KNOBS.md` — every toggleable cvar and `-flag`, with what each measured.
-- `docs/DEVELOPMENT.md` — build path, build-host tenancy, optimisation hot files.
-- `scripts/CLAUDE.md`, `scripts/README.md` — per-script contracts, host matrix.
-- `MacOSX/CLAUDE.md` — toolchain paths and per-target flags on the build host;
+- `docs/KNOBS.md`, every toggleable cvar and `-flag`, with what each measured.
+- `docs/DEVELOPMENT.md`, build path, build-host tenancy, optimisation hot files.
+- `scripts/CLAUDE.md`, `scripts/README.md`, per-script contracts, host matrix.
+- `MacOSX/CLAUDE.md`, toolchain paths and per-target flags on the build host;
   `MacOSX/SDL-rebuild.md` for the fat-SDL recipes.
-- `docs/README.md` — index of the rest (features, research, archive).
+- `docs/README.md`, index of the rest (features, research, archive).

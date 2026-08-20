@@ -14,14 +14,14 @@ and the version mismatch crashes the Profiler at attach time. `sample`
 has no GL framework dependency and works reliably on both PowerPC
 targets.
 
-The sample format is Apple's classic stack-sample tree — an inverted
+The sample format is Apple's classic stack-sample tree, an inverted
 call graph where each indent level is a callee, the leading number is
 "samples spent in this function or descendants". The bottom of each
 file has two summary tables:
 
-- "Total number in stack" — function appeared this many times anywhere
+- "Total number in stack", function appeared this many times anywhere
   in the call graph (cumulative)
-- "Sort by top of stack" — function was actually executing at sample
+- "Sort by top of stack", function was actually executing at sample
   time (self-time, the most useful for finding hot spots)
 
 ## Baseline: `sample_99cb89c4_g4_demo3_1024x768.txt`

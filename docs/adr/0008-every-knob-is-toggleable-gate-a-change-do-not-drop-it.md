@@ -27,15 +27,15 @@ mode behind a cvar rather than making it unconditional.
 **When a change helps some machines and hurts others, gate it to the regressor
 and ship the wins.** Three mechanisms, most to least restrictive:
 
-1. **Compile-time gate by build slice** — `#if (__ppc__ && !__VEC__)` for
+1. **Compile-time gate by build slice**, `#if (__ppc__ && !__VEC__)` for
    G3-only, `#if __VEC__` for AltiVec, `#if __x86_64__` for Intel. Use when the
    runtime check itself would matter on the slice being skipped, or when the
    code cannot compile for it (AltiVec intrinsics on a 750). Example: round v11
    `gl_aliasstate_cache` is compiled out of the G3 slice via
    `QS_DISABLE_ALIAS_STATE_CACHE` in `r_alias.c`.
-2. **Per-machine autoexec** — the right tool when the difference is hardware or
+2. **Per-machine autoexec**, the right tool when the difference is hardware or
    driver. ADR 0006.
-3. **Runtime cvar or cmdline opt-out** — the everywhere-available toggle for
+3. **Runtime cvar or cmdline opt-out**, the everywhere-available toggle for
    end-of-round A/B review.
 
 **Do not bury a beneficial change behind a runtime cvar when the beneficiaries
@@ -50,7 +50,7 @@ are five sixths of the matrix.** Gate the regressor.
 - **`gl_clear 0`** (skip the per-frame backbuffer clear; Quake's world and sky
   cover 100% of the screen, so it is a redundant fillrate-bound write). demo3
   1024: yosemite **+4.7%**, mini-intel **+3.5%**, quicksilver **+7.1%**, mini-g4
-  **+9.3%**, but sawtooth **−2.1%** — a GeForce2 MX driver quirk where the
+  **+9.3%**, but sawtooth **−2.1%**, a GeForce2 MX driver quirk where the
   no-clear path is slower than the explicit clear. Sawtooth alone stays at the
   engine default 1.
 - **Liquid alpha.** `r_lavaalpha` / `r_telealpha` / `r_slimealpha` 0.6 shipped
@@ -59,14 +59,14 @@ are five sixths of the matrix.** Gate the regressor.
   fps, **−26%**, below the 20 fps floor. Tele and slime alpha together also
   regressed. Dropped on the G3 only; `r_wateralpha 0.6` kept there because
   see-through water is the most common transparent-liquid effect in normal play.
-  The G4 trio, Lion and the iMac keep all four — a different fillrate envelope.
+  The G4 trio, Lion and the iMac keep all four, a different fillrate envelope.
 - **`vid_bpp 32`**, gated to quicksilver and imac-2019. ADR 0007.
 - **Round v5 B5, the scalar dlight cast hoist** (integer-only math replacing
   per-texel `(int)(brightness_f * cred_f)`, 3 fmul + 3 fctiw; estimated ~62%
   fewer cycles in the inner loop on a G3). Quicksilver demo3 1024 **+2.3%**, 640
   **+3.8%**; G3 neutral because it is GPU-bound; Lion neutral. mini-g4
   reproducibly **−2.6%**. Both G4s are ppc7400-class running the same scalar
-  fallback, so the divergence is microarchitectural — quicksilver is MPC7450,
+  fallback, so the divergence is microarchitectural, quicksilver is MPC7450,
   mini-g4 is MPC7447A generation, with subtly different cache and
   integer/FP scheduling. Not separable without a hardware profiler.
 

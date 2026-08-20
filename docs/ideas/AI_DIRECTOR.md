@@ -1,16 +1,16 @@
-# AI Director — LLM-driven dynamic encounters
+# AI Director: LLM-driven dynamic encounters
 
 > **Status: FUTURE IDEA. No code exists.** This is a design capture from a
 > brainstorm, grounded against the real engine source (file:line references
 > are verified against this tree). It is *not* on any roadmap and has not been
 > prototyped. Read it as "here's the shape of it and the one trap that will
-> bite us" — not as a committed plan.
+> bite us", not as a committed plan.
 
 ## Concept in one line
 
 Hook an Opus-class model in as a **Dungeon Master**: it watches the player's
 progress and the live combat state, then spawns and directs monsters, places
-items, sets mood, and narrates — so a level plays differently every time
+items, sets mood, and narrates, so a level plays differently every time
 instead of running the same scripted encounters.
 
 ## Why an LLM fits *this* job
@@ -31,13 +31,13 @@ The golden rule that keeps it safe and shippable:
 
 ## Architecture
 
-Three boxes. The vintage Mac stays dumb on purpose — it can't even speak
+Three boxes. The vintage Mac stays dumb on purpose, it can't even speak
 modern TLS, so it never talks to Anthropic directly.
 
 ```
 ┌──────────────────┐   compact game-state    ┌──────────────────┐   HTTPS / TLS 1.3  ┌────────────┐
 │  Quake machine   │  (plaintext HTTP/1.0)    │  Sidecar box      │ ─────────────────► │  Anthropic │
-│  (G3/G4/Lion)    │ ───────────────────────► │  (fast — e.g. M5) │ ◄───────────────── │   API      │
+│  (G3/G4/Lion)    │ ───────────────────────► │  (fast, e.g. M5) │ ◄───────────────── │   API      │
 │                  │ ◄─────────────────────── │                   │                    └────────────┘
 │  • emit state    │  director actions (JSON) │  • holds API key  │
 │  • apply spawns  │  + TTS audio stream      │  • TLS to API     │
@@ -63,7 +63,7 @@ hand-rolled `socket()` can satisfy.
 | Play TTS via a streaming channel | Per-map room/nav graph (computed once, cached) |
 | Hard toggle (`ai_director 0`, `-noai`) | Prompt assembly + response parsing |
 
-## Engine mechanics — verified against this tree
+## Engine mechanics: verified against this tree
 
 ### Spawning a creature mid-game is ~5 lines
 
@@ -78,20 +78,20 @@ PR_ExecuteProgram (func - pr_functions);        // runs the real QuakeC spawn
 
 A runtime director replicates that: `ED_Alloc()` (`pr_edict.c:111`) → set
 `classname` + `origin` → `ED_FindFunction` → `PR_ExecuteProgram`. The result
-is a fully real monster — native AI, pain, death, item drops, all of it.
+is a fully real monster, native AI, pain, death, item drops, all of it.
 Because Quake is always client/server (single-player runs a local server over
 loopback), **the network layer propagates the new entity to the client
 automatically.** You spawn server-side; it just appears. No netcode or render
 work required.
 
-### "Say where they appear" — any coordinate, and you can validate it
+### "Say where they appear": any coordinate, and you can validate it
 
 - `PF_setorigin` (`Quake/pr_cmds.c:181`) places the entity and relinks it.
 - `SV_TestEntityPosition` (`Quake/world.c:579`) reports whether a spot is
-  solid/occupied — **reject a point inside a wall or that would telefrag,
+  solid/occupied, **reject a point inside a wall or that would telefrag,
   before committing.**
 - `PF_droptofloor` (`Quake/pr_cmds.c:1221`) snaps an entity to the ground and
-  returns false if there's no floor — ideal for "drop an item near here,
+  returns false if there's no floor, ideal for "drop an item near here,
   settle it onto the surface."
 
 Items are identical: `item_health`, `item_shells`,
@@ -99,7 +99,7 @@ Items are identical: `item_health`, `item_shells`,
 
 ### ⚠️ The one trap that dominates the design: the precache lock
 
-This is the **MISTAKES.md-grade gotcha** — it smells like "load-time only,
+This is the **MISTAKES.md-grade gotcha**, it smells like "load-time only,
 zero risk" and it will instead crash you mid-fight if ignored. When the
 feature is actually built and this bites, log it in `MISTAKES.md`.
 
@@ -118,48 +118,48 @@ function while the server is *active*, hits `precache_model`, and
 were precached at load** (i.e. types the map already contains).
 
 **The fix is a hard design requirement:** during the load screen (while
-`sv.state == ss_loading`), force-precache the director's *entire roster* —
+`sv.state == ss_loading`), force-precache the director's *entire roster*,
 every monster and item it might ever summon, not just what the mapper placed.
 Slots are bounded (`MAX_MODELS`/`MAX_SOUNDS`), but the full base-Quake roster
 (~25 models, ~80 sounds) sits comfortably under the cap. See the precache
 manifest under "Map-data tooling" below.
 
-### TTS audio — the precache lock bites here too
+### TTS audio: the precache lock bites here too
 
 Runtime-synthesised TTS doesn't exist at load, so it can't use the normal
 precache-indexed `S_StartSound` path (`PF_sound` at `Quake/pr_cmds.c:653` →
-`SV_StartSound`). The clean route is a **raw streaming channel** — the same
+`SV_StartSound`). The clean route is a **raw streaming channel**, the same
 mechanism `Quake/bgmusic.c` uses to stream Ogg/codec audio into the mixer,
 which bypasses the precache table. Flow: sidecar synthesises TTS → ships
 PCM/WAV → engine plays it on a streaming channel.
 
 Fallback if streaming is fiddly on a G3: a fixed library of pre-rendered
-phrases precached at load — less flexible, trivial to implement.
+phrases precached at load, less flexible, trivial to implement.
 
 ### Threading constraint
 
-`PR_ExecuteProgram` and `ED_Alloc` touch global VM state and the edict array —
+`PR_ExecuteProgram` and `ED_Alloc` touch global VM state and the edict array,
 **not** safe from the network worker thread. The worker only *receives and
 validates* the action list; spawns are applied on the server thread at a frame
 boundary (in the `SV_Physics` tick). Same "worker proposes, main thread
-disposes" split — but now it has teeth: the spawn itself must be on the main
+disposes" split, but now it has teeth: the spawn itself must be on the main
 thread.
 
 ## The DM's senses (state sent each tick)
 
-Keep the payload tiny — these machines have little RAM and the LAN hop should
+Keep the payload tiny, these machines have little RAM and the LAN hop should
 be cheap.
 
 - **Vitals:** health, armor, current weapon, ammo-per-weapon, recent damage rate.
 - **Tempo:** kills since last tick, time since last shot, accuracy, and
-  *direction of travel* — advancing, backtracking, or camping a chokepoint.
+  *direction of travel*, advancing, backtracking, or camping a chokepoint.
 - **Space:** current room, rooms cleared, heading, where secrets/exits are.
 - **History:** deaths/retries on this section + a running summary of how the
   player has handled the whole episode so far.
 
 ## The DM's levers
 
-- **Composition, not volume.** Pick *which* monsters and *where* — a sniper
+- **Composition, not volume.** Pick *which* monsters and *where*, a sniper
   Ogre on a ledge plus Grunts to flush you out, not just "more".
 - **Direction & orders.** Set existing monsters' `goalentity`/`enemy` to
   choreograph: regroup at a door, ambush at a chokepoint, retreat to bait.
@@ -168,14 +168,14 @@ be cheap.
 - **Item economy as a balancing hand.** Bread-crumb ammo toward a hard fight
   when starved; withhold the quad when dominating.
 - **Environment & mood.** Seal a room into an arena; drop fog and kill the
-  lights before an ambush (reuses the existing `gl_fog` cvar layer — see
+  lights before an ambush (reuses the existing `gl_fog` cvar layer, see
   `docs/KNOBS.md`).
 - **Voice.** Centerprint / TTS narration in a persona, reacting to what the
   player just did.
 
 ## What turns a spawner into a *Dungeon Master*
 
-This is the replayability hook — what makes runs feel different:
+This is the replayability hook, what makes runs feel different:
 
 - **Persona, seeded per run.** Cruel, theatrical, fair-but-brutal. Persists
   for the whole session.
@@ -184,11 +184,11 @@ This is the replayability hook — what makes runs feel different:
 - **Grudges & adaptation.** Always rocket-jump to the same ledge? Next time a
   Vore is waiting on it. Abuse one weapon? It spawns the monsters that punish
   that range.
-- **Difficulty as story, not a slider.** Tune live and *narrate* the tuning —
+- **Difficulty as story, not a slider.** Tune live and *narrate* the tuning,
   ease up after a death but mock you; escalate when you dominate and respect
   you.
 
-## Map-data tooling — two distinct tools
+## Map-data tooling: two distinct tools
 
 These get conflated. Only the first is required to not crash.
 
@@ -201,7 +201,7 @@ These get conflated. Only the first is required to not crash.
    points, so "behind the player in the room they just cleared" resolves to a
    real coordinate.
 
-**Both are derivable from the compiled BSP + runtime state — no source `.map`
+**Both are derivable from the compiled BSP + runtime state, no source `.map`
 files needed.** The BSP already carries the leaf/PVS structure; the entity
 lump already lists every teleport destination and monster start spot the
 mapper used. A v1 needs *no* offline tool at all: legal spawn points =
@@ -213,7 +213,7 @@ cache.
 ## Action schema + validating applier
 
 The contract is a fixed verb vocabulary in, validated JSON out. The applier
-maps verbs to edict operations and **validates every action against caps** —
+maps verbs to edict operations and **validates every action against caps**,
 the model proposes, the engine disposes.
 
 ```
@@ -233,7 +233,7 @@ boss(base_type, hp_mult, name)       setpiece
 The applier enforces a hard spawn budget so the model can't drop 200 Shamblers
 and tank a G3 to 4 fps. Make that budget a function of **measured framerate
 headroom**: small on Sawtooth, large on the iMac 2019. The DM *literally
-cannot exceed the machine's playability floor* — the same per-machine gating
+cannot exceed the machine's playability floor*, the same per-machine gating
 pattern the project already uses, applied to encounter density.
 
 ## Toggleability + bench discipline
@@ -247,7 +247,7 @@ sidecar endpoint is configurable (`ai_host`/`ai_port` cvars). Add the knobs to
 
 1. **Plumbing first.** Sidecar proxy + engine-side async worker thread +
    `ai_director`/`-noai` gate. Prove a text round-trip with no dropped frames
-   on a G4. (The simplest payload — the "Oracle" console command — is the
+   on a G4. (The simplest payload, the "Oracle" console command, is the
    hello-world here.)
 2. **Precache manifest.** Force-precache the roster at load. Without this,
    step 3 crashes.
@@ -257,23 +257,23 @@ sidecar endpoint is configurable (`ai_host`/`ai_port` cvars). Add the knobs to
 4. **Action schema + budget cap** tied to per-machine framerate headroom.
 5. **TTS streaming channel** (bgmusic-style).
 6. **Room-graph tool** on the sidecar for quality placement.
-7. **DM personality + episode memory** — prompt design on top of the pipe.
+7. **DM personality + episode memory**, prompt design on top of the pipe.
 
 ## Open questions / risks
 
-- **Spatial grounding quality** without the room graph — how good is
+- **Spatial grounding quality** without the room graph, how good is
   runtime-sampling-only placement in practice?
-- **Latency feel** — does a 3–5 s director tick read as "alive" or "laggy"?
+- **Latency feel**, does a 3–5 s director tick read as "alive" or "laggy"?
   Probably fine since native AI fills the gaps, but unproven.
 - **Precache slot pressure** on asset-heavy maps already near `MAX_MODELS`.
-- **G3 streaming-audio cost** — is the bgmusic-style channel cheap enough on
+- **G3 streaming-audio cost**, is the bgmusic-style channel cheap enough on
   Panther, or do we fall back to pre-rendered phrases there?
-- **Sidecar availability** — graceful degradation when the box is unreachable
+- **Sidecar availability**, graceful degradation when the box is unreachable
   (the game must keep playing as vanilla).
 
 ## Related
 
-- `docs/KNOBS.md` — where the new cvars/flags get inventoried.
-- `MISTAKES.md` — log the precache trap here once it bites for real.
-- `CLAUDE.md` "Per-machine gating is a legitimate pattern" — the budget-cap
+- `docs/KNOBS.md`, where the new cvars/flags get inventoried.
+- `MISTAKES.md`, log the precache trap here once it bites for real.
+- `CLAUDE.md` "Per-machine gating is a legitimate pattern", the budget-cap
   gating mechanism.

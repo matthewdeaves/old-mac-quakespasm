@@ -29,7 +29,7 @@ rather than to whatever the build machine happens to have.
   than implying belt and braces. Quake's netcode is from 1996: NetQuake has no
   authentication, no encryption and no password, and there is no setting that
   makes the server challenge a connection. If it is reachable, it is joinable.
-- `server.cfg` must be in `id1/`, not beside the binary — Quake's `exec`
+- `server.cfg` must be in `id1/`, not beside the binary, Quake's `exec`
   searches the game directory, and a copy in the wrong place is never read and
   never complains.
 - **The player limit comes from `-dedicated N` in the systemd unit, not from
@@ -56,7 +56,7 @@ The out-of-band handler survived **4000 malformed packets** without crashing,
 and its remaining unbounded string copies are all on startup arguments or local
 socket addresses, not on anything a stranger can send.
 
-This tree is **12 commits behind upstream, none of them security related** — the
+This tree is **12 commits behind upstream, none of them security related**, the
 closest to upstream of the four ports in this family.
 
 ## Consequences

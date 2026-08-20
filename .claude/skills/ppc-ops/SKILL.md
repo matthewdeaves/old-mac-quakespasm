@@ -6,7 +6,7 @@ description: Build, deploy, and benchmark QuakeSpasm on the bench fleet (yosemit
 # PPC operations skill
 
 Seven Macs, eight OS installs, four build targets, one fat binary. All driven
-through a stable build/deploy/bench pipeline — invoke the scripts, don't
+through a stable build/deploy/bench pipeline, invoke the scripts, don't
 reinvent them inline.
 
 | machine | hardware | target |
@@ -56,13 +56,13 @@ Historical CSV rows use the old names `g3`, `g4`, `g4mini`, `lion` for
 
 ## Things to avoid
 
-1. **Don't build g3/g4/g5 in parallel** — the `.o` race stamps the wrong CPU
+1. **Don't build g3/g4/g5 in parallel**, the `.o` race stamps the wrong CPU
    subtype. `build.sh` flocks; don't bypass it. ADR 0004.
-2. **Don't run `bench.sh` legs in parallel from one shell** — ssh-stack
+2. **Don't run `bench.sh` legs in parallel from one shell**, ssh-stack
    contention gave a wrong G3 reading. Use `parallel-bench.sh`. ADR 0009.
-3. **Don't use `pkill` on the PowerPC or Lion machines** — they don't have it.
+3. **Don't use `pkill` on the PowerPC or Lion machines**, they don't have it.
    `killall`.
-4. **Don't hard-KILL quakespasm in fullscreen on yosemite or imac-g5** — the
+4. **Don't hard-KILL quakespasm in fullscreen on yosemite or imac-g5**, the
    Rage 128 LUT and the R300 both wedge. TERM, grace, then KILL. Recovery:
    `ssh <host> '~/bin/qsreboot.sh'`. ADR 0007.
 5. **Don't pipe `scp` through `tee` without `set -o pipefail`.**
@@ -72,7 +72,7 @@ Historical CSV rows use the old names `g3`, `g4`, `g4mini`, `lion` for
 
 ## Discipline
 
-Bench every change on every reachable machine — the three G4s span GeForce2 MX /
+Bench every change on every reachable machine, the three G4s span GeForce2 MX /
 Radeon 9000 / Radeon 9200 and disambiguate fillrate-bound from CPU-bound within
 one CPU family, and the two Intel machines give the GMA 950 fillrate floor and
 modern headroom. 3 runs, median of 2 and 3, two commits per phase, same-session

@@ -1,4 +1,4 @@
-# 5. Build on an Intel Lion mini, package the disk image on a Tiger box
+# 5. Build on an Intel Lion mini: package the disk image on a Tiger box
 
 Date: 2026-08-20
 Status: accepted
@@ -14,14 +14,14 @@ tools cannot write old ones, and that decides where each step runs.
   extraction dance; `scripts/setup-lion.sh` provisions a fresh host.
 - Lion's `hdiutil` writes a UDIF container Panther's 2003-vintage
   DiskImageMounter cannot parse, reported on 10.3.9 as "no mountable file
-  systems". **No `hdiutil` flag fixes it** — UDZO, uncompressed UDRO, and an
+  systems". **No `hdiutil` flag fixes it**, UDZO, uncompressed UDRO, and an
   Apple-Partition-Map `-layout SPUD` image were all tried on 2026-05-31 and all
   fail to mount on Panther. A Tiger-built UDZO mounts on Panther and on
   everything newer.
 
 Two identical Intel minis exist, `mini-intel` (10.188.1.190) and `mini-intel2`
 (10.188.1.216): same Macmini2,1, 10.7.5, identical toolchain. Several
-repositories and agents may want one at once — this port shares the minis with
+repositories and agents may want one at once, this port shares the minis with
 the Quake II and Quake III sister projects.
 
 ## Decision
@@ -43,7 +43,7 @@ targets only.**
   `mini-intel:quakespasm/` and makes in `quakespasm/Quake/`, with local
   artifacts under `~/quakespasm/build/` behind `~/quakespasm/build/.build.lock`;
   Q2 uses `mini-intel:quake2/` and `~/quake2/build/`. `build.sh` hard-codes the
-  destination — never rely on a relative or env-derived path, because
+  destination, never rely on a relative or env-derived path, because
   `build.sh` rsyncing to `mini-intel:~/` or `mini-intel:quake2/` overwrites Q2.
 - **`/Developer/SDKs/{MacOSX10.3.9,MacOSX10.4u,MacOSX10.5}.sdk` and
   `/usr/bin/{gcc-4.0,clang}` are shared read-only. Never modify them.**
@@ -72,7 +72,7 @@ and shipped a corrupt `ppc7400` slice in the Quake II sister port's DMG: a
 register-save `stw r31,...` (`0x93e1fffc`) became `0xe7e1fffc`, an illegal
 64-bit-only opcode that traps as privileged on a G4 → `EXC_PPC_PRIVINST` →
 instant crash at init on every G4. The build binary was fine; only the DMG copy
-was corrupt. It was not a transfer loss (TCP, SSH and rsync all checksum) — the
+was corrupt. It was not a transfer loss (TCP, SSH and rsync all checksum), the
 prime suspect is the non-ECC RAM and 25-year-old disk on that G3. Our
 `make-dmg.sh` was the parent that Q2's was adapted from, so this port carried
 the same latent risk. The already-published v1.8 DMG was re-verified afterwards:
@@ -117,5 +117,5 @@ source-level changes.
   source. A bad byte baked in at creation passes it. **If you ship a DMG, verify
   the bytes inside it against source end-to-end, every build.**
 - Test the artifact the user actually runs. Before 2026-05-31 only `deploy.sh`
-  plus bench was tested, which is a direct rsync with no DMG hop — the wrong
+  plus bench was tested, which is a direct rsync with no DMG hop, the wrong
   artifact.

@@ -1,6 +1,6 @@
-# Modern compiler warning triage — Linux build (Ubuntu gcc 15.2)
+# Modern compiler warning triage: Linux build (Ubuntu gcc 15.2)
 
-**Run:** `scripts/build-linux.sh default` — full warning maxout against the
+**Run:** `scripts/build-linux.sh default`, full warning maxout against the
 same source the PPC + Lion ship binaries compile.
 
 **Findings count:** 1595 total. Class breakdown (after fixing the
@@ -15,7 +15,7 @@ EXTRA_CFLAGS plumbing so SDL2 paths actually compile):
 | `-Wunused-parameter` | 33 | cleanup | suppress globally (Quake `cmd_t` callbacks have unused argv) |
 | `-Wstrict-aliasing` | 12 | UB candidate | type-pun audit needed (see below) |
 | `-Wsign-compare` | 10 | potential bug | manual audit |
-| `-Wnull-dereference` | 4 | **REAL BUG** | **fixed** (pr_edict.c — see below) |
+| `-Wnull-dereference` | 4 | **REAL BUG** | **fixed** (pr_edict.c, see below) |
 | `-Wduplicated-branches` | 2 | dead-code or copy-paste | analysed (see below) |
 | `-Wstring-compare` | 1 | false positive | gcc misanalyses Cmd_Argv return type |
 | `-Wformat-nonliteral` | 1 | minor | suppress (intentional dynamic format) |
@@ -24,7 +24,7 @@ EXTRA_CFLAGS plumbing so SDL2 paths actually compile):
 
 ## Real bugs fixed this round
 
-### `pr_edict.c:333,386` — null-deref in PR_ValueString / PR_UglyValueString
+### `pr_edict.c:333,386`: null-deref in PR_ValueString / PR_UglyValueString
 
 `ED_FieldAtOfs(val->_int)` returns NULL if no fielddef matches the offset.
 Both callers dereferenced unconditionally:
@@ -43,7 +43,7 @@ during edict printing. **Fixed:** added `def ? PR_GetString(def->s_name)
 
 ## Findings analysed but not acted on
 
-### `sbar.c:455` — `Sbar_ColorForMap` duplicated branches
+### `sbar.c:455`: `Sbar_ColorForMap` duplicated branches
 
 ```c
 return m < 128 ? m + 8 : m + 8;
@@ -58,7 +58,7 @@ behavior change available without divergence from upstream. Leaving as-is
 to avoid breaking colormap parity with other engines. Suppress this
 specific warning rather than rewrite.
 
-### `cl_input.c:195` — impulse handler duplicated branches
+### `cl_input.c:195`: impulse handler duplicated branches
 
 ```c
 if (impulseup && !impulsedown) {
@@ -69,13 +69,13 @@ if (impulseup && !impulsedown) {
 
 Both arms set `val = 0;`. **Investigated:** the `I_Error()` comment is the
 fingerprint of an older assertion that was demoted to silent zero. The
-conditional structure is vestigial but symmetric — could simplify to
+conditional structure is vestigial but symmetric, could simplify to
 `val = 0;` without a behavior change, but the symmetric form documents
 the original "impulsedown ≠ impulseup" intent and matches the
 `impulsedown && !impulseup` block above. **Disposition:** cleanup-only
 change deferred; not a real bug. Suppress per-line.
 
-### `cmd.c:274` — `-Wstring-compare` on `Cmd_Argv(1)`
+### `cmd.c:274`: `-Wstring-compare` on `Cmd_Argv(1)`
 
 ```c
 if (!f && !strcmp(Cmd_Argv(1), "default.cfg"))
@@ -84,10 +84,10 @@ if (!f && !strcmp(Cmd_Argv(1), "default.cfg"))
 gcc 15 reports "strcmp of a string of length 11 and an array of size 1
 evaluates to nonzero". gcc has misanalysed `Cmd_Argv()`'s declared
 return type (`char *`) as somehow pointing to a length-1 array. **False
-positive** — the function returns a NUL-terminated string of arbitrary
+positive**, the function returns a NUL-terminated string of arbitrary
 length. Suppress.
 
-### `-Wstrict-aliasing` (12) — Quake type-pun idioms
+### `-Wstrict-aliasing` (12): Quake type-pun idioms
 
 Locations: `snd_mix.c:83,119,439,440`, `pr_exec.c:555,567,575`,
 `common.h:157,160`, `cl_demo.c:186`, `progs.h:120`.
@@ -97,7 +97,7 @@ These are the classic Quake `(int *)&float_var` and union-tagged
 been in upstream Quake for ~25 years and the engine builds with
 `-fno-strict-aliasing` implicitly via gcc-4.0's looser default and via
 the Makefile's lack of `-fstrict-aliasing`. The Linux build above does
-NOT pass `-fno-strict-aliasing` — this is partly why the warnings light
+NOT pass `-fno-strict-aliasing`, this is partly why the warnings light
 up. **Disposition:** add `-fno-strict-aliasing` to the Linux build's
 EXTRA_CFLAGS to mirror what gcc-4.0 effectively does on PPC. Re-evaluate
 if a hot-path optimization becomes blocked by aliasing assumptions.
@@ -106,7 +106,7 @@ if a hot-path optimization becomes blocked by aliasing assumptions.
 
 ## Track B candidates (perf-relevant warnings)
 
-### `-Wdouble-promotion` (506) — silent float→double on PPC
+### `-Wdouble-promotion` (506): silent float→double on PPC
 
 PowerPC's FPU is double-precision-native, but G3 specifically penalises
 mixed precision (additional moves, extra mantissa bits to ignore).
@@ -114,7 +114,7 @@ Where a `vec_t` (float) is mixed with a literal double (`0.5` instead of
 `0.5f`), gcc widens to double then narrows back, costing cycles.
 
 **Sample hot files:**
-- `mathlib.h:56` (BoxOnPlaneSide macro — runs many times per frame)
+- `mathlib.h:56` (BoxOnPlaneSide macro, runs many times per frame)
 - `gl_mesh.c:263` (alias mesh setup)
 - `pr_cmds.c:1196,1198,1034`
 - `cl_demo.c:462`
@@ -131,14 +131,14 @@ pulls work off vector and onto scalar FPU).
 
 This becomes a new Track B phase: **B9. `-Wdouble-promotion` cleanup**.
 
-### `-Wmissing-prototypes` (322) — TU-private functions not marked `static`
+### `-Wmissing-prototypes` (322): TU-private functions not marked `static`
 
 Functions with no header declaration that should be `static` to enable
 inlining and reduce link-time symbol pressure. Net effect on perf: gcc
 can inline static functions more aggressively (no external visibility
 constraint). Largely cleanup, but also a small inlining-quality win.
 
-**Action:** batch fix in a single sweep. Low-risk — wrap in a script
+**Action:** batch fix in a single sweep. Low-risk, wrap in a script
 that adds `static` to every function whose name doesn't appear in any
 header file under `Quake/`. ~322 spread across ~30 .c files.
 
@@ -153,18 +153,18 @@ pointer flow:
 
 | Class | Count | Disposition |
 |-------|-------|-------------|
-| `-Wanalyzer-possible-null-dereference` | 17 | mostly false positives — pointer flow within bounds-checked containers |
-| `-Wanalyzer-use-of-uninitialized-value` | 8 | 3 in vendored miniz.c (skip — third-party); 5 in world.c via `DoublePrecisionDotProduct` macro on early-error paths (defensible) |
-| `-Wanalyzer-null-dereference` (definite) | 3 | `pr_edict.c:1380,1389` (false positive — `pr_knownstrings` only iterated post-alloc); `common.c:2701` (defensible — `localization.text` valid at this point in control flow) |
-| `-Wanalyzer-out-of-bounds` | 1 | `lodepng.c:1008` (vendored — skip) |
-| `-Wanalyzer-malloc-leak` | 1 | `snd_sdl.c:160` (false positive — `shm->buffer` is the audio mix buffer with shutdown lifetime, freed by SDL_CloseAudio) |
+| `-Wanalyzer-possible-null-dereference` | 17 | mostly false positives, pointer flow within bounds-checked containers |
+| `-Wanalyzer-use-of-uninitialized-value` | 8 | 3 in vendored miniz.c (skip, third-party); 5 in world.c via `DoublePrecisionDotProduct` macro on early-error paths (defensible) |
+| `-Wanalyzer-null-dereference` (definite) | 3 | `pr_edict.c:1380,1389` (false positive, `pr_knownstrings` only iterated post-alloc); `common.c:2701` (defensible, `localization.text` valid at this point in control flow) |
+| `-Wanalyzer-out-of-bounds` | 1 | `lodepng.c:1008` (vendored, skip) |
+| `-Wanalyzer-malloc-leak` | 1 | `snd_sdl.c:160` (false positive, `shm->buffer` is the audio mix buffer with shutdown lifetime, freed by SDL_CloseAudio) |
 
 Net real bugs from `-fanalyzer`: 0. All findings either trace through
 vendored third-party libraries (miniz, lodepng) we don't own, or hit
 control-flow patterns the analyzer can't fully model (pre-allocated
 arenas, lifetime-bound globals, type-tagged unions).
 
-The win from running `-fanalyzer` was the **negative result** — we have
+The win from running `-fanalyzer` was the **negative result**, we have
 no live interprocedural bugs in our code. Subsequent rounds should
 re-run after every Track B phase to catch regressions early.
 
@@ -176,9 +176,9 @@ re-run after every Track B phase to catch regressions early.
 "may be used uninitialized" false positives where gcc-4.0's analysis
 fails to trace through pointer-out parameters:
 
-* `gl_draw.c:228 'y' may be used uninitialized` — `Scrap_AllocBlock(p->w, p->h, &x, &y)` on the prior line initialises x/y by reference.
-* `gl_draw.c:228 'x' may be used uninitialized` — same call.
-* `pr_edict.c:765 'new_p' may be used uninitialized` — `PR_AllocString(l, &new_p)` initialises `new_p` by reference.
+* `gl_draw.c:228 'y' may be used uninitialized`, `Scrap_AllocBlock(p->w, p->h, &x, &y)` on the prior line initialises x/y by reference.
+* `gl_draw.c:228 'x' may be used uninitialized`, same call.
+* `pr_edict.c:765 'new_p' may be used uninitialized`, `PR_AllocString(l, &new_p)` initialises `new_p` by reference.
 
 All three are gcc-4.0 conservative-analysis artifacts; gcc 15 on the
 Linux build doesn't surface them. Disposition: ignore. If they ever
@@ -186,7 +186,7 @@ become noise, suppress with `__attribute__((unused))` or a no-op init.
 
 Extended warnings (`-Wcast-align`, `-Wshadow`, `-Wmissing-prototypes`,
 etc.) on PPC produce findings that overlap with the Linux sweep (mainly
-the 322 `-Wmissing-prototypes` items — TU-private functions that should
+the 322 `-Wmissing-prototypes` items, TU-private functions that should
 be `static`). No additional real bugs surface. The Linux build with full
 warnings is the canonical bug-finding view; PPC sweep is redundant.
 
@@ -197,21 +197,21 @@ warnings is the canonical bug-finding view; PPC sweep is redundant.
 `scripts/build-linux.sh ubsan` + `+map start +waitN +quit` against the
 sample data on Ubuntu (DISPLAY=:0). Three real UB sites surfaced:
 
-### `snd_mem.c:79` — signed shift of negative value (FIXED)
+### `snd_mem.c:79`: signed shift of negative value (FIXED)
 
 8-bit→16-bit PCM upconvert: `(int)((unsigned char)b - 128) << 8` where
 the post-bias value is signed-int and negative for inputs < 128.
 Replaced with `* 256` (multiplication by power-of-two has defined
 behaviour for signed ints in range). Same class as commit `463ec405`.
 
-### `snd_mem.c:197-199` — left shift past `int` capacity (FIXED)
+### `snd_mem.c:197-199`: left shift past `int` capacity (FIXED)
 
 `GetLittleShort` / `GetLittleLong` composing 16/32-bit values from
 unsigned bytes via `<<8/<<16/<<24` into a signed int. When high byte ≥
 128, the result overflows int via UB. Rewrote both functions to compose
-in `unsigned` and cast to signed at the end — same wire result, defined.
+in `unsigned` and cast to signed at the end, same wire result, defined.
 
-### `gl_draw.c:512` — misaligned `glpic_t` access (NOT FIXED — x86_64-only)
+### `gl_draw.c:512`: misaligned `glpic_t` access (NOT FIXED, x86_64-only)
 
 `(glpic_t *)pic->data` accessing a struct that requires 8-byte alignment
 through a `byte data[4]` member at offset 8 within `qpic_t`. On the ship

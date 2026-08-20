@@ -1,4 +1,4 @@
-# 6. Settings are layered per-arch then per-machine, from inside the bundle
+# 6. Settings are layered per-arch then per-machine: from inside the bundle
 
 Date: 2026-08-20
 Status: accepted
@@ -48,7 +48,7 @@ one layer.** An overlay that changes `vid_width` / `vid_height` without a
 `vid_restart` is a silent no-op for the live mode: the value lands only in the
 cvars, and from there in `config.cfg`, as a phantom. That is the shape of the G3
 crash in ADR 0007. Do not add a second boot `vid_restart` on a PowerPC machine
-without per-machine bench proof, either — it tears down and recreates the GL
+without per-machine bench proof, either, it tears down and recreates the GL
 context during early init, and the Radeon 9200 can hang the whole OS doing it.
 
 **`bench.sh` reproduces real play conditions rather than bypassing them.** Since
@@ -86,7 +86,7 @@ GPU, not by CPU.
   inside the `.app`.
 - `deploy.sh` ships a byte-for-byte identical bundle to every machine.
 - **`deploy.sh` does not seed `config.cfg`.** A cvar the engine saved during a
-  test run persists on the target and silently changes the next launch — this
+  test run persists on the target and silently changes the next launch, this
   happened with `vid_bpp 32` on mini-g4 after a wedged session. Reset
   `config.cfg` explicitly when reverting a config change.
 - A cvar added to an autoexec is `CVAR_ARCHIVE` state that compounds across

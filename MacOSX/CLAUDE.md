@@ -1,4 +1,4 @@
-# MacOSX/ — toolchain and flags on the build host
+# MacOSX/: toolchain and flags on the build host
 
 Upstream's `Build_Instructions.md` covers the Xcode-project workflow, which is
 not how this port builds. This file is the per-target flag reference. The
@@ -8,9 +8,9 @@ decisions behind it are ADR 0001 (slices and floors), ADR 0003 (SDL), ADR 0004
 ## Toolchain on the Lion build minis
 
 ```
-/usr/bin/gcc-4.0                Apple gcc 4.0.1 (build 5494) — PowerPC cross
-/usr/bin/clang                  Apple clang 1.7, LLVM 2.9-based — Intel native
-/usr/bin/gcc-4.2                llvm-gcc-4.2.1 — Intel fallback, unused
+/usr/bin/gcc-4.0                Apple gcc 4.0.1 (build 5494), PowerPC cross
+/usr/bin/clang                  Apple clang 1.7, LLVM 2.9-based, Intel native
+/usr/bin/gcc-4.2                llvm-gcc-4.2.1, Intel fallback, unused
 /Developer/SDKs/MacOSX10.3.9.sdk    G3 and G4 targets
 /Developer/SDKs/MacOSX10.4u.sdk     present, no longer used by a shipped slice
 /Developer/SDKs/MacOSX10.5.sdk      G5 target, and the ppc970 SDL slice
@@ -47,7 +47,7 @@ stands out.
 `BUILD_PG=1` adds `-pg` to the g3 compile and link, so the binary writes
 `gmon.out` on a clean exit. `-O3` is kept so the profile matches what ships;
 `-pg` costs ~3-5% per call through mcount instrumentation. Use
-`+timedemo demoN +quit` for a clean exit — SIGKILL writes no `gmon.out`.
+`+timedemo demoN +quit` for a clean exit, SIGKILL writes no `gmon.out`.
 
 ## Bundle
 

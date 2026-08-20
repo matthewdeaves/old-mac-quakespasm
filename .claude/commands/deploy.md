@@ -6,7 +6,7 @@ argument-hint: [yosemite|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|all]
 Build and deploy QuakeSpasm to a bench machine. Arguments: $ARGUMENTS
 
 The bench fleet is seven Macs (1999 G3 → 2019 i5 iMac) across eight OS
-installs. One fat binary serves them all — `build/quakespasm-fat` holds four slices (`ppc750`
+installs. One fat binary serves them all, `build/quakespasm-fat` holds four slices (`ppc750`
 G3, `ppc7400` G4 + AltiVec, `ppc970` G5/Leopard, `x86_64` Lion+). dyld
 picks the right slice at launch; host.c picks the right per-machine
 autoexec from `Contents/Resources/` via CFBundle.
@@ -26,7 +26,7 @@ codecs + SDL.framework + nib + icon + all 10 autoexec cfgs in
 `<machine>:~/Desktop/quake/`. The bundled `MacOSX/SDL.framework`
 ships a Panther-compatible PPC slice in place (no per-host SDL swap).
 
-Don't manually scp binaries or hand-roll the bundle layout — the
+Don't manually scp binaries or hand-roll the bundle layout, the
 scripts encode the right structure (Cocoa nib placement,
 install_name substitutions, codec dylibs, Info.plist, icon, the
 per-arch and per-machine autoexec dispatch).

@@ -25,12 +25,12 @@ fat-all (for architecture x86_64):  Mach-O 64-bit executable x86_64
 
 Fat header is the standard `0xcafebabe` magic with `nfat_arch=3`,
 slices page-aligned at 4 KB. Sum of three slices: 749352 + 753188 +
-890704 = 2,393,244 bytes ≈ 2.28 MB; fat is 2,398,032 bytes — only
+890704 = 2,393,244 bytes ≈ 2.28 MB; fat is 2,398,032 bytes, only
 ~5 KB padding overhead from page alignment.
 
 **Min-SDK / version-min compatibility:** A non-issue in practice for
 this build. None of the three slices currently embed an
-`LC_VERSION_MIN_MACOSX` load command — gcc-4.0 predates it (added in
+`LC_VERSION_MIN_MACOSX` load command, gcc-4.0 predates it (added in
 Xcode 4.2), and Lion's `clang 1.7` doesn't emit it either despite
 `-mmacosx-version-min=10.7`. Each slice carries `LC_LOAD_DYLINKER` +
 `LC_UNIXTHREAD` (old-style) and that's it.
@@ -42,7 +42,7 @@ on `(cputype, cpusubtype, offset, size, align)` records.
 
 ## 2. Two PPC slices in one binary
 
-**Yes — explicitly supported, and verified.** Mach-O's fat header keys
+**Yes, explicitly supported, and verified.** Mach-O's fat header keys
 on `(cputype, cpusubtype)` together, not just `cputype`. So
 `(PPC, 750)` and `(PPC, 7400)` are distinct entries and `lipo -create
 g3 g4` succeeds. lipo *does* refuse to add a duplicate `(PPC, 750)`
@@ -63,7 +63,7 @@ documented LAMEVMX as a real-world 3-PPC-subtype shipping example
   observed failure mode when a G3 ends up running a `ppc7400`-stamped
   binary: Panther's dyld is permissive enough to load it anyway, but
   the runtime crashes inside AppKit NIB init when it hits a G4-only
-  instruction. That's not academic — it's already happened on this
+  instruction. That's not academic, it's already happened on this
   project from build races.
 - **Ship generic `ppc` (no `-mcpu` / `-mtune`):** Loads on both. Works
   correctly on both. But leaves AltiVec on the floor unless we add
@@ -89,7 +89,7 @@ possible but ugly:
   PPC binary; gate calls on `hw.optional.altivec`.
 - Per-TU `-maltivec` works in gcc-4.0 (per-file CFLAGS in the
   Makefile). But you also need to make sure no inlinable function
-  header in those TUs reaches a non-AltiVec TU as a header — vector
+  header in those TUs reaches a non-AltiVec TU as a header, vector
   types in struct definitions would poison.
 - Static initializers and global vector constants are the obvious
   footgun: a `const vector float foo = ...` at file scope in an
@@ -121,21 +121,21 @@ expected path (`@executable_path/SDL.framework/Versions/A/SDL`).
 
 **Caveat for G4:** The framework's PPC slice was historically used on
 G4/Tiger without issue (per CLAUDE.md: "G4 runs the bundled SDL fine"
-— meaning the 10.6-SDK-built PPC slice works on Tiger). But
+, meaning the 10.6-SDK-built PPC slice works on Tiger). But
 `SDL-panther.dylib` was specifically built `--disable-altivec` and
 against the 10.3.9 SDK. **Open question for the user:** does
 Panther-built SDL run cleanly on Tiger? If yes, swapping the PPC slice
 with the panther dylib once gives a single PPC SDL slice that works on
-both G3 and G4 — and `deploy.sh` no longer needs the per-target swap.
+both G3 and G4, and `deploy.sh` no longer needs the per-target swap.
 If no (e.g. Tiger expects newer Quartz hooks), we'd need a separate
 Tiger-G4 SDL build *and* lipo two PPC subtypes into the framework SDL
-too — at which point the framework needs to mirror the engine's
+too, at which point the framework needs to mirror the engine's
 dual-PPC layout.
 
 ## 5. min-os-version compatibility
 
 In this codebase, **moot**: none of the three slices embed
-`LC_VERSION_MIN_MACOSX` (verified via `otool -l` on each slice — only
+`LC_VERSION_MIN_MACOSX` (verified via `otool -l` on each slice, only
 LC_UNIXTHREAD/LC_LOAD_DYLINKER appears, because both gcc-4.0 and
 Lion's clang 1.7 predate that load command). Each slice gets selected
 purely on `(cputype, cpusubtype)` match plus dyld being able to
@@ -154,7 +154,7 @@ graceful (load failure with diagnostic, never a fault) on 10.6+. On
   Wikipedia's "Universal binary" article and Apple's "Compiling Your
   Code in OS X" porting docs).
 - **Apple did not, to my knowledge, ship dual-PPC-subtype Apple
-  binaries** in their own products — they shipped generic `ppc` for
+  binaries** in their own products, they shipped generic `ppc` for
   the OS-vended PPC code and let `-mtune` decide micro-arch tuning. So
   the *pattern* is well-trodden by 3rd parties (LAMEVMX is the
   canonical example) but not blessed by Apple shipping it themselves.
@@ -181,7 +181,7 @@ our case** because:
 
 **Multi-pass pattern (recommended):**
 
-1. `scripts/build.sh g3`, `g4`, `lion` keep their current contract —
+1. `scripts/build.sh g3`, `g4`, `lion` keep their current contract,
    each produces `build/quakespasm-<target>` exactly as today
    (per-target `Makefile.darwin clean` between, plus the existing
    flock).
@@ -200,12 +200,12 @@ our case** because:
 
 **Pitfalls:**
 
-- Each PPC sub-build still needs the existing flock — not because they
+- Each PPC sub-build still needs the existing flock, not because they
   race against each other (they're now serialized), but to prevent the
   `make clean` in step 1 from racing if someone runs a non-fat
   `build.sh g3` concurrently.
 - The `install_name_tool` step in `build.sh` operates on the per-arch
-  standalone before lipo merge — keep it where it is.
+  standalone before lipo merge, keep it where it is.
 - Sanity check after lipo: `lipo -info build/quakespasm-fat` must show
   `ppc750 ppc7400 x86_64` exactly. Also `file build/quakespasm-fat |
   grep -c ppc` must be 2.
@@ -215,7 +215,7 @@ our case** because:
 **Verdict: not worth it for the development phase. Probably worth it
 as a release-time packaging step.**
 
-Mechanically it works — every experiment lipo'd cleanly, dyld will
+Mechanically it works, every experiment lipo'd cleanly, dyld will
 pick the right PPC slice, SDL's PPC slice can be permanently swapped
 to the Panther-compatible build. The pure-engineering cost is small:
 one extra `scripts/build-fat.sh` plus a `lipo -replace` on the bundled
@@ -249,7 +249,7 @@ path is strictly better for the iteration loop.
 2. **Lion `clang 1.7`'s missing `LC_VERSION_MIN_MACOSX`:** absence
    noted but not deeply investigated. On Lion itself it doesn't matter
    (the binary already runs there). Whether dyld on a hypothetical
-   10.8+ machine would refuse it is untested — irrelevant to the
+   10.8+ machine would refuse it is untested, irrelevant to the
    project's targets but worth flagging if the artifact ever escapes
    into the wild.
 

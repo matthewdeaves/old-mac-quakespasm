@@ -1,7 +1,7 @@
-# scripts/ — build, deploy, bench tooling for QuakeSpasm
+# scripts/: build, deploy, bench tooling for QuakeSpasm
 
 Multi-host workflow: edit on the orchestration Mac → build on a claimed Intel
-Lion mini (`mini-intel` or `mini-intel2` — `build.sh` / `build-fat.sh` ask
+Lion mini (`mini-intel` or `mini-intel2`, `build.sh` / `build-fat.sh` ask
 `pick-build-host.sh --acquire` for a free one) → run on the 7 bench machines. SSH config aliases (`yosemite`,
 `yosemite-tiger`, `sawtooth`, `quicksilver`, `mini-g4`, `imac-g5`,
 `mini-intel`, `imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard
@@ -33,7 +33,7 @@ is an identical second build box (Macmini2,1 / 10.7.5) but appears in no bench o
 deploy host list, so it is build-only as the tooling stands.
 The matrix spans the GPU axis from fixed-function (Rage 128, GeForce2 MX)
 through programmable-pre-shader-2.0 (Radeon 9000/9200) and early Intel
-integrated (GMA 950) to modern discrete (Radeon Pro 580X) — useful for
+integrated (GMA 950) to modern discrete (Radeon Pro 580X), useful for
 separating GPU-bound from CPU-bound effects.
 
 The three G4 machines share `build/quakespasm-g4` (`-mcpu=7400 -maltivec`
@@ -44,12 +44,12 @@ The two Intel machines share `build/quakespasm-lion`.
 
 ```bash
 # Build the fat binary (composes ppc750 + ppc7400 + ppc970 + x86_64
-# sub-builds on ONE claimed Intel mini, held for the whole run so the slices
+# sub-builds on ONE claimed Intel mini: held for the whole run so the slices
 # lipo together; build.sh g3/g4/g5/lion runs as sub-steps).
 scripts/build-fat.sh
 
 # Deploy (assemble Quakespasm.app + ship to ~/Desktop/quake/ on the host).
-# Same fat binary + same bundle layout shipped to every machine — host.c
+# Same fat binary + same bundle layout shipped to every machine: host.c
 # picks the right slice + per-machine autoexec at boot via CFBundle.
 scripts/deploy.sh yosemite
 scripts/deploy.sh sawtooth
@@ -62,7 +62,7 @@ scripts/deploy.sh imac-2019
 # Build a distributable .dmg (Quakespasm.app + quakespasm.pak + user
 # README) for handing to the Macs. One image installs on all of them.
 # Builds on a reachable Tiger box by default and content-verifies the
-# binaries inside the image against source (md5, 3 retries, fail loud).
+# binaries inside the image against source (md5: 3 retries, fail loud).
 # The fat binary is stamped with the git release version (build-fat.sh),
 # so the engine reports e.g. "QuakeSpasm 0.97.0-oldmac-v1.9".
 scripts/make-dmg.sh v1.9
@@ -88,18 +88,18 @@ scripts/full-bench.sh sawtooth   # one machine
 scripts/parallel-bench.sh
 scripts/parallel-bench.sh --no-mini-intel --no-imac-2019
 
-# Quick iteration loop: demo1 only at both res, all 7 machines parallel (~3-4 min)
+# Quick iteration loop: demo1 only at both res: all 7 machines parallel (~3-4 min)
 scripts/parallel-bench.sh --quick
 
 # Bench HEAD and commit the resulting CSV rows + raw logs in one shot.
-# Canonical post-phase action — enforces the bench-and-commit cadence.
+# Canonical post-phase action: enforces the bench-and-commit cadence.
 scripts/bench-and-commit.sh "Phase 2.1 BGRA lightmaps"
 
 # Custom subsets via env vars
 DEMOS=demo1 RESES=640x480 RUNS=2 scripts/full-bench.sh quicksilver
 ```
 
-`benchmarks/results.csv` is a **rolling history** — every grid run appends.
+`benchmarks/results.csv` is a **rolling history**, every grid run appends.
 This is how we see the optimization trajectory across phases. Use
 `parallel-bench.sh --reset` only when starting a fresh optimization round
 (it wipes after backing up to `results.csv.bak.<ts>`).
@@ -117,16 +117,16 @@ before that commit use the old names, rows after use the new names.
 |---|---|
 | `build.sh <g3\|g4\|g5\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4/g5, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. `g5` = iMac G5 Leopard (ppc970, 10.5 SDK, `-mcpu=970`). Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
 | `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh g5` + `build.sh lion`, then `lipo -create` the four slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
-| `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
-| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac. Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), never the G3 or Lion; `DMG_HOST=` overrides. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. Why all of that: ADR 0005. |
+| `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine, host.c picks the right slice + per-machine cfg at boot. |
+| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac. Output `dist/QuakeSpasm-OldMac-<version>.dmg`, one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), never the G3 or Lion; `DMG_HOST=` overrides. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. Why all of that: ADR 0005. |
 | `deploy-dmg.sh <machine> [ver]` | install the release DMG the way a human does: scp to the Desktop, md5-verify it arrived, mount, `ditto` `Quakespasm.app` + copy `quakespasm.pak` into `~/Desktop/quake/`, **preserving `id1/` game data**, then detach. Default ver = newest `dist/QuakeSpasm-OldMac-*.dmg`. |
 | `smoke-dmg.sh <machine> [demo]` | launch the DMG-installed copy with the **production** bundle config (no `-noarchautoexec`, no vid/res override) + a `+timedemo` so it self-exits. Reports renderer + actual resolution + fps; PASS iff an fps line appears. This is the install→launch path that catches a crash `deploy.sh` + bench would miss. |
-| `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
+| `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s, slower CPU); yosemite 240 s. |
 | `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 5 PPC machines, `intel` = the 2 Intel machines, `all` = all 7 (default). |
 | `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 7 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |
 | `bench-and-commit.sh "<phase>"` | bench HEAD + commit the data in one shot. Refuses dirty trees, pins HEAD, then `parallel-bench.sh "$@"`, stages CSV + new raw logs, lands `bench: <phase> (HEAD <hash>)` commit with median fps summary. The canonical second-of-two commits per phase. |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
-| `make-icon.py [source.png]` | regenerate `MacOSX/QuakeSpasm.icns` from a source PNG (default: `MacOSX/newiconfinal.png`). **Legacy-only ICNS chunks** (Panther/Tiger compat — see file header for why iconutil is wrong). Default also refreshes `docs/images/quakespasm-icon{,-256}.png` (README hero strip); `--no-readme-refresh` to skip. `--keep-bg` to skip auto bg-removal if the source already has alpha (canonical Photoshop-touch-up workflow). Requires `~/quakespasm/.venv` (Pillow + numpy + scipy). |
+| `make-icon.py [source.png]` | regenerate `MacOSX/QuakeSpasm.icns` from a source PNG (default: `MacOSX/newiconfinal.png`). **Legacy-only ICNS chunks** (Panther/Tiger compat, see file header for why iconutil is wrong). Default also refreshes `docs/images/quakespasm-icon{,-256}.png` (README hero strip); `--no-readme-refresh` to skip. `--keep-bg` to skip auto bg-removal if the source already has alpha (canonical Photoshop-touch-up workflow). Requires `~/quakespasm/.venv` (Pillow + numpy + scipy). |
 | `install-host-tools.sh [hosts...]` | push `scripts/host-bin/*` to `~/bin/` on every bench Mac. Idempotent. Default hosts: `yosemite sawtooth quicksilver mini-g4 imac-g5 mini-intel imac-2019`. Re-run after editing the source scripts in `scripts/host-bin/` or adding a new bench machine. |
 | `host-bin/qsreboot.sh` | runs **on the Mac**. SSH-side reboot. Tier 1: `sudo -n /sbin/reboot` (definite kernel reboot, works through wedged Finder / corrupt Rage 128 LUT). Tier 2: Finder Apple Event. Use as `ssh <machine> '~/bin/qsreboot.sh'`. |
 | `host-bin/qsreboot-setup.sh` | runs **on the Mac**. ONE-TIME `sudo ~/bin/qsreboot-setup.sh` per machine to install the NOPASSWD sudoers entry that enables Tier 1 above. Backs up `/etc/sudoers`, validates with `visudo -c`, restores backup on failure. Idempotent re-runs. |
@@ -164,7 +164,7 @@ Quakespasm.app/
       English.lproj/       Launcher.nib + InfoPlist.strings
 ```
 
-Bundle is byte-for-byte identical across all seven machines —
+Bundle is byte-for-byte identical across all seven machines,
 `deploy.sh` always ships the fat binary; per-machine settings travel
 inside `Contents/Resources/`. Full Info.plist key list, install_name_tool
 fixup and the bundle rationale: ADR 0010. The fat-SDL build recipes:

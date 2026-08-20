@@ -1,4 +1,4 @@
-# QuakeSpasm dedicated server, Linux
+# QuakeSpasm dedicated server: Linux
 
 A headless Quake server built from the same source as the Mac fat binary. One
 ELF binary, no packages to install.

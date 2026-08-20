@@ -1,4 +1,4 @@
-# scripts/ — per-script gotchas
+# scripts/: per-script gotchas
 
 The host matrix and what every script does live in `scripts/README.md`. The
 decisions behind the tooling are in `docs/adr/`. This file holds only the
@@ -14,7 +14,7 @@ bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
 
 - **build.sh** flocks `~/quakespasm/build/.build.lock` to serialise concurrent
   g3/g4/g5 invocations. After any build, `file build/quakespasm-<t>` must report
-  the right CPU subtype — anything else is the `.o` race (ADR 0004). It also
+  the right CPU subtype, anything else is the `.o` race (ADR 0004). It also
   stamps `QS_PORT_VERSION` (ADR 0004).
 - **deploy.sh / bench.sh** load the two autoexec layers from the bundle;
   `bench.sh` stages them as a temp `id1/autoexec.cfg` and passes
@@ -29,7 +29,7 @@ bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
   ADR 0005.
 - **bench-and-commit.sh** refuses dirty trees and any NA fps cell; the
   manual-commit override for a lone transient is in ADR 0009.
-- **make-icon.py** — conservative defaults, Photoshop over `--scrub-interior`.
+- **make-icon.py**, conservative defaults, Photoshop over `--scrub-interior`.
   ADR 0010.
 
 ## Host-side reboot recovery

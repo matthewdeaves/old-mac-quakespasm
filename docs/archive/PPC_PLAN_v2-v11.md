@@ -1,4 +1,4 @@
-# PPC Plan v2 — Apple-fast-path performance round
+# PPC Plan v2: Apple-fast-path performance round
 
 > **Machine-naming note (2026-05-09):** the bench machines were renamed
 > mid-round to nicer names. Historical references below use the OLD
@@ -24,7 +24,7 @@
 > with the *Apple OpenGL fast paths* (BGRA pixels, `APPLE_client_storage`,
 > `APPLE_texture_range`, `APPLE_vertex_array_range`, AltiVec where the
 > driver leaves work on the CPU). Driving constraint: **no visual
-> regressions** — every phase below either preserves visuals exactly, or
+> regressions**, every phase below either preserves visuals exactly, or
 > improves them.
 
 ---
@@ -33,26 +33,26 @@
 
 | Phase | Status | Commit | Net result |
 |---|---|---|---|
-| Phase 0 — per-target cvar tuning, dynamic `r_oldwater` | ✅ | `3e502882` | G3 1024 unblocked (was hitting refraction bug); G4 unaffected |
-| Phase 1 — `frsqrte` `VectorLength` / `VectorNormalize` | ✅ | `72fd7fa5` | Within noise on timedemos (math wasn't the bottleneck) |
-| Phase 1.1 — immediate-mode → client vertex arrays + CVA | ✅ | `c00a07a7` | **G4 +4.7% avg, +6.2% peak; G3 ±0** |
-| Phase 1.3 — SGIS mipmap throttle for liquids | 🪦 archived | n/a | `PPC_PLAN_1_3.md` — best case ~fps-neutral, worst -3-5fps; not worth |
-| Phase 2.1 — `GL_BGRA` + `8_8_8_8_REV` lightmap upload | ✅ | `f96b0dda` | Within noise on demo1 (G4 -1pct, G3 -1pct). Lightmap upload isn't the bottleneck on demo1 (low dynamic-light churn) — predicted win lives on demo3, measured at end-of-round. |
-| Phase 2.2 — `GL_APPLE_client_storage` on lightmap pool | ⚠️ regressed → kept | `d717a808` | G4 1024 -10%, G4 640 -16%. Apple's client_storage works in the literal sense (no copy) but defeats driver caching of the pool when it's reallocated — driver re-references stale memory. Phase 2.3's per-texture cache hint reverses the regression. Kept because removing destabilises 2.3's interaction. |
-| Phase 2.3 — `GL_STORAGE_CACHED_APPLE` lightmap hint | ✅ | `81196b23` | **G4 1024 +12.6% (109.55→123.35), G4 640 +18.4% (127.35→150.75)** vs 2.2 baseline. Net vs Phase 0: G4 1024 +12pct, G4 640 +2pct. The hint forces the driver to keep our pool in cached VRAM even though client_storage normally inhibits caching. |
-| Phase 3.1 — `GL_APPLE_vertex_array_range` detection scaffolding | ✅ | `7ddb8133` | No behavior change. Detection + entry-point resolution. Confirmed VAR present on G4, absent on G3 (matching captured `gl-info/`). |
-| Phase 3.2 — VAR pool for static brush verts | ✅ → partially regressed | `b24632ed` | G4 1024 essentially flat (-0.4pct), **G4 640 -3.5%** (146.85→141.75). Pool builds clean and is referenced by 3 single-tex draw paths. Regression diagnosed as per-surface `glVertexPointer` rebind invalidating driver pre-fetch state on every surface — a 3.2 implementation flaw, not a VAR-design flaw. **3.3 fixed it.** |
-| Phase 3.3 — chain-level brush vert API + multitex array conversion | ✅ | `fdd1b09a` | **G4 640 +6.5% recovery** (141.75→151.00, surpassing 3.1's 146.85), **G4 1024 -1.1% drift** (121.20→119.85). Net round vs Phase 0: G4 1024 +8.9% (110.05→119.85), G4 640 +2.5% (147.35→151.00). The G4 1024 dip vs the 2.3 peak (123.35) appears structural — at 1024 GPU is fillrate-bound, so converting `glBegin`→`glDrawArrays` on the multitex path costs a small amount of driver pipelining without unlocking GPU headroom. Reverting would lose the 640 win. Banked; expected to recover on AltiVec phases. |
-| Phase 4.1 — AltiVec alias lerp (pad-to-4 + vec_madd) | ✅ | `4a261c76` | Demo1 neutral on both targets as predicted (viewmodel is the only alias surface on demo1): G4 1024 119.75, G4 640 151.85, G3 1024 24.75, G3 640 23.80. Build OK on G3 (scalar pad-to-4 fallback) and G4 (`__ALTIVEC__`-gated AltiVec block; `vec_splats` unavailable in gcc-4.0 so used the constructor form). Real impact on alias-heavy demos (demo3 zombies/ogres) is deferred to end-of-round full grid. |
-| Phase 4.2 — AltiVec 16-bit sound mixer | ✅ | `f4c8af72` | Smoke: G4 1024 118.65 (-0.92% vs 4.1), G4 640 147.50 (-2.86%), G3 1024 24.80 (+0.20%), G3 640 23.75 (-0.21%). Timedemo runs `-nosound` so the AltiVec mixer path is never exercised; the G4 640 dip looks like cache-layout drift from `__attribute__((aligned(16)))` on `paintbuffer` shifting adjacent globals — not a real audio-path regression. AltiVec body: `vec_mule`/`vec_mulo` on doubled-up samples × interleaved {lv,rv} short vector → 4 int32 L/R pairs per multiply; 8 samples per loop iter. `-noaltivec-snd` runtime opt-out in `S_Init`. 8-bit mixer kept scalar (256-entry scaletable defeats clean SIMD; 8-bit assets are rare in modern Quake). |
-| Phase 4.3 — AltiVec 8→32 palette expand at level load | 🪦 skipped | n/a | The hot loop is `*out++ = usepal[*in++]` — a 256-entry RGBA palette gather indexed by an arbitrary input byte. Doesn't map onto AltiVec's 16-byte `vec_perm` tables without per-input-byte chunk-index dispatch (giant code block, runs scalar-equivalent latency anyway). Plan also flagged this as load-time only, not fps. Round goal is fps + visuals; load-time wins are not in scope here. Documented and moved on. |
-| Phase 6 — Runtime AltiVec dispatch / fat binary | 🪦 deferred | n/a | Current two-binary setup (`quakespasm-g3` + `quakespasm-g4`, built via `scripts/build.sh`, deployed via slash commands) is working cleanly with explicit per-target `__ALTIVEC__` gating. Phase 6 would unify them into a single binary that detects AltiVec at runtime via `sysctlbyname("hw.optional.altivec")`. Plan flags expected fps impact as 0/0 — this is a packaging convenience, not a perf phase. Round goal is fps + visuals; deferred to a future packaging round if a single-binary distribution is ever wanted. |
+| Phase 0, per-target cvar tuning, dynamic `r_oldwater` | ✅ | `3e502882` | G3 1024 unblocked (was hitting refraction bug); G4 unaffected |
+| Phase 1, `frsqrte` `VectorLength` / `VectorNormalize` | ✅ | `72fd7fa5` | Within noise on timedemos (math wasn't the bottleneck) |
+| Phase 1.1, immediate-mode → client vertex arrays + CVA | ✅ | `c00a07a7` | **G4 +4.7% avg, +6.2% peak; G3 ±0** |
+| Phase 1.3, SGIS mipmap throttle for liquids | 🪦 archived | n/a | `PPC_PLAN_1_3.md`, best case ~fps-neutral, worst -3-5fps; not worth |
+| Phase 2.1, `GL_BGRA` + `8_8_8_8_REV` lightmap upload | ✅ | `f96b0dda` | Within noise on demo1 (G4 -1pct, G3 -1pct). Lightmap upload isn't the bottleneck on demo1 (low dynamic-light churn), predicted win lives on demo3, measured at end-of-round. |
+| Phase 2.2, `GL_APPLE_client_storage` on lightmap pool | ⚠️ regressed → kept | `d717a808` | G4 1024 -10%, G4 640 -16%. Apple's client_storage works in the literal sense (no copy) but defeats driver caching of the pool when it's reallocated, driver re-references stale memory. Phase 2.3's per-texture cache hint reverses the regression. Kept because removing destabilises 2.3's interaction. |
+| Phase 2.3, `GL_STORAGE_CACHED_APPLE` lightmap hint | ✅ | `81196b23` | **G4 1024 +12.6% (109.55→123.35), G4 640 +18.4% (127.35→150.75)** vs 2.2 baseline. Net vs Phase 0: G4 1024 +12pct, G4 640 +2pct. The hint forces the driver to keep our pool in cached VRAM even though client_storage normally inhibits caching. |
+| Phase 3.1, `GL_APPLE_vertex_array_range` detection scaffolding | ✅ | `7ddb8133` | No behavior change. Detection + entry-point resolution. Confirmed VAR present on G4, absent on G3 (matching captured `gl-info/`). |
+| Phase 3.2, VAR pool for static brush verts | ✅ → partially regressed | `b24632ed` | G4 1024 essentially flat (-0.4pct), **G4 640 -3.5%** (146.85→141.75). Pool builds clean and is referenced by 3 single-tex draw paths. Regression diagnosed as per-surface `glVertexPointer` rebind invalidating driver pre-fetch state on every surface, a 3.2 implementation flaw, not a VAR-design flaw. **3.3 fixed it.** |
+| Phase 3.3, chain-level brush vert API + multitex array conversion | ✅ | `fdd1b09a` | **G4 640 +6.5% recovery** (141.75→151.00, surpassing 3.1's 146.85), **G4 1024 -1.1% drift** (121.20→119.85). Net round vs Phase 0: G4 1024 +8.9% (110.05→119.85), G4 640 +2.5% (147.35→151.00). The G4 1024 dip vs the 2.3 peak (123.35) appears structural, at 1024 GPU is fillrate-bound, so converting `glBegin`→`glDrawArrays` on the multitex path costs a small amount of driver pipelining without unlocking GPU headroom. Reverting would lose the 640 win. Banked; expected to recover on AltiVec phases. |
+| Phase 4.1, AltiVec alias lerp (pad-to-4 + vec_madd) | ✅ | `4a261c76` | Demo1 neutral on both targets as predicted (viewmodel is the only alias surface on demo1): G4 1024 119.75, G4 640 151.85, G3 1024 24.75, G3 640 23.80. Build OK on G3 (scalar pad-to-4 fallback) and G4 (`__ALTIVEC__`-gated AltiVec block; `vec_splats` unavailable in gcc-4.0 so used the constructor form). Real impact on alias-heavy demos (demo3 zombies/ogres) is deferred to end-of-round full grid. |
+| Phase 4.2, AltiVec 16-bit sound mixer | ✅ | `f4c8af72` | Smoke: G4 1024 118.65 (-0.92% vs 4.1), G4 640 147.50 (-2.86%), G3 1024 24.80 (+0.20%), G3 640 23.75 (-0.21%). Timedemo runs `-nosound` so the AltiVec mixer path is never exercised; the G4 640 dip looks like cache-layout drift from `__attribute__((aligned(16)))` on `paintbuffer` shifting adjacent globals, not a real audio-path regression. AltiVec body: `vec_mule`/`vec_mulo` on doubled-up samples × interleaved {lv,rv} short vector → 4 int32 L/R pairs per multiply; 8 samples per loop iter. `-noaltivec-snd` runtime opt-out in `S_Init`. 8-bit mixer kept scalar (256-entry scaletable defeats clean SIMD; 8-bit assets are rare in modern Quake). |
+| Phase 4.3, AltiVec 8→32 palette expand at level load | 🪦 skipped | n/a | The hot loop is `*out++ = usepal[*in++]`, a 256-entry RGBA palette gather indexed by an arbitrary input byte. Doesn't map onto AltiVec's 16-byte `vec_perm` tables without per-input-byte chunk-index dispatch (giant code block, runs scalar-equivalent latency anyway). Plan also flagged this as load-time only, not fps. Round goal is fps + visuals; load-time wins are not in scope here. Documented and moved on. |
+| Phase 6, Runtime AltiVec dispatch / fat binary | 🪦 deferred | n/a | Current two-binary setup (`quakespasm-g3` + `quakespasm-g4`, built via `scripts/build.sh`, deployed via slash commands) is working cleanly with explicit per-target `__ALTIVEC__` gating. Phase 6 would unify them into a single binary that detects AltiVec at runtime via `sysctlbyname("hw.optional.altivec")`. Plan flags expected fps impact as 0/0, this is a packaging convenience, not a perf phase. Round goal is fps + visuals; deferred to a future packaging round if a single-binary distribution is ever wanted. |
 
 **Architectural state we're building on:**
 - Three binaries via `Quake/Makefile.darwin` driven by `scripts/build.sh`:
   `quakespasm-g3` (PPC 750), `quakespasm-g4` (PPC 7400 + AltiVec), and
   `quakespasm-lion` (x86_64). The Lion target is a *bench reference*, added
-  2026-05-08 — same source builds clean on Lion's clang. Useful as a third
+  2026-05-08, same source builds clean on Lion's clang. Useful as a third
   data point because GMA 950 + Core 2 Duo has a markedly different fillrate-
   vs-CPU balance from either PPC: at 1024×768 Lion is GPU-bound (Lion ≈ G3,
   way slower than G4); at 640×480 Lion crushes both (CPU-bound regime,
@@ -61,7 +61,7 @@
   shipping config (`r_oldwater 1`, etc.) and the same code path (no
   AltiVec since `__ALTIVEC__` isn't defined on Intel). No runtime dispatch yet.
 - `gl_cva_able` exists, with R128 explicitly excluded from the CVA Lock hint due to in-game color corruption (`gl_vidsdl.c:1049-1050`). Arrays still flow on R128; only the lock is skipped.
-- All hot vertex submission paths now use `glDrawArrays`/`glDrawElements` against client memory (alias models, particles, sky cloud layers, lightmaps, water, brush surfaces) **except** `R_DrawTextureChains_Multitexture` — that one was reverted in 1.1 because the array form cost G4 −3 to −4% on brush-heavy demos. The Apple/ATI driver's small-poly `glBegin` path is faster than `glDrawArrays` on Radeon 9000. Phase 3 below revisits this — but only via a path that gives the driver something it can VRAM-cache, not just a different submission API.
+- All hot vertex submission paths now use `glDrawArrays`/`glDrawElements` against client memory (alias models, particles, sky cloud layers, lightmaps, water, brush surfaces) **except** `R_DrawTextureChains_Multitexture`, that one was reverted in 1.1 because the array form cost G4 −3 to −4% on brush-heavy demos. The Apple/ATI driver's small-poly `glBegin` path is faster than `glDrawArrays` on Radeon 9000. Phase 3 below revisits this, but only via a path that gives the driver something it can VRAM-cache, not just a different submission API.
 
 ## 1. What this round draws on
 
@@ -70,10 +70,10 @@ current GL upload patterns and Apple's documented fast paths on PPC
 drivers:
 
 - Apple's docs flag `GL_RGBA` + `GL_UNSIGNED_BYTE` as **the slow swizzle path**, recommend `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` for everything.
-- `GL_APPLE_client_storage` + `GL_STORAGE_CACHED_APPLE` is the canonical pattern for frequently-updated small textures (i.e. **lightmaps**) — promises driver keeps storage in VRAM and skips the application→driver copy.
+- `GL_APPLE_client_storage` + `GL_STORAGE_CACHED_APPLE` is the canonical pattern for frequently-updated small textures (i.e. **lightmaps**), promises driver keeps storage in VRAM and skips the application→driver copy.
 - `GL_APPLE_vertex_array_range` is Apple's pre-VBO equivalent. With `GL_STORAGE_CACHED_APPLE` it parks static geometry in VRAM. R128 is GL 1.1; ARB_VBO is unavailable, so this is the only "VRAM resident static geom" path on G3.
 - **G4 (Radeon 9000 / Tiger 10.4)** exposes the full Apple-fast-path kit: `APPLE_client_storage`, `APPLE_packed_pixels`, `APPLE_texture_range`, `APPLE_vertex_array_range`, `SGIS_generate_mipmap`, `EXT_compiled_vertex_array`, `EXT_bgra`, `EXT_texture_compression_s3tc`, `EXT_texture_filter_anisotropic`, `ARB_vertex_buffer_object`, full ARB texture-env family.
-- **G3 (Rage 128 / Panther 10.3)** — measured. Has: `APPLE_client_storage`, `APPLE_packed_pixels`, `EXT_bgra`, `EXT_compiled_vertex_array`, `SGIS_generate_mipmap`, `ARB_multitexture`, `ARB_texture_env_combine/add`. **Does NOT have:** `APPLE_vertex_array_range`, `APPLE_texture_range`, `ARB_vertex_buffer_object`, `EXT_texture_compression_s3tc`, `EXT_texture_filter_anisotropic`. Implication: there is **no path to put static geom in VRAM on G3** — Phase 3 below becomes G4-only.
+- **G3 (Rage 128 / Panther 10.3)**, measured. Has: `APPLE_client_storage`, `APPLE_packed_pixels`, `EXT_bgra`, `EXT_compiled_vertex_array`, `SGIS_generate_mipmap`, `ARB_multitexture`, `ARB_texture_env_combine/add`. **Does NOT have:** `APPLE_vertex_array_range`, `APPLE_texture_range`, `ARB_vertex_buffer_object`, `EXT_texture_compression_s3tc`, `EXT_texture_filter_anisotropic`. Implication: there is **no path to put static geom in VRAM on G3**, Phase 3 below becomes G4-only.
 
 **Phase 1.1 evidence carried forward:**
 - G3 / R128 is **not** per-call-overhead bound. Switching glBegin→glDrawArrays didn't move it. Future G3 wins must come from reducing **data motion** (texture upload bandwidth) or **CPU work that the driver does** (per-frame texture conversions, per-frame transform), not from changing how draws are dispatched.
@@ -103,7 +103,7 @@ regressions for every item; one item (Phase 5 mipmap revisit) is a visual
 | 6   | Runtime AltiVec dispatch / fat binary                 | both       | common.c, mathlib.c, snd_mix.c     | low     | 0                | 0                 | none   |
 
 **Cumulative target across 2.1 → 3.3 (the visual-neutral Apple fast-path work):**
-- G3 1024 timedemo: ~24.7 → ~26-29 fps (5-18%) — Phase 2 only; G3 has no VRAM-resident geom path
+- G3 1024 timedemo: ~24.7 → ~26-29 fps (5-18%), Phase 2 only; G3 has no VRAM-resident geom path
 - G3 640 timedemo: ~21 → ~22-25 fps
 - G4 1024 timedemo: ~110 → ~118-128 fps (7-16%)
 - G4 640 timedemo: ~150 → ~160-175 fps
@@ -114,7 +114,7 @@ committed without measuring its effect.**
 
 ---
 
-## Round v2 — final results (`cf27e3b9` shipping configuration)
+## Round v2: final results (`cf27e3b9` shipping configuration)
 
 | Cell | Phase 0 baseline (`3e502882`) | Final (`cf27e3b9`) | Δ |
 |---|---:|---:|---:|
@@ -127,11 +127,11 @@ committed without measuring its effect.**
 | G3 demo1 1024×768 |  24.95 |  24.70 | −1.0% |
 | G3 demo2 1024×768 |  24.70 |  24.70 | 0.0% |
 | G3 demo3 1024×768 |  20.70 |  20.75 | +0.3% |
-| G3 demo* 640×480  | (Phase 0 only, see CSV) | (Panther R128 display LUT stuck after fullscreen kill cycles; not re-measurable this round without reboot) | — |
+| G3 demo* 640×480  | (Phase 0 only, see CSV) | (Panther R128 display LUT stuck after fullscreen kill cycles; not re-measurable this round without reboot) |, |
 
-**G4 headline:** five of six cells deliver wins, with demo2 (the most lightmap-active demo) hitting +14% across both resolutions. demo1 1024 lands at 122.30 — fractionally below the round's interim peak of 123.35 at Phase 2.3, but that peak came before Phase 3 churn and Phase 4 AltiVec landed cleanly with the corrected default. **demo2 640 +14.7% (156.60 → 179.60) is the best absolute fps gain of the round** — Apple's BGRA + cached_storage fast path delivering on its promise.
+**G4 headline:** five of six cells deliver wins, with demo2 (the most lightmap-active demo) hitting +14% across both resolutions. demo1 1024 lands at 122.30, fractionally below the round's interim peak of 123.35 at Phase 2.3, but that peak came before Phase 3 churn and Phase 4 AltiVec landed cleanly with the corrected default. **demo2 640 +14.7% (156.60 → 179.60) is the best absolute fps gain of the round**, Apple's BGRA + cached_storage fast path delivering on its promise.
 
-**G3 headline:** flat across all phases as designed. R128 / Panther 10.3 doesn't expose `APPLE_vertex_array_range`, `ARB_vertex_buffer_object`, or `APPLE_texture_range`, so there's no VRAM-resident geometry path on this stack. The Phase 2 changes (BGRA, client_storage, cached hint) were measured neutral on demo1 — predicted dynamic-light wins live on demo3 which we couldn't re-run after G3's display state stuck.
+**G3 headline:** flat across all phases as designed. R128 / Panther 10.3 doesn't expose `APPLE_vertex_array_range`, `ARB_vertex_buffer_object`, or `APPLE_texture_range`, so there's no VRAM-resident geometry path on this stack. The Phase 2 changes (BGRA, client_storage, cached hint) were measured neutral on demo1, predicted dynamic-light wins live on demo3 which we couldn't re-run after G3's display state stuck.
 
 **Known regression (re-diagnosed 2026-05-08, see "Round v2 epilogue" below):**
 G4 demo3 640 lands at 107.25 vs Phase 0's 119.90 (−10.6%). The original
@@ -139,19 +139,19 @@ diagnosis (residual ~6 fps from Phase 4.1's `(vector float){...}`
 constructor LHS stall) turned out to be wrong on testing. The residual
 comes from Phase 2.x's per-sample cost shift on lit brush surfaces
 (documented in the Phase 2.3 commit as the trade for the +14% demo2
-wins). Phase 4.1's AltiVec compute is actually +2 fps over scalar — see
+wins). Phase 4.1's AltiVec compute is actually +2 fps over scalar, see
 epilogue.
 
 **Round v2 cumulative narrative:**
 - **Phase 2** delivered the biggest measurable wins (demo1/demo2 lightmap fast path on G4) once the `client_storage` + `STORAGE_CACHED_APPLE` pairing was completed at 2.3.
 - **Phase 3** (VAR pool) tested as a net loss across the workload mix; default flipped to opt-in (`-var`). Code preserved for future use if a workload appears that benefits.
-- **Phase 4.1** (AltiVec alias lerp) — original diagnosis from the first round-wrap was wrong; epilogue testing on Day N showed it's a +2 fps win over scalar, not a wash. Stays as-is.
+- **Phase 4.1** (AltiVec alias lerp), original diagnosis from the first round-wrap was wrong; epilogue testing on Day N showed it's a +2 fps win over scalar, not a wash. Stays as-is.
 - **Phase 4.2** (AltiVec sound mixer) doesn't show in `-nosound` timedemo; user-confirmed correct under interactive gameplay. CPU savings under sound are real but unmeasured.
 - **Phases 4.3 + 6** documented and skipped (load-time + packaging respectively, neither contributes to the fps/visuals goal of this round).
 
 ---
 
-## Round v2 epilogue (2026-05-08) — three diagnoses revisited
+## Round v2 epilogue (2026-05-08): three diagnoses revisited
 
 After the round-wrap commit `2a6217b1` shipped, three follow-up
 experiments tested the recorded hypotheses. Two failed instructively
@@ -165,7 +165,7 @@ costing a load-hit-store stall (stack temp + `lvx` round-trip) on the
 7450 inside the per-vert lerp loop.
 
 **Action:** replaced the constructor path with the canonical AltiVec
-unaligned-byte-load idiom — `vec_lvsl` + double `vec_ld` + `vec_perm`
+unaligned-byte-load idiom, `vec_lvsl` + double `vec_ld` + `vec_perm`
 to land 4 bytes in lanes 0..3, then `vec_mergeh` against zero (×2) to
 zero-extend bytes → halfwords → ints, then `vec_ctf(uintvec, 0)` to
 floats. Lane 3 receives the trivertx's `lightnormalindex` as garbage
@@ -176,7 +176,7 @@ form within noise. Hypothesis disproved. Either the constructor wasn't
 producing an LHS stall (gcc-4.0's optimizer may have found a better
 lowering than predicted), or any compute saving from the rewrite was
 swamped by the underlying memory-access pattern of the loop.
-**Code restored to constructor form** — no perf change to ship and no
+**Code restored to constructor form**, no perf change to ship and no
 reason to land code churn.
 
 ### Experiment 2: Phase 4.1 full revert
@@ -194,7 +194,7 @@ The AltiVec compute is helping; the pad-to-4 layout's bandwidth tax
 is real but smaller than the AltiVec compute saving on this hardware.
 Phase 4.1 is doing its job. Code restored.
 
-### Experiment 3: Phase 5 — SGIS warpimage with frame-cadence throttle
+### Experiment 3: Phase 5: SGIS warpimage with frame-cadence throttle
 
 **Hypothesis:** archived `PPC_PLAN_1_3.md` predicted "best case neutral,
 worst case −3 to −5 fps" for adding mipmaps to the warpimage on
@@ -213,12 +213,12 @@ texparam set per warpimage at upload). Per-target tuning set
 
 **Result:** **−35% on G4 demo1 1024 (122.30 → 79.00)**, far worse than
 the archive plan's worst-case prediction. demo1 doesn't even render
-visible water — so the regression must be coming from somewhere outside
+visible water, so the regression must be coming from somewhere outside
 `R_UpdateWarpTextures` itself. Likely candidates: the SGIS texparam
 being set on every warpimage triggers software mipchain generation in
 `TexMgr_RecalcWarpImageSize` (called once at level load and at vid
 restart) AND on every subsequent `glCopyTexSubImage2D` regardless of
-the throttle — the parameter is sticky on the texture, the throttle
+the throttle, the parameter is sticky on the texture, the throttle
 only gates `R_UpdateWarpTextures`, but if the warpimage is ever
 re-bound elsewhere with the parameter still set, the driver may
 software-fallback. Without an OpenGL profiler on Tiger to see what's
@@ -228,17 +228,17 @@ actually happening at the driver level, the failure mode is opaque.
 ### Experiment 4 (the surprise): G3 `r_oldwater 1`
 
 **Background:** during the Phase 5 bench cycle, the user reported that
-the G3 was showing the bright-blue water flicker bug — the Rage 128
+the G3 was showing the bright-blue water flicker bug, the Rage 128
 framebuffer-copy refraction tint that Phase 0's `r_oldwater 2` (auto:
 classic warp above 640×480, new at/below) was supposed to have fixed.
 Re-reading Phase 0's commit message revealed why: the Phase 0 A/B test
 compared `r_oldwater 0` (always new water) vs `r_oldwater 2` (auto), and
-**at 640×480 those are the same path** — auto only kicks in *above*
+**at 640×480 those are the same path**, auto only kicks in *above*
 640. So Phase 0 never tested classic warp at 640×480.
 
 **Action:** changed `scripts/bundle/autoexec-g3.cfg` from `r_oldwater 2`
 to `r_oldwater 1` (always classic warped). Eliminates the bright-blue
-flicker at all resolutions. Re-deployed G3 (no rebuild — config-only
+flicker at all resolutions. Re-deployed G3 (no rebuild, config-only
 change).
 
 **Result:** **+105% on G3 demo1 640×480 (23.70 → 48.50 fps)**. demo3
@@ -252,7 +252,7 @@ Rage 128's screen-copy refraction was costing more than half the
 framerate at 640×480, and Phase 0 missed it because the test matrix
 didn't isolate the classic-vs-new-water choice from the auto-mode
 choice. Lesson worth keeping: when measuring an A/B, name the actual
-code path each leg exercises, not the cvar value — a single cvar can
+code path each leg exercises, not the cvar value, a single cvar can
 collapse to the same path under specific conditions and a "0 vs 2"
 comparison can be a no-op A/A test in disguise.
 
@@ -279,17 +279,17 @@ the archived `PPC_PLAN_1_3.md`.
 
 ---
 
-## 3. Phase 2 — Lightmap upload fast path (both targets)
+## 3. Phase 2: Lightmap upload fast path (both targets)
 
 **Why it's first:** lightmap re-upload is the only per-frame texture
 upload in the engine (`R_UploadLightmaps` at `r_brush.c:969`, called from
 `R_DrawTextureChains` every frame). Default `r_dynamic 1` means any
 moving entity that emits light marks lightmap blocks dirty and triggers
 `glTexSubImage2D` for the dirty region. On a 450 MHz G3 this is the
-fattest per-frame data transfer the engine does — and the format we
+fattest per-frame data transfer the engine does, and the format we
 upload in is the format Apple specifically warns against.
 
-### 2.1 — `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` for lightmaps
+### 2.1: `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` for lightmaps
 
 **Files:** `Quake/r_brush.c` (lines 545-560, 845-960, 1021), `Quake/gl_texmgr.c:1258-1263`
 
@@ -302,17 +302,17 @@ order it produces needs to match the format we declare.
 **Change:**
 1. `gl_lightmap_format = GL_BGRA;` (was `GL_RGBA`)
 2. In `R_UploadLightmaps` and `GL_BuildLightmaps` switch over to use `GL_UNSIGNED_INT_8_8_8_8_REV` as the pixel type when `gl_lightmap_format == GL_BGRA`. Currently `r_brush.c:951` and `:992` hardcode `GL_UNSIGNED_BYTE` (or `GL_UNSIGNED_INT_10_10_10_2` when wide).
-3. In `R_BuildLightMap` (r_brush.c:786 onward), the BGRA branch already exists at line 890-onwards; verify byte ordering matches the spec — `GL_UNSIGNED_INT_8_8_8_8_REV` packs as `(A << 24) | (R << 16) | (G << 8) | B` in the **machine word**, which on big-endian PPC means bytes-in-memory are `[A][R][G][B]`. (On little-endian it'd be `[B][G][R][A]`.) PPC is BE; this is one of the few cases where the BE/LE story is in our favor — the bytes the engine writes match what the driver wants.
+3. In `R_BuildLightMap` (r_brush.c:786 onward), the BGRA branch already exists at line 890-onwards; verify byte ordering matches the spec, `GL_UNSIGNED_INT_8_8_8_8_REV` packs as `(A << 24) | (R << 16) | (G << 8) | B` in the **machine word**, which on big-endian PPC means bytes-in-memory are `[A][R][G][B]`. (On little-endian it'd be `[B][G][R][A]`.) PPC is BE; this is one of the few cases where the BE/LE story is in our favor, the bytes the engine writes match what the driver wants.
 
 **Critical pitfall:** the `GL_UNSIGNED_INT_8_8_8_8_REV` token name is misleading. The "REV" means "reverse of `8_8_8_8`" in *component order*, not in byte order. The packed-pixel spec is defined in terms of the data type (`GLuint`), so the channel layout depends on host endianness in a way you have to think about explicitly. **Validation step**: after the patch, fire up demo1 on G4, screenshot a lightmap-heavy area (e.g. start of demo1, the room with rotating fan), compare to a screenshot of the same frame from `c00a07a7` baseline. Pixels must match exactly (lightmap is multiplicative; off-by-channel would tint the whole world).
 
 **Expected impact:** Apple docs say "many cards" require swizzling in the
 `GL_RGBA` + `GL_UNSIGNED_BYTE` path. Reported speedups range 6× (NVIDIA)
 to 40× (Intel) to "minimal" (ATI). On the 10.3 R128 driver in
-particular, the swizzle is a CPU-side reorder per-pixel per-upload — a
+particular, the swizzle is a CPU-side reorder per-pixel per-upload, a
 hot loop on a 450 MHz part. Most likely 3-10% G3 / 1-3% G4 in dynamic-
 light-heavy demos (demo3, monster fights). **Demos with no moving lights
-should show ±0%** — that's a feature, not a bug; it confirms we're
+should show ±0%**, that's a feature, not a bug; it confirms we're
 isolating the dirty-rect upload cost.
 
 **Visual safety:** zero regressions if the validation screenshot matches.
@@ -322,45 +322,45 @@ changes.
 **Actual outcome (`f96b0dda`):** within noise on demo1 for both
 targets. The predicted dynamic-light win lives on demo3 (monster
 fights), which we measure once at end-of-round. Phase landed clean,
-no visual regressions, code change minimal — the BGRA branch was
+no visual regressions, code change minimal, the BGRA branch was
 already half-wired in `R_BuildLightMap`.
 
 ---
 
-### 2.2 — `GL_APPLE_client_storage` on the lightmap pool
+### 2.2: `GL_APPLE_client_storage` on the lightmap pool
 
 **Files:** `Quake/glquake.h`, `Quake/gl_vidsdl.c` (extension detection),
 `Quake/r_brush.c` (`GL_BuildLightmaps`)
 
 `GL_APPLE_client_storage` tells the driver *not* to copy your texture
-data — it keeps your pointer. The texture lives in your application's
+data, it keeps your pointer. The texture lives in your application's
 memory, and `glTexSubImage2D` updates it via DMA from there. Eliminates
 one full `LMBLOCK_WIDTH × LMBLOCK_HEIGHT × 4` byte copy per dirty-rect
 upload.
 
 **Apple's constraint:** texture width must be a multiple of 32 bytes for
 the no-copy path to engage. `LMBLOCK_WIDTH = 256` (per
-`r_brush.c:355,545`); 256 × 4 bytes = 1024 bytes — multiple of 32, ✓.
+`r_brush.c:355,545`); 256 × 4 bytes = 1024 bytes, multiple of 32, ✓.
 
 **Change:**
 1. Add `gl_apple_client_storage_able` flag and detection branch in `gl_vidsdl.c` (mirror `gl_cva_able` pattern). Probe `GL_APPLE_client_storage`.
 2. In `GL_BuildLightmaps`, before calling `TexMgr_LoadImage` for each lightmap, set `glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE)`. Reset to `GL_FALSE` after.
-3. Verify: `lightmaps[i].data` must remain alive for the lifetime of the texture (which it does — it's `realloc`'d in the lightmap pool and freed via `Mod_ClearAll`).
+3. Verify: `lightmaps[i].data` must remain alive for the lifetime of the texture (which it does, it's `realloc`'d in the lightmap pool and freed via `Mod_ClearAll`).
 
-**Risk:** if the lightmap pool gets `realloc`'d *while a texture is bound*, the driver's pointer would dangle. Look at `r_brush.c:353` — pool is realloc'd during `AllocBlock` *before* uploads happen. Safe sequence is preserved as long as `realloc` of the lightmap array doesn't move the per-lightmap `data` (which is `calloc`'d separately at line 355).
+**Risk:** if the lightmap pool gets `realloc`'d *while a texture is bound*, the driver's pointer would dangle. Look at `r_brush.c:353`, pool is realloc'd during `AllocBlock` *before* uploads happen. Safe sequence is preserved as long as `realloc` of the lightmap array doesn't move the per-lightmap `data` (which is `calloc`'d separately at line 355).
 
 **Expected impact:** measurable on G3 because every byte saved off the
-upload path matters. 2-6% G3, 1-2% G4. Compounds with 2.1 — they're the
+upload path matters. 2-6% G3, 1-2% G4. Compounds with 2.1, they're the
 same-domain optimizations (data motion to driver).
 
-**Visual safety:** none — pure transport change.
+**Visual safety:** none, pure transport change.
 
 **Actual outcome (`d717a808`):** **regressed −10% G4 1024 / −16% G4
 640.** Apple's `client_storage` works as advertised (no copy) but the
-driver pessimises caching for client-storage textures by default —
+driver pessimises caching for client-storage textures by default,
 when our pool grows via realloc, the driver follows the pointer to
 freshly-zeroed memory before the next upload arrives. Result: cache
-miss every dirty-rect frame. **Solution lives in 2.3** — add
+miss every dirty-rect frame. **Solution lives in 2.3**, add
 `GL_STORAGE_CACHED_APPLE` per-texture hint to force VRAM caching
 even with client_storage on. We kept 2.2 in place rather than
 reverting because 2.3 depends on the client_storage flag being set
@@ -370,11 +370,11 @@ alone is a trap**; always pair with the storage hint on Apple stacks.
 
 ---
 
-### 2.3 — `GL_STORAGE_CACHED_APPLE` per-texture hint on lightmaps
+### 2.3: `GL_STORAGE_CACHED_APPLE` per-texture hint on lightmaps
 
 **Files:** `Quake/r_brush.c`
 
-`GL_APPLE_texture_range` (range-based hint) is **not exposed on R128 / 10.3** per the captured G3 extension list, so the contiguous-pool variant is dropped. The per-texture parameter `GL_TEXTURE_STORAGE_HINT_APPLE = GL_STORAGE_CACHED_APPLE` is part of the same extension family and on G4. On G3 we set it conditionally — falls through harmlessly if the symbol isn't recognized.
+`GL_APPLE_texture_range` (range-based hint) is **not exposed on R128 / 10.3** per the captured G3 extension list, so the contiguous-pool variant is dropped. The per-texture parameter `GL_TEXTURE_STORAGE_HINT_APPLE = GL_STORAGE_CACHED_APPLE` is part of the same extension family and on G4. On G3 we set it conditionally, falls through harmlessly if the symbol isn't recognized.
 
 **Change:** in `GL_BuildLightmaps`, after each `TexMgr_LoadImage` of a lightmap:
 ```c
@@ -384,7 +384,7 @@ if (gl_apple_storage_hint_able)
 
 Detection: probe `GL_APPLE_texture_range` (G4: yes, G3: no) and use it as the gate.
 
-**Expected impact:** modest — driver hint, not a behavior change. ~1-2% G4, ~0-1% G3 (extension absent → no-op there). The cost is one parameter call per lightmap at level load. Worth doing because it's free.
+**Expected impact:** modest, driver hint, not a behavior change. ~1-2% G4, ~0-1% G3 (extension absent → no-op there). The cost is one parameter call per lightmap at level load. Worth doing because it's free.
 
 **Visual safety:** none.
 
@@ -395,22 +395,22 @@ on G4 vs Phase 0: 1024 +12pct, 640 +2pct. The hint reverses 2.2's
 cache-miss regression *and* delivers genuine win because it parks
 our pool in VRAM where 2.1's BGRA fast path can pull from it without
 crossing the bus. **This is the result the plan was actually
-targeting** — 2.1+2.2 alone underperformed; the three together are
+targeting**, 2.1+2.2 alone underperformed; the three together are
 the package. Validates the round's "Apple's docs are load-bearing"
 hypothesis. Phase 3 then mirrors the same pattern for *vertex* data
 (VAR + storage hint) instead of texture data.
 
 ---
 
-## 4. Phase 3 — Static brush geometry to VRAM via APPLE_vertex_array_range (G4 only)
+## 4. Phase 3: Static brush geometry to VRAM via APPLE_vertex_array_range (G4 only)
 
 R128 / 10.3 does **not** expose `APPLE_vertex_array_range` per the
 captured G3 extension list (and there is no `ARB_vertex_buffer_object`
-on G3 either). This phase is therefore G4-only — there is no analogous
+on G3 either). This phase is therefore G4-only, there is no analogous
 path to put static world geometry in driver-cached VRAM on G3, and the
 client-array path Phase 1.1 left in place is the best we can do there.
 
-### 3.1 — Detection scaffolding
+### 3.1: Detection scaffolding
 
 **Files:** `Quake/glquake.h`, `Quake/gl_vidsdl.c`
 
@@ -433,7 +433,7 @@ Smoke fps within noise on both. The function-pointer trio
 
 ---
 
-### 3.2 — Static brush vertex pool in VAR memory
+### 3.2: Static brush vertex pool in VAR memory
 
 **Files:** `Quake/gl_model.c` (`Mod_LoadBrushModel` / `BuildSurfaceDisplayList`), `Quake/r_brush.c`
 
@@ -464,7 +464,7 @@ VRAM.
 
 **Implementation gate:** `gl_apple_var_able` must be set. R128 doesn't
 expose VAR per the captured extension list, so this code path simply
-never engages on G3 — fallback is the existing client-array path that
+never engages on G3, fallback is the existing client-array path that
 Phase 1.1 already shipped.
 
 **Risk:** medium. The Radeon 9000 driver is more exercised than R128's,
@@ -476,14 +476,14 @@ exercised; static brush geom is the largest single per-frame submission
 on the G4 path). G3: none (extension not present).
 
 **Visual safety:** none if it works; if it corrupts, gate behind opt-out.
-**No corruption ever ships unguarded** — see verification.
+**No corruption ever ships unguarded**, see verification.
 
 **Actual outcome (`b24632ed`):** pool builds clean, but G4 640 regressed
 −3.5% (146.85 → 141.75). Root cause: per-surface
 `glVertexPointer`/`glTexCoordPointer`/`glEnable/DisableClientState`
 inside the texturechain loop. Each rebind invalidates the driver's
 pre-fetch state on the registered range, so VAR's "data lives in VRAM"
-benefit was negated by client-state thrash. **Fix lives in 3.3** —
+benefit was negated by client-state thrash. **Fix lives in 3.3**,
 chain-level state hoist + use `glDrawArrays(POLYGON, var_firstvert,
 count)` with a fixed base pointer. The pool itself was correct; the
 consumer pattern was wrong. Lesson for any future VAR/VBO work:
@@ -491,7 +491,7 @@ consumer pattern was wrong. Lesson for any future VAR/VBO work:
 
 ---
 
-### 3.3 — Restore `R_DrawTextureChains_Multitexture` array conversion (G4 + VAR only)
+### 3.3: Restore `R_DrawTextureChains_Multitexture` array conversion (G4 + VAR only)
 
 **Files:** `Quake/r_world.c`
 
@@ -499,7 +499,7 @@ Phase 1.1c (multitexture array conversion) was reverted because it cost
 G4 −3 to −4% on brush-heavy demos. The diagnosis: Apple's Radeon 9000
 driver has a fast `glBegin` path that beats `glDrawArrays` *against
 client memory*. With Phase 3.2 in place, the data isn't in client memory
-— it's in driver-cached VAR memory. Hypothesis: the array path becomes
+, it's in driver-cached VAR memory. Hypothesis: the array path becomes
 faster than `glBegin` once the driver has the verts already.
 
 **Implementation:** restore the 1.1c array-conversion code, gated on
@@ -513,7 +513,7 @@ triangulate.
 **Actual outcome (`fdd1b09a`):** delivered the 3.2 recovery + a small
 real win on G4 640 (141.75 → 151.00, +6.5% vs 3.2; 146.85 → 151.00,
 +2.8% vs 3.1). G4 1024 drifted slightly (121.20 → 119.85, −1.1%) and
-remains below the 2.3 peak of 123.35 — the array conversion costs a
+remains below the 2.3 peak of 123.35, the array conversion costs a
 small amount of driver pipelining at high fillrate without unlocking
 GPU headroom (1024 is fillrate-bound; 640 is vert-submission-bound).
 The phase also became the natural place to introduce a chain-level
@@ -524,22 +524,22 @@ per-surface `DrawGLPolyFromSurface` from 3.2. **Phase 4 should
 recover the 1024 dip via CPU-side AltiVec wins (alias lerp, math)
 that don't compete for GPU bandwidth.**
 
-**Expected impact:** G4 +1-3% (recovery from the 1.1c regression — only
+**Expected impact:** G4 +1-3% (recovery from the 1.1c regression, only
 when VAR is on, otherwise neutral). G3: untouched.
 
 **Visual safety:** none.
 
 ---
 
-## 5. Phase 4 — AltiVec (G4 only)
+## 5. Phase 4: AltiVec (G4 only)
 
 Three independent items. All G4-only until Phase 6 wires runtime
 dispatch. Each shippable as its own commit.
 
-### 4.1 — AltiVec `VectorTransform` for alias model lerp
+### 4.1: AltiVec `VectorTransform` for alias model lerp
 
 **Files:** `Quake/mathlib.c`, `Quake/r_alias.c` (lerp loop in
-`GL_DrawAliasFrame` — already converted to scratch buffer in Phase 1.1e)
+`GL_DrawAliasFrame`, already converted to scratch buffer in Phase 1.1e)
 
 The alias model lerp at `r_alias.c` walks `numverts_vbo` vertices,
 computes `lerp = v1 * blend + v2 * (1-blend)` for xyz, and writes to
@@ -547,10 +547,10 @@ computes `lerp = v1 * blend + v2 * (1-blend)` for xyz, and writes to
 4-wide. With xyz (3 floats per vert) we either pad to 4 and waste a lane,
 or use overlapped 4-vec operations.
 
-**Approach:** simplest is pad-to-4 — make `alias_pos_scratch` `float[4]`
+**Approach:** simplest is pad-to-4, make `alias_pos_scratch` `float[4]`
 per vertex (one extra float per vert wasted). Lerp loop becomes one
 `vec_madd` per vertex. Bandwidth from L1 dominates; the extra float is
-free. Memory cost: 8 KB extra per `MAXALIASVERTS` (= 2000) — fine.
+free. Memory cost: 8 KB extra per `MAXALIASVERTS` (= 2000), fine.
 
 **Expected impact:** G4 +2-5% on alias-heavy demos (demo3 zombies/ogres).
 Demos with mostly brush rendering won't move.
@@ -569,7 +569,7 @@ grid (demo3).
 
 ---
 
-### 4.2 — AltiVec sound mixer
+### 4.2: AltiVec sound mixer
 
 **Files:** `Quake/snd_mix.c:472-527` (`SND_PaintChannelFrom8`,
 `SND_PaintChannelFrom16`)
@@ -613,7 +613,7 @@ post-deploy on G4.
 
 ---
 
-### 4.3 — AltiVec 8→32 palette expand at `TexMgr_LoadImage8`
+### 4.3: AltiVec 8→32 palette expand at `TexMgr_LoadImage8`
 
 **Files:** `Quake/gl_texmgr.c` (`TexMgr_LoadImage8`)
 
@@ -627,10 +627,10 @@ big map (Arcane Dimensions etc).
 
 **Expected impact:** load-time only. Worth doing for the user experience.
 
-**Visual safety:** none — same expanded image, just computed faster.
+**Visual safety:** none, same expanded image, just computed faster.
 
 **Actual outcome (skipped):** the hot loop is `*out++ = usepal[*in++]`
-— a 256-entry int32 palette gather indexed by a per-pixel arbitrary
+, a 256-entry int32 palette gather indexed by a per-pixel arbitrary
 byte. AltiVec's `vec_perm` works on 16-byte source tables; covering
 a 256-entry table requires either a 16-iteration chunk-dispatch loop
 (scalar-equivalent latency, since each lane potentially picks a
@@ -643,11 +643,11 @@ gather.
 
 ---
 
-## 6. Phase 5 — Revisit liquid mipmap (G4 only, optional)
+## 6. Phase 5: Revisit liquid mipmap (G4 only, optional)
 
 `PPC_PLAN_1_3.md` is currently archived. The reason was: the SGIS-based
 mipgen on every `glCopyTexSubImage2D` was a software-fallback path on
-Radeon 9000 — 109 → 37 fps regression. The throttle approach (regen
+Radeon 9000, 109 → 37 fps regression. The throttle approach (regen
 every Nth frame) gives the perf back at the cost of jerky water
 animation.
 
@@ -661,7 +661,7 @@ visible. Concrete plan still lives in `PPC_PLAN_1_3.md`.
 
 ---
 
-## 7. Verification — extension data captured
+## 7. Verification: extension data captured
 
 `benchmarks/gl-info/g3-rage128-panther.txt` and
 `benchmarks/gl-info/g4-radeon9000-tiger.txt` hold the verbatim
@@ -683,9 +683,9 @@ johnfitz that prints the extension list; no patch needed.
 
 | # | Question | Status |
 |---|---|---|
-| V5 | Does the `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` lightmap path produce visually identical output to baseline on both targets? | ✅ confirmed via interactive gameplay on G3 + G4 after 2.3 landed (no per-pixel diff but no visible regression — and 2.3's headline +12.6/+18.4% G4 win would have been impossible if BGRA was scrambling channels). |
-| V6 | Does Radeon 9000 tolerate VAR + multitexture without corruption? | ✅ confirmed 2026-05-07: user spot-checked demo1 timedemo visuals after 3.1, 3.2, 3.3 each landed; user also played e1m1 interactively on G3 + G4 after 4.1 — full alias model animation, weapon switching, brush rendering, sound mixing all working. Strongest possible sign-off. |
-| V7 | Does the AltiVec lerp produce identical alias-model animation to scalar baseline? | ✅ implicitly confirmed by V6 interactive gameplay — the gunsight viewmodel lerps every frame and any AltiVec-vs-scalar discrepancy would be immediately visible as jittery animation. None observed. |
+| V5 | Does the `GL_BGRA` + `GL_UNSIGNED_INT_8_8_8_8_REV` lightmap path produce visually identical output to baseline on both targets? | ✅ confirmed via interactive gameplay on G3 + G4 after 2.3 landed (no per-pixel diff but no visible regression, and 2.3's headline +12.6/+18.4% G4 win would have been impossible if BGRA was scrambling channels). |
+| V6 | Does Radeon 9000 tolerate VAR + multitexture without corruption? | ✅ confirmed 2026-05-07: user spot-checked demo1 timedemo visuals after 3.1, 3.2, 3.3 each landed; user also played e1m1 interactively on G3 + G4 after 4.1, full alias model animation, weapon switching, brush rendering, sound mixing all working. Strongest possible sign-off. |
+| V7 | Does the AltiVec lerp produce identical alias-model animation to scalar baseline? | ✅ implicitly confirmed by V6 interactive gameplay, the gunsight viewmodel lerps every frame and any AltiVec-vs-scalar discrepancy would be immediately visible as jittery animation. None observed. |
 
 ---
 
@@ -694,14 +694,14 @@ johnfitz that prints the extension list; no patch needed.
 These are excluded by the "no visual sacrifice" constraint or have
 already been investigated.
 
-- **`gl_picmip 1`** — halves all texture resolutions. Visual loss. Skip.
-- **S3TC compression** (`EXT_texture_compression_s3tc`, available on G4) — block-compression artifacts on character textures. Visual loss. Skip even though it would free VRAM and probably help fillrate.
-- **More aggressive `r_dynamic` policies** (auto-disable in fights etc) — visual loss (no rocket lights = wrong-looking Quake). Skip.
-- **Disable particles on G3 ever** — already mitigated to `r_particles 2` (square) per Phase 0; further disabling would be visual loss.
-- **Skybox AltiVec / batching** — Phase 1.1h cuts noted skybox is rasterizer-bound, only 6 quads/frame. No win available.
-- **`r_oldwater 1` everywhere** — already auto-mode (Phase 0). Tuned per-target.
-- **HUD rebatching** — Phase 1.1 cuts noted HUD is ~50 calls/frame, ~10µs total, under measurement noise. Skip.
-- **Re-attempting CVA Lock on R128** — confirmed to cause in-game color banding (`gl_vidsdl.c:1042-1045`). Stays gated off there.
+- **`gl_picmip 1`**, halves all texture resolutions. Visual loss. Skip.
+- **S3TC compression** (`EXT_texture_compression_s3tc`, available on G4), block-compression artifacts on character textures. Visual loss. Skip even though it would free VRAM and probably help fillrate.
+- **More aggressive `r_dynamic` policies** (auto-disable in fights etc), visual loss (no rocket lights = wrong-looking Quake). Skip.
+- **Disable particles on G3 ever**, already mitigated to `r_particles 2` (square) per Phase 0; further disabling would be visual loss.
+- **Skybox AltiVec / batching**, Phase 1.1h cuts noted skybox is rasterizer-bound, only 6 quads/frame. No win available.
+- **`r_oldwater 1` everywhere**, already auto-mode (Phase 0). Tuned per-target.
+- **HUD rebatching**, Phase 1.1 cuts noted HUD is ~50 calls/frame, ~10µs total, under measurement noise. Skip.
+- **Re-attempting CVA Lock on R128**, confirmed to cause in-game color banding (`gl_vidsdl.c:1042-1045`). Stays gated off there.
 
 ---
 
@@ -729,11 +729,11 @@ existing `PPC_PLAN.md` § "Build Strategy" for that decision tree.
 
 Per phase, **two commits**: the code change, then a `bench:` follow-up
 that captures the data tagged with the code commit's hash. See CLAUDE.md
-"Bench-and-commit cadence" — that's the authoritative guidance; this
+"Bench-and-commit cadence", that's the authoritative guidance; this
 section is the per-phase shape.
 
 1. Build with **only that phase's diff** on top of the prior commit.
-2. Smoke: `scripts/parallel-bench.sh --quick` (G3 + G4, demo1 only, 3 runs) — 3-4 min.
+2. Smoke: `scripts/parallel-bench.sh --quick` (G3 + G4, demo1 only, 3 runs), 3-4 min.
 3. If smoke is sane (no crash, no unexplained >5% regression): commit the code change with smoke numbers in the message.
 4. Full grid + auto-commit: `scripts/bench-and-commit.sh "<phase name>"`.
    This refuses dirty trees, pins HEAD, runs the full matrix
@@ -741,13 +741,13 @@ section is the per-phase shape.
    HEAD, and lands a `bench:` commit with median fps in the message.
 5. Median of runs 2 and 3. Threshold for "real win": ≥1 fps on G4, any positive on G3.
 6. Visual diff: screenshot frame 1500 of demo1 on G4 (Radeon driver is more deterministic than R128). Pixel-diff to baseline. Zero diff required for 2.1, 2.2, 2.3, 3.x. Documented diff allowed only for Phase 5 (visual upgrade).
-7. **Negative results still get committed** — they're how we decide whether to reorder upcoming phases. Append `[REGRESSED]` to the bench commit subject so the trajectory is searchable.
+7. **Negative results still get committed**, they're how we decide whether to reorder upcoming phases. Append `[REGRESSED]` to the bench commit subject so the trajectory is searchable.
 
 A/B knobs ship in every PR: `-novar`, `-noclient-storage`, `-noaltivec`
 etc. mirroring the existing `-nocva`, `-novbo`, `-nomtex` precedent.
 Production never has to enable them; they exist for bench triangulation.
 
-`benchmarks/results.csv` is a rolling history — it grows across every
+`benchmarks/results.csv` is a rolling history, it grows across every
 phase. `parallel-bench.sh` defaults to append. The `--reset` flag wipes
 (with auto-backup) and is reserved for starting a brand-new optimization
 round.
@@ -791,12 +791,12 @@ file build/quakespasm-g3   # must report ppc_750 (or generic ppc)
 file build/quakespasm-g4   # must report ppc_7400
 ```
 
-`scripts/parallel-bench.sh` is unaffected — it parallelizes the bench
+`scripts/parallel-bench.sh` is unaffected, it parallelizes the bench
 *runs* across G3 and G4, not the build.
 
 ---
 
-## 13. Round v3 — Continuation plan (drafted 2026-05-08, not started)
+## 13. Round v3: Continuation plan (drafted 2026-05-08, not started)
 
 > Status: drafted, not started. v2 + epilogue is the current shipping
 > tip (`99cb89c4`). This section can be picked up cold by reading top-
@@ -806,16 +806,16 @@ file build/quakespasm-g4   # must report ppc_7400
 "obvious cvar + Apple fast path + AltiVec compute" levers. Three areas
 remain measurably leverable:
 
-1. **G4 demo3 fps** — the dynamic-light cells still have a scalar
+1. **G4 demo3 fps**, the dynamic-light cells still have a scalar
    software lightmap composer running every frame. AltiVec'ing that
    loop is the biggest single piece of perf still on the table for
    either machine.
-2. **Map load time** — until now we've optimised purely for steady-
+2. **Map load time**, until now we've optimised purely for steady-
    state fps. The `TexMgr_MipMap*` and palette-expand paths fire only
    at level load and are wholly scalar. G4 has obvious AltiVec
    targets; G3 has none (no AltiVec) but inherits from #1 because
    `R_BuildLightMap` runs at load too.
-3. **Visual upgrades on G4 we can now afford** — demo2 sits at
+3. **Visual upgrades on G4 we can now afford**, demo2 sits at
    179.6 fps and demo1 at 122.3. Spending 1-3% on `r_shadows`, full
    trilinear filtering, etc. is now defensible.
 
@@ -831,21 +831,21 @@ config edits don't get phase numbers.
 
 | #   | Phase / change                                     | Targets | Type            | Effort | Risk    | Expected impact                          | Visual |
 |-----|----------------------------------------------------|---------|-----------------|--------|---------|------------------------------------------|--------|
-| 4.4 | AltiVec `R_BuildLightMap` + `R_AddDynamicLights`   | G4 only | fps + load-time | medium | low     | demo3 +3-8% steady-state, faster atlas builds at level load — **TRIED 2026-05-08, regressed −0.5..−2.3%; opt-in only, see §13.2 status** | none |
+| 4.4 | AltiVec `R_BuildLightMap` + `R_AddDynamicLights`   | G4 only | fps + load-time | medium | low     | demo3 +3-8% steady-state, faster atlas builds at level load, **TRIED 2026-05-08, regressed −0.5..−2.3%; opt-in only, see §13.2 status** | none |
 | 4.5 | AltiVec `TexMgr_MipMapW` / `TexMgr_MipMapH`        | G4 only | load-time only  | small  | very low| 30-50% off mipchain build phase per map  | none   |
 | 4.6 | Fuse alias `s*lightcolor` mul into 4.1 lerp        | G4 only | fps             | trivial| trivial | demo3 1024 +0.5-1% (the +0.9% cell)      | none   |
-| —   | G3 `gl_subdivide_size 256` autoexec edit           | G3 only | fps             | trivial| trivial | speculative +1-3% G3                     | none   |
-| —   | G4 `r_shadows 1` autoexec edit                     | G4 only | visual upgrade  | trivial| low     | actual cost -11pct ALL cells (vs predicted -1..-2%); kept anyway after goal pivot — final 81-106 fps still ≥ 60 fps playability threshold | **+**  |
-| —   | G4 `gl_texturemode GL_LINEAR_MIPMAP_LINEAR`        | G4 only | visual upgrade  | trivial| low     | bundled with r_shadows above; bisect showed standalone cost ≤0.5%, kept on for trilinear mip seams | **+**  |
-| 13.7| **G3 `gl_picmip 1`** — quality-trade decision      | G3 only | fps             | trivial| **visual cost** | speculative on the 1024 fillrate cell; needs user accept on softer textures | **−** (gated) |
+|,   | G3 `gl_subdivide_size 256` autoexec edit           | G3 only | fps             | trivial| trivial | speculative +1-3% G3                     | none   |
+|,   | G4 `r_shadows 1` autoexec edit                     | G4 only | visual upgrade  | trivial| low     | actual cost -11pct ALL cells (vs predicted -1..-2%); kept anyway after goal pivot, final 81-106 fps still ≥ 60 fps playability threshold | **+**  |
+|,   | G4 `gl_texturemode GL_LINEAR_MIPMAP_LINEAR`        | G4 only | visual upgrade  | trivial| low     | bundled with r_shadows above; bisect showed standalone cost ≤0.5%, kept on for trilinear mip seams | **+**  |
+| 13.7| **G3 `gl_picmip 1`**, quality-trade decision      | G3 only | fps             | trivial| **visual cost** | speculative on the 1024 fillrate cell; needs user accept on softer textures | **−** (gated) |
 | 7   | `gl_perfprint` diagnostic cvar                     | both    | infra           | small  | none    | 0 fps direct; enables every future round | none   |
 | 8   | QuakeC VM threading (computed-goto dispatch)       | both    | gameplay CPU    | medium | medium  | 10-15% gameplay-side CPU on QC-heavy maps; **timedemo doesn't measure it** | none |
 
-### 13.2 Phase 4.4 — AltiVec `R_BuildLightMap` + `R_AddDynamicLights` (G4)
+### 13.2 Phase 4.4: AltiVec `R_BuildLightMap` + `R_AddDynamicLights` (G4)
 
 > **Status (2026-05-08):** compose-loop AltiVec was implemented and
 > smoke-tested (HEAD = parent of commit landing 4.4). Result:
-> regressed every cell on G4 — demo3 1024 −1.6%, demo3 640 −2.3%,
+> regressed every cell on G4, demo3 1024 −1.6%, demo3 640 −2.3%,
 > demo1 1024 −0.9%, demo1 640 −0.5%. Net **worse** than scalar
 > against the +3-8% prediction below. Hypothesis: per-iteration
 > AltiVec overhead (`vec_lvsl` + double-`vec_ld` + `vec_perm` for
@@ -854,24 +854,24 @@ config edits don't get phase numbers.
 > (smax×tmax ≈ 16-256 pixels → N=48-768 bytes → 3-48 vector
 > iterations). Code is preserved in `r_brush.c` opt-in via
 > `-altivec-lm`; default is disabled. R_AddDynamicLights AltiVec
-> deferred — its 3-AoS / 4-SoA structural mismatch makes it a
+> deferred, its 3-AoS / 4-SoA structural mismatch makes it a
 > poor target on its own. **Future angles to try (round v4 or
 > later):** (a) raise `size >= 6` threshold to e.g. 64+ to skip
 > small surfaces; (b) drop unaligned-byte idiom, copy lightmap
 > into a 16-aligned scratch buffer per call; (c) bundle compose
 > with a vectorised AddDynamicLights so the dlight cells get the
 > compounded win. None of these are obviously net positive without
-> a working profiler — gate behind Phase 7 first.
+> a working profiler, gate behind Phase 7 first.
 >
 > **Retuning measurement (2026-05-08, HEAD a1cd13c2, round v3 Task #9):**
 > Retested both `-altivec-lm` and `-altivec-dlights` together at demo3
 > 1024×768 (dlight-heavy + dirty-lightmap-heaviest cell). Result: g4
 > baseline **81.90 fps → altivec-on 81.60 fps (-0.4%, within
 > run-to-run noise)**; g4mini baseline **67.00 → altivec-on 67.00**
-> (Mac mini's Radeon 9200 32MB is fillrate-bound at 1024 — CPU-side
+> (Mac mini's Radeon 9200 32MB is fillrate-bound at 1024, CPU-side
 > wins can't surface here). Both blocks correctly preserved as opt-in;
 > default-disabled is the shipping shape. Paths (a)/(b)/(c) above
-> deferred — without a working profiler the next incremental cost
+> deferred, without a working profiler the next incremental cost
 > (memcpy-to-aligned-scratch or sweep threshold to 32/64) has no
 > obviously net-positive evidence to point at, and Pass A's +1-3%
 > prediction for `R_AddDynamicLights` did not materialise on either
@@ -887,14 +887,14 @@ every dirty lightmap still passes through `R_BuildLightMap` first to
 every frame for every dirty surface. Demo3 is dlight-heavy, so the
 scalar production cost dominates demo3 specifically.
 
-It also runs at level load — `GL_BuildLightmaps` calls it once per
+It also runs at level load, `GL_BuildLightmaps` calls it once per
 world surface during `Mod_LoadBrushModel` to compute the initial
 atlas. So one AltiVec implementation pays out twice: per-frame on
 demo3, and once-per-map on every load.
 
 **Hot loops:**
 
-`Quake/r_brush.c:1069-1075` — composition (called per lightmap style
+`Quake/r_brush.c:1069-1075`, composition (called per lightmap style
 per surface, MAXLIGHTMAPS=4):
 ```c
 for (i = 0; i < size; i++) {
@@ -909,7 +909,7 @@ multiply-add into 32-bit lanes. Standard shape; we already wrote
 the same idiom for `SND_PaintChannelFrom16` in Phase 4.2
 (`Quake/snd_mix.c`).
 
-`Quake/r_brush.c:1090-1190` — bound + invert + shift + pack (called
+`Quake/r_brush.c:1090-1190`, bound + invert + shift + pack (called
 per pixel per lightmap):
 ```c
 r = *bl++ >> 8;  g = *bl++ >> 8;  b = *bl++ >> 8;
@@ -920,16 +920,16 @@ Pattern: 32-bit shift + saturate-to-255 + pack-to-byte. AltiVec
 final BGRA byte assembly is `vec_perm` against a constant
 permutation vector.
 
-`Quake/gl_rlight.c` (`R_AddDynamicLights`) — same family. Per-dlight,
+`Quake/gl_rlight.c` (`R_AddDynamicLights`), same family. Per-dlight,
 walks `blocklights` adding `(rad - dist)` to affected texels with
 attenuation. Float-to-int conversion and clamp; folds into the same
 phase commit.
 
-**Critical caveat — `r_lightmapwide` branch:** the BuildLightMap
+**Critical caveat, `r_lightmapwide` branch:** the BuildLightMap
 output has two formats, gated on `r_lightmapwide`:
 - Default (8888_REV): clamp to 255, pack 4 bytes → `vec_packsu` works.
 - Wide (10_10_10_2): clamp to 1023, pack as `(r<<22)|(g<<12)|(b<<2)|3`
-  — there's no `vec_packsu`-equivalent for 10-bit. **Phase 4.4 should
+ , there's no `vec_packsu`-equivalent for 10-bit. **Phase 4.4 should
   AltiVec only the 8888_REV path** and fall through to scalar for
   wide10bits. Both targets currently auto-set `r_lightmapwide`
   according to `gl_packed_pixels` extension presence (see
@@ -950,7 +950,7 @@ output has two formats, gated on `r_lightmapwide`:
    accumulator) and diff offline.
 3. Once memcmp-clean across 100+ surfaces, drop the assert and ship.
 
-This is stronger validation than 4.1 / 4.2 got — both passed visual
+This is stronger validation than 4.1 / 4.2 got, both passed visual
 sign-off (V6, V7) but never had per-pixel offline checks. Worth the
 discipline here because lightmap output drives the entire visible
 scene's shading; a one-bit error tints the whole world.
@@ -960,13 +960,13 @@ scene's shading; a one-bit error tints the whole world.
   partially recovers.
 - G4 demo3 640×480: 107.25 → ~111-117 fps (+4-9%). The −10.6%
   residual from epilogue partially recovers.
-- G4 demo1/demo2: ±0% (low dlight churn — same reason BGRA didn't
+- G4 demo1/demo2: ±0% (low dlight churn, same reason BGRA didn't
   show on demo1).
 - Map load time: noticeable on Arcane Dimensions / large custom maps;
   measurable with the in-engine `Host_Frametime` infra during
   `Mod_LoadBrushModel`.
 
-### 13.3 Phase 4.5 — AltiVec mipmap chain build (G4)
+### 13.3 Phase 4.5: AltiVec mipmap chain build (G4)
 
 **Files:** `Quake/gl_texmgr.c:776-821` (`TexMgr_MipMapW`,
 `TexMgr_MipMapH`).
@@ -982,7 +982,7 @@ out[3] = (in[3] + in[7])>>1;
 AltiVec has `vec_avg` which computes `(a+b+1)>>1` saturation-friendly
 on int8 vectors, **one instruction** for what's currently 4 scalar
 add+shifts per pixel-pair. There's also `vec_avg` modes for u8/s8/
-u16/s16 — the u8 variant matches the byte-pair averaging exactly,
+u16/s16, the u8 variant matches the byte-pair averaging exactly,
 modulo the `+1` rounding which the scalar code omits. Decision: ship
 the `vec_avg` rounding. The 0.5-LSB difference is invisible (this is
 mipmap construction, not lightmap composition) and the rounded
@@ -992,7 +992,7 @@ Called from `TexMgr_LoadImage32` for every mip level of every 32-bit
 texture. Typical map: 200 textures × ~5 mip levels = 1000
 invocations. Pure load-time win.
 
-**Won't move timedemo fps** — mipchain build runs once during atlas
+**Won't move timedemo fps**, mipchain build runs once during atlas
 upload, never during play. Visible payoff is the load-bar moving
 faster.
 
@@ -1000,14 +1000,14 @@ faster.
 
 **Validation:** offline `memcmp` against scalar output on a test
 texture corpus. Once-rounding the difference between vec_avg and
-scalar is measurable as a uniform off-by-1 on some pixels — fine, but
+scalar is measurable as a uniform off-by-1 on some pixels, fine, but
 flag it explicitly so reviewers don't think the AltiVec path is buggy.
 
 **Predicted impact:** 30-50% off the mipchain-build phase of
 `Mod_LoadBrushModel`. Big maps (start.bsp + custom 1k+ texture maps)
 gain noticeable wall-clock at load. Negligible for vanilla id1 maps.
 
-### 13.4 Phase 4.6 — Fuse alias color into the 4.1 AltiVec lerp (G4)
+### 13.4 Phase 4.6: Fuse alias color into the 4.1 AltiVec lerp (G4)
 
 **Files:** `Quake/r_alias.c:452-455`.
 
@@ -1022,7 +1022,7 @@ alias_color_scratch[i*4+3] = entalpha;
 `s` is computed scalar (a `shadedots[]` lookup blended with the same
 blend factor as the position lerp). After computing `s`, splat to a
 vector and do one `vec_madd` against `(vector float){lightcolor[0],
-lightcolor[1], lightcolor[2], entalpha/s}` — or rather, store
+lightcolor[1], lightcolor[2], entalpha/s}`, or rather, store
 `(vector float){s*lightcolor[0], s*lightcolor[1], s*lightcolor[2],
 entalpha}` directly via two muls. Either way, one or two AltiVec ops
 replace 4 scalar mul+stores.
@@ -1042,7 +1042,7 @@ fewer triangles for sky/water polys.
 R128 is per-vertex-cost-sensitive (1999 silicon), so reducing vertex
 count on warp surfaces should help. Visual: classic-warp tessellation
 density drops, but the warp distortion is per-vertex-screen-space on
-R128 — coarser mesh shouldn't change the apparent water motion.
+R128, coarser mesh shouldn't change the apparent water motion.
 
 5-minute test. Bench, then either commit or revert.
 
@@ -1074,28 +1074,28 @@ ROI for the test cost.
 > explanation.
 >
 > A future round-v4 candidate, gated on Phase 7 (`gl_perfprint`)
-> data: distance-gate the shadow pass — only shadow the closest N
-> entities — to recover some of the cost while keeping the visual.
+> data: distance-gate the shadow pass, only shadow the closest N
+> entities, to recover some of the cost while keeping the visual.
 
 Two autoexec edits in `scripts/bundle/autoexec-g4.cfg` were
 attempted:
 
-1. **`r_shadows 1`** — alias model planar drop-shadow. Currently
+1. **`r_shadows 1`**, alias model planar drop-shadow. Currently
    default 0. Plan said ~1-2% on demo3, 0% elsewhere; **actual
    result was -11% across ALL four cells.**
 
-2. **`gl_texturemode "GL_LINEAR_MIPMAP_LINEAR"`** — trilinear
+2. **`gl_texturemode "GL_LINEAR_MIPMAP_LINEAR"`**, trilinear
    filtering. Currently `GL_LINEAR_MIPMAP_NEAREST` (bilinear at
    chosen mip, no inter-mip blend). Plan said ~1-3% fillrate cost;
    actual cost on top of r_shadows was ≤0.5% (the bisect showed
    shadows-alone matched shadows-and-trilinear), so trilinear by
-   itself probably is in-band — but we never ship it standalone
+   itself probably is in-band, but we never ship it standalone
    because the visual pairing was the original ask.
 
 Both shipped as autoexec-only changes, no rebuild. Result: both
 out, neither shipping in round v3.
 
-### 13.7 G3 `gl_picmip 1` — **explicit user-decision required**
+### 13.7 G3 `gl_picmip 1`: **explicit user-decision required**
 
 > This violates §8 "no visual sacrifice." Listed separately because
 > the cost-benefit on G3 specifically is plausibly net-good for a
@@ -1116,7 +1116,7 @@ takes those down).
 
 **Suggested protocol:**
 1. Smoke-bench G3 with `gl_picmip 1` set in autoexec-g3.cfg.
-2. If 1024 cell doesn't move (still ~24.7), revert immediately —
+2. If 1024 cell doesn't move (still ~24.7), revert immediately,
    no point taking visual cost for nothing.
 3. If 1024 cell moves to 30+, deploy a build to G3, walk e1m1
    interactively, screenshot a few first-person texture-detail
@@ -1126,10 +1126,10 @@ takes those down).
 This is the only G3 lever left that has a plausible chance of moving
 the 1024 cell. Everything else has been tried.
 
-### 13.8 Phase 7 — `gl_perfprint` diagnostic cvar
+### 13.8 Phase 7: `gl_perfprint` diagnostic cvar
 
 **Why this is its own phase:** v2 + epilogue surfaced multiple
-"can't reason about this without a profiler" moments — Phase 5
+"can't reason about this without a profiler" moments, Phase 5
 mipmap blew up 35% and we couldn't tell where the time went; the
 demo3 G4 −10.6% diagnosis was wrong on first attempt and only
 cleared up after multiple A/B tests. A profiler isn't available
@@ -1140,7 +1140,7 @@ zero, instrument the per-frame render path with `mach_absolute_time()`
 markers and accumulate a rolling 60-frame average per region.
 Print to console every N frames (gated by cvar value). Regions:
 - `R_RecursiveWorldNode` (PVS walk + culling)
-- `R_DrawTextureChains_*` (brush draws — separate single-tex / multitex)
+- `R_DrawTextureChains_*` (brush draws, separate single-tex / multitex)
 - `R_BuildLightMap` total per frame (compose + pack)
 - `R_UploadLightmaps` (driver-side upload time)
 - `R_DrawAliasModels` (alias loop)
@@ -1169,15 +1169,15 @@ predictor handles cleanly.
 binary. Instrumented binary is a separate build target if
 overhead measurable.
 
-**Visual sign-offs:** none — diagnostic only.
+**Visual sign-offs:** none, diagnostic only.
 
 **Predicted impact:** zero direct fps. Foundation for everything
 that comes after.
 
-### 13.9 Phase 8 — QuakeC VM threading (research, gated on Phase 7)
+### 13.9 Phase 8: QuakeC VM threading (research, gated on Phase 7)
 
 **Why this matters and isn't measurable today:** timedemo replays
-recorded packets — server logic doesn't execute. Real interactive
+recorded packets, server logic doesn't execute. Real interactive
 play runs `SV_Physics` on every entity and the QuakeC VM
 (`pr_exec.c`) interprets the per-frame `think` function for every
 monster, trigger, and projectile. On a boss fight with 20+ active
@@ -1186,7 +1186,7 @@ will never show this.** Phase 7's `gl_perfprint` should add a
 `SV_Physics` region to expose it.
 
 **Lever:** `pr_exec.c`'s opcode dispatch is a tight `switch`
-statement. PowerPC has computed-goto via gcc's `&&label` extension —
+statement. PowerPC has computed-goto via gcc's `&&label` extension,
 threading the dispatcher (each opcode handler ends with `goto
 *next_op_handler`) eliminates the switch's branch prediction churn
 on the dispatch jump. Well-trodden technique on QC VMs (FTE,
@@ -1210,7 +1210,7 @@ Phase 7. Don't ship optimisations you can't verify.
 | #   | Question | How to verify |
 |-----|----------|----------------|
 | V8  | Does the AltiVec `R_BuildLightMap` produce pixel-identical output to scalar? | Offline `memcmp` against scalar on 100+ surface samples. Required clean before ship. |
-| V9  | Does the AltiVec `TexMgr_MipMap*` produce visually identical mipchains? | Offline `memcmp` (allowing uniform off-by-1 from `vec_avg` rounding). Visual: load a map and walk to extreme distance — no mip-banding regressions. |
+| V9  | Does the AltiVec `TexMgr_MipMap*` produce visually identical mipchains? | Offline `memcmp` (allowing uniform off-by-1 from `vec_avg` rounding). Visual: load a map and walk to extreme distance, no mip-banding regressions. |
 | V10 | Does `r_shadows 1` look correct on G4? (no z-fighting on the floor, no double-shadow under viewmodel) | Interactive playthrough on G4, e1m1 → start.bsp; screenshot under direct overhead light. |
 | V11 | Does trilinear filtering on G4 introduce mip-edge artifacts? | Walk a long corridor, check for shimmer at the mip seam (~mid-distance). |
 | V12 | Does `gl_subdivide_size 256` on G3 visually break sky/water? | Interactive G3 play, look at sky on e1m1 entry yard, check water in e1m3. |
@@ -1218,24 +1218,24 @@ Phase 7. Don't ship optimisations you can't verify.
 
 ### 13.11 Explicit cuts (carried forward, no relitigation)
 
-- **Phase 4.3 palette expand** (8→32 byte gather) — already documented
+- **Phase 4.3 palette expand** (8→32 byte gather), already documented
   as skipped. `vec_perm` doesn't span 256-entry tables; multi-chunk
   dispatch costs as much as scalar. The real lever for faster map
   loads here is **async/threaded image expansion** via SDL_Thread,
   which is a structural rewrite, not a phase. Consider for round v4
   if loads are still painful after 4.5.
-- **AltiVec `ResampleSfx`** — once per sound, then cache-hit. Map
+- **AltiVec `ResampleSfx`**, once per sound, then cache-hit. Map
   loads ~50-100 sounds, microseconds in absolute. Not worth the
   code.
-- **AltiVec `BoxOnPlaneSide`** — already cheap (one branch + one
+- **AltiVec `BoxOnPlaneSide`**, already cheap (one branch + one
   dot product). Not the bottleneck.
-- **Phase 5 mipmap revisit** without Phase 7 first — burned twice in
+- **Phase 5 mipmap revisit** without Phase 7 first, burned twice in
   v2, blind without the profiler. Gate on Phase 7.
 - **G3 dynamic-light tuning** (e.g. `r_dynamic 0`, dlight throttling)
-  — visual loss. §8 won't-do covers this.
-- **`r_oldwater 0` on G3** — counter-tested in epilogue; was the
+ , visual loss. §8 won't-do covers this.
+- **`r_oldwater 0` on G3**, counter-tested in epilogue; was the
   +105% gift in reverse. Never go back.
-- **Phase 6 fat binary** — packaging convenience, zero perf. Defer
+- **Phase 6 fat binary**, packaging convenience, zero perf. Defer
   indefinitely; per-target binaries continue to work fine.
 
 ### 13.12 Suggested commit / bench sequence
@@ -1247,7 +1247,7 @@ Phase 7. Don't ship optimisations you can't verify.
 | 3    | Phase 4.5 (mipmap chain build)          | code commit + smoke + bench-and-commit (load-time only; smoke just confirms it doesn't break play) |
 | 4    | G3 `gl_subdivide_size 256`              | autoexec edit + smoke; commit if helpful, revert if not |
 | 5    | G4 `r_shadows 1` + trilinear            | autoexec edit + smoke; visual sign-off V10/V11 |
-| 6    | (Optional) G3 `gl_picmip 1` decision    | per §13.7 protocol — user gate          |
+| 6    | (Optional) G3 `gl_picmip 1` decision    | per §13.7 protocol, user gate          |
 | 7    | Phase 7 `gl_perfprint`                  | code commit; no bench (diagnostic)       |
 | 8    | End-of-round full grid                  | `scripts/bench-and-commit.sh "v3 wrap"` (no `--quick`) |
 
@@ -1266,7 +1266,7 @@ for 7).
 
 > Status: drafted. Triggered after §13's perf phases landed and the
 > goal-pivot commit (best-looking Quake at playable fps) updated the
-> shipping config. Lives at the end of round v3 — the order is
+> shipping config. Lives at the end of round v3, the order is
 > **(a) final review → (b) implement findings → (c) fat-binary
 > tooling**, matching the user's directive on 2026-05-08.
 
@@ -1278,17 +1278,17 @@ Three explicit user asks driving §14:
    beauty."** Round v3 closed §13's headlined items but the codebase
    is large; there are more leverable hot paths and visual options we
    haven't touched yet.
-2. **"Don't just silence warnings — use compiler/static-analysis
+2. **"Don't just silence warnings, use compiler/static-analysis
    tooling to find dead or inefficient code."** Treat warnings + lints
    as a discovery surface, not just a hygiene chore.
 3. **"Dead code that could improve graphics or fps with some more
-   work — keep and revive."** Distinguish between unconditionally-dead
+   work, keep and revive."** Distinguish between unconditionally-dead
    code (kill) and conditionally-dead code that's reachable under a
-   different cvar / SDK / extension (revive — sometimes the right fix
+   different cvar / SDK / extension (revive, sometimes the right fix
    is to flip the gate on, not to remove the gated branch).
 
 The fat-binary tooling work (saved to
-`docs/research/fat-binary-feasibility.md` — verified clean lipo merge,
+`docs/research/fat-binary-feasibility.md`, verified clean lipo merge,
 SDL slice swap viable) is **explicitly deferred until §14.1-§14.3
 ship.** Bisectability of per-target binaries is more valuable during
 the optimisation tail than packaging convenience.
@@ -1298,7 +1298,7 @@ the optimisation tail than packaging convenience.
 Drafted as agent-driven sweeps so the main session doesn't drown in
 file enumeration. Three passes, run in parallel where independent:
 
-**Pass A — code-review sweep for unexploited fps + visual wins.**
+**Pass A, code-review sweep for unexploited fps + visual wins.**
 Touch every renderer/engine path NOT in §0's "what's done" list and
 ask: is there a cheaper algorithm, an Apple GL fast path we haven't
 flipped on, an AltiVec lever we haven't tried, a cvar default that
@@ -1306,14 +1306,14 @@ favours ugly-and-fast we should revisit under the new playable-fps-
 floor framing? Output: ranked list of candidate Phase-N items, each
 with predicted impact (fps and/or visual) and an estimate of effort.
 
-**Pass B — static analysis triage.** Run cppcheck, clang's
+**Pass B, static analysis triage.** Run cppcheck, clang's
 `scan-build` (Lion's Xcode 4.6 has it), and `gcc-4.0 -Wstrict-aliasing
 -Wcast-align -Wconversion` strict-mode passes against the codebase.
 Group findings into:
 
-- **Kill** — truly unreachable code that no cvar/SDK/extension flag
+- **Kill**, truly unreachable code that no cvar/SDK/extension flag
   can ever turn back on. Dead-strip.
-- **Revive** — code currently dead because of an `#if 0`,
+- **Revive**, code currently dead because of an `#if 0`,
   `#ifdef DISABLED_FEATURE`, or unset cvar default, but that the
   **goal pivot** says we should now consider enabling. Examples we
   expect to find:
@@ -1323,27 +1323,27 @@ Group findings into:
     (e.g. extra `APPLE_*` paths beyond the four §0 phases already
     landed).
   - `#if 0` blocks containing AltiVec or scalar SIMD prototypes.
-- **Latent bug** — works today but undefined behaviour (cast-align,
+- **Latent bug**, works today but undefined behaviour (cast-align,
   signed/unsigned mix, strict-aliasing). Fix in place.
-- **Style/noise** — `-Wmissing-field-initializers` etc. Sweep
+- **Style/noise**, `-Wmissing-field-initializers` etc. Sweep
   separately, low priority.
 
 The build-warnings agent's findings (see
-`docs/research/build-warning-survey.md`) are the seed for Pass B —
+`docs/research/build-warning-survey.md`) are the seed for Pass B,
 several items there map directly to the kill/revive/latent-bug
 buckets. Notably:
 
 - `r_brush.c:1240,1285,1302` BSP cast-align hits map to the lightmap
-  rebuild path — a Phase-2.x AltiVec target that's currently scalar.
+  rebuild path, a Phase-2.x AltiVec target that's currently scalar.
   Should be in Pass A's revive bucket as a future AltiVec hot-loop
   candidate.
 - The `-O3 → -O2` Lion downgrade (warning agent §7 item 4) sits in
   latent-bug; fixing it might surface a measurable Lion fps win.
 
-**Pass C — exercise Phase 7 `gl_perfprint` for live profile data.**
+**Pass C, exercise Phase 7 `gl_perfprint` for live profile data.**
 Run G4 demo3 1024x768 with `-perfprint` enabled, capture
 `qconsole.log`, parse the per-region timing to confirm where the
-remaining frame budget lives. Crosses §14's outputs with reality —
+remaining frame budget lives. Crosses §14's outputs with reality,
 e.g. if Pass A flags a candidate phase predicting "will help
 R_DrawWorld" but Pass C shows R_DrawWorld is < 5% of the frame, that
 phase ranks below something hitting a 30%-of-frame region.
@@ -1353,7 +1353,7 @@ phase ranks below something hitting a 30%-of-frame region.
 Once Passes A+B+C produce a ranked list, prioritise like §13's
 trajectory did: ROI ÷ risk × (fps gain OR visual upgrade), with the
 new acceptance criteria from §13.6 reframe (fps drops are OK if the
-cell stays above the per-platform floor — G4/Lion ≥ 60 fps,
+cell stays above the per-platform floor, G4/Lion ≥ 60 fps,
 G3 ≥ 20 fps).
 
 Each implemented item ships as its own commit with:
@@ -1371,7 +1371,7 @@ already-noted candidate.
 ### 14.4 Round-wrap full-grid bench
 
 After §14.3 implementation lands, run the full grid once via
-`scripts/bench-and-commit.sh "v3 round wrap"` (no `--quick`) — three
+`scripts/bench-and-commit.sh "v3 round wrap"` (no `--quick`), three
 demos × two res × three runs × three machines = 54 cells. Captures
 the cumulative trajectory.
 
@@ -1393,29 +1393,29 @@ recommendation:
    `MacOSX/SDL.framework/Versions/A/SDL`. See CLAUDE.md "How the fat
    SDL was built" for regeneration steps.
 3. ✅ **Done (Round v4, 2026-05-08).** `deploy.sh` is now fully
-   target-agnostic — the `SDL_BIN_OVERRIDE` codepath was removed
+   target-agnostic, the `SDL_BIN_OVERRIDE` codepath was removed
    because the bundled framework already carries the Panther slice.
 4. ✅ **Done (Round v4, 2026-05-08).** Smoke verification: deployed
    the new fat bundle to G4, G3, and Lion, ran `bench.sh <host> demo1
    1024x768 1` on each. All three returned sensible fps (G4 108.5 vs
-   v3 110.1; Lion 95.2 vs v3 96.7; G3 24.2 vs v3 24.0 — all within
+   v3 110.1; Lion 95.2 vs v3 96.7; G3 24.2 vs v3 24.0, all within
    ~1.5% noise band) with no `SDL_VideoInit` crash on any host. The
    open question "does `SDL-panther.dylib` run cleanly on G4/Tiger"
-   resolves **yes** — Panther-built ppc slice serves both 10.3 and
+   resolves **yes**, Panther-built ppc slice serves both 10.3 and
    10.4 PPC OSes, so a single PPC slice covers both.
 
 ### 14.6 Won't-do (carried forward)
 
 Same as §13.11 plus, after the end-of-round review:
 
-- Anything Pass A surfaces as "interesting but visual loss" — out of
+- Anything Pass A surfaces as "interesting but visual loss", out of
   scope for the project goal (best looking + playable fps).
-- Anything Pass B surfaces as "kill" — kept committed-deleted in git
+- Anything Pass B surfaces as "kill", kept committed-deleted in git
   history; not preserved in tree.
 
 ---
 
-## 15. Round v5 — Tooling-driven quality + G3-focused perf (closed 2026-05-09)
+## 15. Round v5: Tooling-driven quality + G3-focused perf (closed 2026-05-09)
 
 Round goal: wire the static-analysis and sanitiser infrastructure
 that's been missing, fix what it surfaces, and target G3's GPU-bound
@@ -1425,27 +1425,27 @@ quality/gorgeousness".
 
 Plan file: `/home/matt/.claude/plans/the-code-has-had-iterative-scott.md`.
 
-### 15.1 Track A — Tooling (mostly done overnight 2026-05-08/09)
+### 15.1 Track A: Tooling (mostly done overnight 2026-05-08/09)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | **A1** Linux build target on Ubuntu | ✅ done | `scripts/build-linux.sh {default,asan,ubsan,analyze}`. Substrate for static + runtime analysis on the orchestration host. |
-| **A2** Static analyser battery + `analyze-all.sh` | ✅ done (partial) | cppcheck, gcc -fanalyzer, shellcheck wired and run. scan-build/clang-tidy/flawfinder/sparse/iwyu need `sudo apt install clang-tools clang-tidy flawfinder sparse iwyu` — pending the user's morning sudo. |
+| **A2** Static analyser battery + `analyze-all.sh` | ✅ done (partial) | cppcheck, gcc -fanalyzer, shellcheck wired and run. scan-build/clang-tidy/flawfinder/sparse/iwyu need `sudo apt install clang-tools clang-tidy flawfinder sparse iwyu`, pending the user's morning sudo. |
 | **A3** ASan + UBSan demo runs | ✅ done | ASan clean. UBSan caught 3 real signed-shift UB sites in `snd_mem.c` -- all fixed (`463ec405`-class). 1 residual 64-bit-only alignment diagnostic in glpic_t cast, deferred (no impact on 32-bit PPC ship targets). |
 | **A4** Compiler warning maxout | ✅ done | Linux build: 1595 warnings under modern gcc 15 across 11 classes. 4 real `-Wnull-dereference` in `pr_edict.c` -- fixed. PPC gcc-4.0: 3 false-positive uninit warnings, no real bugs. Triage in `analysis/warnings-triage.md`. |
 | **A5** Optimisation-report capture | ✅ done | 13616-line `vec-missed.log` from gcc 15 vectoriser. Mostly null result: 70% irreducible (GL submission walls), 20% vec3 below vectoriser min width, 5% vendored libs, 5% non-hot. Hot paths already AltiVec'd or below threshold. Triage in `analysis/perf-candidates.md`. |
 | **A6** `gl_perfprint` API-call counters | ✅ done | New `gl_perfprint 2` tier emits binds/draws/dlights/surfs/atris per frame. Verified working on Lion. Lion demo1 1024 averages ~30-50 binds/frame, ~2-7 draws/frame. PPC machines verify in morning bench. |
 | **A7** `analysis/` tree + repo discipline | ✅ done | `analysis/INDEX.md` is the map. Per-tool logs committed; raw HTML/profraw .gitignored. `MISTAKES.md` updated with B3 finding. |
 
-### 15.2 Track B — Performance (G3-first, then cross-target)
+### 15.2 Track B: Performance (G3-first, then cross-target)
 
 | Task | Status | Notes |
 |------|--------|-------|
 | **B1** G3 dlight distance gate | ✅ landed (180ce9dc) | `r_dynamic_distance` cvar, default 0 (engine parity), yosemite autoexec sets 768. Squared compare in `R_PushDlights`. Final yosemite demo3 1024 = 20.25 fps with full visual stack (r_shadows + r_dynamic_distance + lava/water alpha). Right at the 20-fps G3 floor. |
-| **B2** State-change batching | ❌ closed (gated drop) | gl_perfprint 2 measurement on yosemite + quicksilver demo3 1024 showed 23-36 binds/frame — far below the 500 floor where implementation would be justified. Skipped per the plan's decision rule. |
+| **B2** State-change batching | ❌ closed (gated drop) | gl_perfprint 2 measurement on yosemite + quicksilver demo3 1024 showed 23-36 binds/frame, far below the 500 floor where implementation would be justified. Skipped per the plan's decision rule. |
 | **B3** Lion PGO + LTO | ❌ closed (negative result) | Lion clang 1.7 (LLVM 2.9-based) too old for `-fprofile-instr-generate` (silently no-ops). LTO works but +0.2 fps neutral on demo1 1024 (within noise). Kept `LTO=1` opt-in env var on `scripts/build.sh lion`. Documented in `MISTAKES.md`. |
 | **B4** R_CullBox unroll | ❌ closed (already done) | gl_rmain.c:466 has trivial 4-iter loop that gcc-4.0 -O3 unrolls automatically. Agent 2 candidate stale. |
-| **B5** Scalar dlight cast hoist | ✅ landed (84927fc2 re-apply, after revert at a7916ce8) | First attempt regressed mini-g4 (`a7916ce8` revert). Re-applied with corrected cast hierarchy at 84927fc2 — gcc-4.0 PPC scalar path runs as integer-fixed-point now. Net: smoke neutral on G4 trio; CPU headroom on yosemite (no fps move because R128 is GPU-bound). |
+| **B5** Scalar dlight cast hoist | ✅ landed (84927fc2 re-apply, after revert at a7916ce8) | First attempt regressed mini-g4 (`a7916ce8` revert). Re-applied with corrected cast hierarchy at 84927fc2, gcc-4.0 PPC scalar path runs as integer-fixed-point now. Net: smoke neutral on G4 trio; CPU headroom on yosemite (no fps move because R128 is GPU-bound). |
 | **B6** AngleVectors per-entity caching | (deferred to v6) | Larger refactor; needs G3/G4 cache-coherence A/B. Filed as round v6 starter. |
 | **B7** R_MarkLights tail-recursion → goto | ❌ closed (already done) | gl_rlight.c:168 already uses the goto-loop pattern. Agent 2 candidate stale. |
 | **B8** Conditional G3 visual re-enable | ✅ landed | yosemite autoexec already had r_shadows 1; round v5 wrap pass 2 added r_lavaalpha/r_telealpha/r_slimealpha 0.6 + r_wateralpha 0.6. Demo3 1024 stayed at 20.25 fps so the visual additions are essentially free on R128 (basic alpha-blend is fast; only per-dlight extra-pass hurts). |
@@ -1455,14 +1455,14 @@ Plan file: `/home/matt/.claude/plans/the-code-has-had-iterative-scott.md`.
 
 (All from Track A static + runtime sweeps, all in commits Round v5 A1/A2/A7 and snd_mem follow-ups.)
 
-1. `pr_edict.c:333,386` — null-deref in `PR_ValueString` /
+1. `pr_edict.c:333,386`, null-deref in `PR_ValueString` /
    `PR_UglyValueString` if `ED_FieldAtOfs` returns NULL on a corrupted
    .progs lookup. **Defensive ternary added; happy path unchanged.**
 
-2. `snd_mem.c:79` — signed-shift UB on 8→16-bit PCM upconvert.
+2. `snd_mem.c:79`, signed-shift UB on 8→16-bit PCM upconvert.
    Replaced `<<8` with `*256` (defined for in-range signed multiply).
 
-3. `snd_mem.c:185-201` — `GetLittleShort` / `GetLittleLong` building
+3. `snd_mem.c:185-201`, `GetLittleShort` / `GetLittleLong` building
    integer values via signed-int `<<8/16/24` of unsigned bytes, UB
    on high-bit set. Rewrote both to compose in `unsigned` and cast
    to signed at the end. Same wire result, defined behaviour.
@@ -1489,7 +1489,7 @@ Sequence of events:
    filenames moved to Apple-codename / form-factor names: `yosemite`
    (G3 B&W), `quicksilver` (G4 733), `mini-g4` (Mac mini G4 1.25),
    `mini-intel` (Mac mini Intel Lion). Added `sawtooth` (PowerMac G4
-   AGP 500 MHz / GeForce2 MX 32 MB) as the 5th machine — only
+   AGP 500 MHz / GeForce2 MX 32 MB) as the 5th machine, only
    fixed-function G4 in the matrix.
 2. **Sawtooth autoexec** (`8e940ea3`): conservative tuning for the
    weakest CPU + only-fixed-function G4. Engine defaults gave 52.20
@@ -1540,10 +1540,10 @@ The Round v5 polish landed `r_wateralpha 0.6` on all 5 machines,
 which immediately surfaced the X-ray artifact: items in lower rooms
 visible THROUGH stairs / container floors when the BSP wasn't
 vis-compiled with translucent water in mind (which is every id1
-map — id Software's vis tool predates this).
+map, id Software's vis tool predates this).
 
 **Approach explored and reverted:** depth-prepass
-(`R_DrawWorld_WaterDepthPrepass`) — write water depth before items.
+(`R_DrawWorld_WaterDepthPrepass`), write water depth before items.
 Worked in principle but blocked watervis under leaves whose PVS
 didn't actually contain the visible water surfaces. The X-ray was
 real but rare; the watervis-NoVis fallback covered it more
@@ -1574,7 +1574,7 @@ Project goal is best-looking at playable fps, not max fps.)
 
 ---
 
-## §17 Round v7 — small wins, sky/water hoists, emissive lights
+## §17 Round v7: small wins, sky/water hoists, emissive lights
 
 **Theme.** "Cheap-and-big optimisation wins are gone." Pre-round
 analysis (docs/archive/PPC_PERF_R7.md) graded most candidates sub-1% on G3.
@@ -1582,7 +1582,7 @@ Strategy: pick a handful of low-risk well-understood patches,
 land them as discrete bisectable phases, validate with end-of-
 round full grid.
 
-### 17.1 Phase 1 — DrawGLPoly sky-state client-state hoist (`a155a574`)
+### 17.1 Phase 1: DrawGLPoly sky-state client-state hoist (`a155a574`)
 
 Same theory as Phase 3.3 brush hoist: lift GL_VERTEX_ARRAY enable/
 disable out of `DrawGLPoly`'s per-poly toggle pattern, wrap once
@@ -1593,9 +1593,9 @@ no-op redundant sets. Toggleable: `-nodgp-sky-hoist`.
 Smoke (demo1, --quick) was inside ±1% of v6 baseline on every
 target. End-of-round full grid is the real measurement.
 
-### 17.2 Phase 2 — Tier A emissive-fullbright dynamic lights (`4f40e119`)
+### 17.2 Phase 2: Tier A emissive-fullbright dynamic lights (`4f40e119`)
 
-VISUAL UPGRADE, not perf — costs fps for nicer-looking world. New
+VISUAL UPGRADE, not perf, costs fps for nicer-looking world. New
 TU `gl_emissive.c` with `r_emissive_lights` cvar (default 0). At
 map load, walks brush surfaces with emissive textures (light /
 button / panel / screen / comp / tech), seeds a flat array with
@@ -1615,11 +1615,11 @@ before commit:
   out real buttons/lights. Fixed: pre-filter via R_PickEmissiveColor
   name-table match (light/button/btn/comp/tech/panel/screen).
 
-cvar default OFF — binary smoke is neutral. Per-machine autoexec
+cvar default OFF, binary smoke is neutral. Per-machine autoexec
 edits to enable were deferred (project priority is fps, not visuals
 beyond the existing translucent-water bar).
 
-### 17.3 Phase 3 — Sky_GetTexCoord frsqrte fuse (`20a886a4`)
+### 17.3 Phase 3: Sky_GetTexCoord frsqrte fuse (`20a886a4`)
 
 Tiny PPC-only patch in `gl_sky.c`. Was `length = 6*63 / sqrt(length)`
 (double promote); now `length = 6.0f * 63.0f * Q_rsqrt_ppc(length)`
@@ -1627,12 +1627,12 @@ on PPC, `sqrtf` on others. Hoisted Q_rsqrt_ppc from mathlib.c to
 mathlib.h as static inline so callers across TUs can fuse. ~40 cyc
 saved per cloud-vert; cloud-layer sky only.
 
-### 17.4 Phase 4 — Dead-code removal: R_DrawWorld_WaterDepthPrepass (`20a886a4`)
+### 17.4 Phase 4: Dead-code removal: R_DrawWorld_WaterDepthPrepass (`20a886a4`)
 
 Hygiene. The Round v6 reverted depth-prepass approach was unused.
 Removed. No fps impact.
 
-### 17.5 Phase 5 — Wdouble-promotion narrowing in renderer hot paths (`e5ee357c`)
+### 17.5 Phase 5: Wdouble-promotion narrowing in renderer hot paths (`e5ee357c`)
 
 Targeted Candidate 4a+4b. Narrowed only the literals on per-frame
 hot paths: Q_rint macro, R_RenderDlight constants, R_MarkLights
@@ -1642,7 +1642,7 @@ intentional doubles (`cl.time` comparisons, `DoublePrecisionDotProduct`
 for SSE-build-precision). Honest expectation: smoke-neutral; landed
 because the diff is mechanical and bisects cleanly.
 
-### 17.6 Phase 6 — DrawWaterPoly client-state hoist (`f2df151d`)
+### 17.6 Phase 6: DrawWaterPoly client-state hoist (`f2df151d`)
 
 Mirror of Phase 1 for the oldwater path. Affects yosemite + sawtooth
 + mini-intel only (quicksilver / mini-g4 / imac-2019 take the GLSL
@@ -1667,14 +1667,14 @@ NoVis) is unaffected. Toggleable: `-nodgp-water-hoist`.
 - **sawtooth**: -0.2% to +1.0%, all noise. NEUTRAL+.
 - **quicksilver**: -0.5% to +0.6%, all noise. NEUTRAL.
 - **mini-g4**: **+42.4% / +45.9% on demo3** (the round v7 headline
-  — sky-state hoist on Radeon 9200's ATI driver, which is markedly
+ , sky-state hoist on Radeon 9200's ATI driver, which is markedly
   more sensitive to redundant `glEnableClientState` than Quicksilver's
   Radeon 9000 driver). Small regressions of -3.5% to -7.5% on
   demo1/demo2. Net: massive trade favouring the sky-heavy demo.
 - **mini-intel**: -0.1% to +1.8%, slight positives. NEUTRAL+.
 - **imac-2019**: +7.0% on demo1 1024, +0.1-0.9% elsewhere except
   -9.0% on demo3 640 (run3 outlier 1772 fps vs runs 1+2 at 1939/1646
-  — Sequoia thermal/driver transient at >1900 fps, not real).
+ , Sequoia thermal/driver transient at >1900 fps, not real).
 
 **Round v7 mini-g4 v6 baseline correction:** the original `5cbcf785`
 mini-g4 rows in `benchmarks/results.csv` (12 rows from 2026-05-09T15:00–15:05Z)
@@ -1696,7 +1696,7 @@ accordingly.
 | Round v6 wrap (`5cbcf785`) | 16.80 | 19.85 | + watervis NoVis (translucent water) |
 | Round v7 wrap (`f2df151d`) | 16.55 | 19.80 | small-wins round; neutral on yosemite |
 
-G3 round v7 is neutral vs round v6 — the cheap-and-big wins truly
+G3 round v7 is neutral vs round v6, the cheap-and-big wins truly
 are gone for that GPU. The +118% / +286% improvements over the
 v2-baseline came from rounds 1–5; v6 paid back ~7-fps on demo1 to
 buy translucent water; v7 holds the line.
@@ -1704,13 +1704,13 @@ buy translucent water; v7 holds the line.
 ### 17.8 Filed for round v8
 
 - **Cvar-on path for Tier A emissive lights**: per-machine autoexec
-  enables (radius/max tuned per GPU class) — see docs/archive/PPC_PERF_R7.md
+  enables (radius/max tuned per GPU class), see docs/archive/PPC_PERF_R7.md
   candidate 9 table for the proposed values. Smoke-validate the
   cvar-on path on G3 demo3 1024 (highest-stress dlight) before
   shipping autoexec defaults.
 - **Candidate 3 (Sky_DrawFaceQuad state hoist)**: cloud-layer-sky
   only. Verify which demo maps actually use cloud-layer sky vs
-  skybox before implementing — `Sky_LoadSkyBox` short-circuits
+  skybox before implementing, `Sky_LoadSkyBox` short-circuits
   Sky_DrawFace if any skybox texture is loaded.
 - **Ironwail flat-array efrags pattern**: per docs/archive/IRONWAIL_REVIEW.md
   candidate 1, gl_refrag.c:120 / 157 + r_part.c:580. CPU-side flat

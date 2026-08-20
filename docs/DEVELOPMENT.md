@@ -1,4 +1,4 @@
-# Development reference — build path, build host, hot files
+# Development reference: build path, build host, hot files
 
 Detail behind the root [`CLAUDE.md`](../CLAUDE.md). Decisions and their evidence
 are in [`adr/`](adr/README.md); per-target compiler flags and toolchain paths are
@@ -44,10 +44,10 @@ never rely on a relative or env-derived path.
 Targets for a future optimisation round. There is no current plan; do a fresh
 evidence pass first.
 
-- `Quake/mathlib.c:276,281` — `VectorLength`, `VectorNormalize` use scalar
+- `Quake/mathlib.c:276,281`, `VectorLength`, `VectorNormalize` use scalar
   `sqrt`. Target for `frsqrte` (~6 cycles vs ~30, base PowerPC).
-- `Quake/snd_mix.c:472,498` — sound mixer hot loops. AltiVec, G4 and G5 only.
-- `Quake/gl_texmgr.c` — `TexMgr_LoadImage8` 8→32-bit expansion at level load.
+- `Quake/snd_mix.c:472,498`, sound mixer hot loops. AltiVec, G4 and G5 only.
+- `Quake/gl_texmgr.c`, `TexMgr_LoadImage8` 8→32-bit expansion at level load.
   Load-time, not per-frame.
 
 Profiling tooling: `/usr/bin/sample` on Panther through Lion (no Xcode needed),

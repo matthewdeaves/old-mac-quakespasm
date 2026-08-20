@@ -24,7 +24,7 @@ A/B on the suspected target.** Comparing a fresh reading against a historical
 CSV row taken under unknown machine state is unreliable.
 
 **`+timedemo demo1 +timedemo demo1 +timedemo demo1 +quit` in one launch does not
-work** — they stomp each other in the command buffer, the first frame runs all
+work**, they stomp each other in the command buffer, the first frame runs all
 four, the demo runs zero frames, and `+quit` kills the process, giving
 `-1 frames 0.0 seconds` per "run". The correct pattern, which `bench.sh`
 implements, is **three separate launches, one `+timedemo` each, no `+quit`**;
@@ -36,12 +36,12 @@ poll `qconsole.log` for the result line and SIGTERM the process when it appears.
    `parallel-bench.sh --quick`. Rows tag with the parent commit; strip them
    before continuing (`git checkout benchmarks/results.csv && rm -f
    benchmarks/raw/<parent>_*.log`).
-2. If the smoke is sane — no crash, no unexplained >5% regression — commit the
+2. If the smoke is sane, no crash, no unexplained >5% regression, commit the
    code change with the smoke numbers in the message.
 3. **Bench-commit** on the clean tree with
    `bench-and-commit.sh "<phase>" --quick`, which refuses dirty trees, pins
    HEAD, stages the CSV and raw logs, and lands a `bench: <phase>` commit.
-4. End of round: the full grid once, no `--quick` — 3 demos × 2 resolutions × 3
+4. End of round: the full grid once, no `--quick`, 3 demos × 2 resolutions × 3
    runs.
 
 **`benchmarks/results.csv` is a rolling history; never wipe it mid-round.**
@@ -55,13 +55,13 @@ up to `results.csv.bak.<ts>`.
 ## Evidence: three verdicts that were wrong
 
 **A "code regression" that was a config change (rounds v9 and v10).** The v9
-wrap grid showed catastrophic demo3 regressions on every machine — yosemite
+wrap grid showed catastrophic demo3 regressions on every machine, yosemite
 −24.5%, sawtooth −23.3%, quicksilver −28.6%, mini-g4 −32.9%, mini-intel −18.0%,
 plus demo1 −15% on the iMac. v9's only landed item was the Ironwail flat-array
 efrags pattern (`6f3976f8`), which was reverted at `13b6876a` on the strength of
 "bench shows demo3 regression on every machine". v10 take 2 (flat efrags plus
 per-leaf cull) was then implemented to fix that regression, and bisected to
-15.00 fps flat vs 15.10 fps `-noflatefrags` on yosemite demo3 1024 — the same
+15.00 fps flat vs 15.10 fps `-noflatefrags` on yosemite demo3 1024, the same
 number. There was nothing in v9 to fix. **The real cause was an autoexec
 change**: today's rebuild of the same code at `f2df151d` benched 14.45 fps with
 the current autoexec and 19.45 fps with `id1/autoexec.cfg` renamed away.
@@ -79,7 +79,7 @@ mini-g4 demo1 1024 falling from "72.20 baseline" to 50.30. Bisect: checking out
 50.30 was really **−5.8%**. The 12 stale rows were deleted from
 `results.csv` and a correct v6 baseline re-run. Cross-validation should have
 caught it at wrap time: v5 pre-watervis was 76.00, the v6 stale row 72.20, v6
-actual 53.40 — the stale row sat much closer to v5 than to v6.
+actual 53.40, the stale row sat much closer to v5 than to v6.
 *After any mid-bench binary refresh, re-bench every affected machine before the
 wrap commit. "Stale binary" is invisible to the bench scripts.*
 
@@ -101,7 +101,7 @@ split result in ADR 0008.)
 - `bench-and-commit.sh` refuses any NA fps cell. When 23 of 24 cells are clean
   and one is a genuine transient (ssh hiccup, SIGTERM before the qconsole
   write), verify the failure is not real, then stage the CSV and raw logs and
-  craft a manual `bench: <phase> (HEAD <commit>) — N.5/N cells` commit naming
+  craft a manual `bench: <phase> (HEAD <commit>), N.5/N cells` commit naming
   the partial cell. Do not hide the NA; do commit the rest.
 - **Do not run `bench.sh` legs in parallel from one shell.** Local ssh-stack
   contention produced a wrong G3 reading, 14.7 vs 23.1 fps for the same binary.

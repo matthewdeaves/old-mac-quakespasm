@@ -39,8 +39,8 @@ is SDL 1.2.15.
   auto-selects it on a 970; G3 and G4 keep the generic `ppc` slice, so there is
   zero regression for them. The Panther build's fullscreen path is suspect on
   Leopard, which is why the G5 gets a slice built natively for it. This is
-  **not** the fix for the G5's GPU hang — that is the engine-side R300 gate
-  (ADR 0007) — but shipping a Leopard-built SDL for the G5 is correct anyway.
+  **not** the fix for the G5's GPU hang, that is the engine-side R300 gate
+  (ADR 0007), but shipping a Leopard-built SDL for the G5 is correct anyway.
 - **All slices are re-id'd** to `@executable_path/SDL.framework/Versions/A/SDL`
   with `install_name_tool -id` before lipo. `dyld` matches `LC_LOAD_DYLIB`
   against the loaded slice's `LC_ID_DYLIB`, and upstream's slices were id'd
