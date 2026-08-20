@@ -86,6 +86,29 @@ port to the world.
 The server is not advertised anywhere. `sv_public 0` is set explicitly and the
 three master server addresses are blanked, so it appears in no public list.
 
+### Amplification
+
+Measured against this exact build, Quake 1 is by far the best behaved of the
+four servers in this family:
+
+| Query | Sent | Received | Amplification |
+|---|---|---|---|
+| `CCREQ_SERVER_INFO` | 12 bytes | 36 bytes | 3x |
+
+Three times is not worth an attacker's trouble, because a reflector is only
+useful if it multiplies. For comparison the others measure 101x (Half-Life),
+32x (Quake III) and 23x (Quake II). NetQuake's control protocol simply does
+not hand out much.
+
+It is also the engine closest to upstream: our tree is 12 commits behind, none
+of them security related. Combined with the fuzzing below, this is the server
+of the four that needs the least worrying about, which is a pleasant inversion
+of it being the oldest game.
+
+The out-of-band handler survived 4000 malformed packets without crashing, and
+its remaining unbounded string copies are all on startup arguments or local
+socket addresses, not on anything a stranger can send.
+
 ## Connecting
 
 From the Mac client, on any of the machines the port supports:
@@ -94,9 +117,26 @@ From the Mac client, on any of the machines the port supports:
 connect your.server.address
 ```
 
-Nothing about the client differs for internet play. The server is
-little-endian and the PowerPC clients are big-endian; the protocol handles
-that, and it is the same code path the Mac builds already use on a LAN.
+A hostname works too, and is the better answer: the engine resolves through
+`getaddrinfo`, so point an A record at the box and that name is all either of
+you types.
+
+## Tuned for the machines that will actually connect
+
+The clients are the fat binary: `ppc750`, `ppc7400`, `i386`, `x86_64` and
+`arm64` from one app, and the config is aimed at the oldest of those.
+
+`net_messagetimeout` is left at 300 rather than tightened, because a vintage
+Mac stalling briefly on a slow link should not be dropped for it. Keep the map
+rotation to maps you have watched run on the oldest machine that will join.
+
+Endianness needs nothing from you. The server is little-endian and the PowerPC
+clients are big-endian; the protocol handles it, and it is the same code path
+the Mac builds already use on a LAN.
+
+One thing specific to Quake 1: this server speaks protocol 666 (FitzQuake),
+which is what our client build expects. A stock 1996 Quake client speaking
+protocol 15 is not what is connecting here, so there is nothing to trade away.
 
 ## Player limit
 
