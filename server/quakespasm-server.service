@@ -1,0 +1,62 @@
+[Unit]
+Description=QuakeSpasm dedicated server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=quake
+Group=quake
+WorkingDirectory=/opt/quakespasm-server
+
+# The console.
+#
+# NetQuake has no rcon, so the only way to change map or read status on a
+# running server is its stdin. A plain redirect from a FIFO is no good: the
+# server would see EOF and stop reading the moment a writer closed, so exactly
+# one command would ever work.
+#
+# Opening the FIFO read-write on fd 3 and handing THAT to the server keeps a
+# writer permanently attached from the server's own side, so the pipe never
+# reaches EOF and stays usable for the life of the process. After that:
+#
+#     echo "map e1m2" > /run/quakespasm-server/console
+#
+# The player limit is the number after -dedicated. It cannot be set from
+# server.cfg, because NetQuake fixes it before any config is read.
+RuntimeDirectory=quakespasm-server
+RuntimeDirectoryMode=0750
+ExecStartPre=/usr/bin/mkfifo -m 0600 /run/quakespasm-server/console
+ExecStart=/bin/sh -c 'exec 3<>/run/quakespasm-server/console; \
+    exec /opt/quakespasm-server/quakespasm-server \
+        -dedicated 8 \
+        -basedir /opt/quakespasm-server \
+        +exec server.cfg <&3'
+
+Restart=on-failure
+RestartSec=5s
+
+# The server is a 1996 UDP protocol with no authentication, reachable from the
+# internet. Give it as little of the machine as it can run with.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+# Quake writes saves and config back into the game directory, so that one path
+# is the only writable thing it gets.
+ReadWritePaths=/opt/quakespasm-server/id1
+
+[Install]
+WantedBy=multi-user.target
