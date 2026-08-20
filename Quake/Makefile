@@ -214,6 +214,7 @@ GLOBJS = \
 	gl_emissive.o \
 	gl_rmisc.o \
 	r_part.o \
+	r_decals.o \
 	r_world.o \
 	gl_screen.o \
 	gl_sky.o \
@@ -241,6 +242,7 @@ OBJS = strlcat.o \
 	net_main.o \
 	chase.o \
 	cl_demo.o \
+	cl_download.o \
 	cl_input.o \
 	cl_main.o \
 	cl_parse.o \
