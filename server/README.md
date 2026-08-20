@@ -123,8 +123,10 @@ you types.
 
 ## Tuned for the machines that will actually connect
 
-The clients are the fat binary: `ppc750`, `ppc7400`, `i386`, `x86_64` and
-`arm64` from one app, and the config is aimed at the oldest of those.
+The clients are the fat binary: `ppc750`, `ppc7400`, `ppc970` and `x86_64`
+from one app, and the config is aimed at the oldest of those. Note there is no
+`i386` slice, so 32-bit-only Intel Macs are not covered, and no `arm64` slice
+in the shipped binary yet.
 
 `net_messagetimeout` is left at 300 rather than tightened, because a vintage
 Mac stalling briefly on a slow link should not be dropped for it. Keep the map
