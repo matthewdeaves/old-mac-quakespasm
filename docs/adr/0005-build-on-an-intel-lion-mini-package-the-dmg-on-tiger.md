@@ -20,7 +20,7 @@ tools cannot write old ones, and that decides where each step runs.
   everything newer.
 
 Two identical Intel minis exist, `mini-intel` (10.188.1.190) and `mini-intel2`
-(10.188.1.216): same Macmini2,1, 10.7.5, identical toolchain. Several
+(10.188.1.164): same Macmini2,1, 10.7.5, identical toolchain. Several
 repositories and agents may want one at once, this port shares the minis with
 the Quake II and Quake III sister projects.
 

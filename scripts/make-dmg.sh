@@ -75,12 +75,20 @@ fi
 # check spuriously failed on a perfectly good 4-arch fat. lipo -archs is
 # authoritative and stable.
 ARCHS=$(lipo -archs "$BIN" 2>/dev/null || echo)
-for a in ppc750 ppc7400 ppc970 x86_64; do
+# arm64 is deliberately NOT in this list. It is the one slice a Lion mini
+# cannot build, so it is optional at fuse time and its absence is a Rosetta 2
+# downgrade rather than a broken release. Say which way it went, though, so a
+# release that quietly lost it is not mistaken for one that never had it.
+for a in ppc750 ppc7400 ppc970 i386 x86_64; do
   case " $ARCHS " in
     *" $a "*) ;;
-    *) echo "[make-dmg] $BIN is not the 4-arch fat binary (missing $a; got: ${ARCHS:-none}) — run scripts/build-fat.sh" >&2; exit 1;;
+    *) echo "[make-dmg] $BIN is missing the $a slice (got: ${ARCHS:-none}) — run scripts/build-fat.sh" >&2; exit 1;;
   esac
 done
+case " $ARCHS " in
+  *" arm64 "*) echo "[make-dmg] arm64 slice present — native on Apple Silicon" ;;
+  *) echo "[make-dmg] NOTE: no arm64 slice; Apple Silicon will use Rosetta 2" ;;
+esac
 
 # ---- stage the disk-image contents (Quakespasm.app + pak + README) -------
 STAGE=$(mktemp -d -t qs-dmg.XXXXXX)

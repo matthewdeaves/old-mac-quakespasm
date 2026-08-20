@@ -16,7 +16,7 @@
 #         that gives g4 its ppc7400 stamp) so dyld prefers it on the G5 while
 #         G4s still fall back to the ppc7400 slice.
 #
-# usage: scripts/build.sh <g3|g4|g5|lion>
+# usage: scripts/build.sh <g3|g4|g5|lion|i386>   (arm64: scripts/build-arm64.sh)
 # output: build/quakespasm-<target>
 # env:    BUILD_HOST (ssh alias for the cross-build host; default: auto-picked
 #         from the free Intel minis by scripts/pick-build-host.sh)
@@ -24,7 +24,7 @@
 
 set -euo pipefail
 
-TARGET="${1:?usage: $0 <g3|g4|g5|lion>}"
+TARGET="${1:?usage: $0 <g3|g4|g5|lion|i386> (arm64: scripts/build-arm64.sh)}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # The cross-build host is an Intel Mac mini — there are now TWO interchangeable
@@ -197,8 +197,39 @@ case "$TARGET" in
     fi
     SYSROOT=""
     ;;
+  i386)
+    # 32-bit-only Intel: the 2006 Core Solo / Core Duo machines (Mac mini 1,1,
+    # iMac 4,1, MacBook 1,1, MacBook Pro 1,1). These are the sole Intel Macs
+    # with no 64-bit mode, and they top out at 10.6.8.
+    #
+    # This slice is not a nicety. dyld grades a fat by CPU subtype alone, so a
+    # Core Duo is never handed the x86_64 slice; without an i386 slice those
+    # machines get nothing and the app does not launch at all.
+    #
+    # min-10.4, lower than the x86_64 slice's 10.6: an i386-only Mac may still
+    # be on Tiger or Leopard, and there is no lower Intel slice beneath this
+    # one to catch it. The bundled SDL.framework already carries an i386 slice
+    # and so do all ten codec dylibs, so nothing else has to move.
+    #
+    # NOT TESTED ON HARDWARE: there is no 32-bit-only Intel Mac in the fleet.
+    # This is build-correct only. The README says so.
+    MACH_TYPE=x86
+    CC=/usr/bin/clang
+    SDK=""
+    VMIN=10.4
+    CPUFLAGS='-arch i386 -mmacosx-version-min=10.4 -O3 -Qunused-arguments'
+    EXTRA_LDFLAGS=''
+    SYSROOT=""
+    ;;
+  arm64)
+    echo "build.sh: arm64 cannot be built here. Lion's Xcode 4.6 toolchain" >&2
+    echo "build.sh: predates arm64 by seven years. Run scripts/build-arm64.sh" >&2
+    echo "build.sh: on the Apple Silicon orchestration Mac instead." >&2
+    exit 2
+    ;;
   *)
-    echo "unknown target: $TARGET (expected: g3|g4|g5|lion)" >&2
+    echo "unknown target: $TARGET (expected: g3|g4|g5|lion|i386)" >&2
+    echo "  arm64 is built by scripts/build-arm64.sh, not here." >&2
     exit 2
     ;;
 esac
@@ -209,7 +240,7 @@ echo "[build] sync sources orchestrator → $LION"
 rsync -av --partial --inplace --delete \
   --exclude='.git' --exclude='*.o' --exclude='*.d' \
   --exclude='build/' --exclude='benchmarks/' --exclude='prereqs/' \
-  --exclude='quakespasm' --exclude='quakespasm-g3' --exclude='quakespasm-g4' --exclude='quakespasm-g5' --exclude='quakespasm-lion' \
+  --exclude='quakespasm' --exclude='quakespasm-g3' --exclude='quakespasm-g4' --exclude='quakespasm-g5' --exclude='quakespasm-lion' --exclude='quakespasm-i386' --exclude='quakespasm-arm64' \
   -e 'ssh -o ServerAliveInterval=15' \
   "$REPO_ROOT/" "$LION:quakespasm/" | tail -3
 

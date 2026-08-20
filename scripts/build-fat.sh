@@ -74,13 +74,31 @@ scripts/build.sh g5
 echo "[build-fat] sub-build 4/4: lion"
 scripts/build.sh lion
 
-# All four slices present?
-for arch in g3 g4 g5 lion; do
+scripts/build.sh i386
+
+# All five mini-buildable slices present?
+for arch in g3 g4 g5 lion i386; do
   if [ ! -x "build/quakespasm-$arch" ]; then
     echo "[build-fat] missing build/quakespasm-$arch — sub-build did not produce a binary" >&2
     exit 1
   fi
 done
+
+# arm64 is the ONE slice a Lion mini cannot build: its Xcode 4.6 toolchain
+# predates arm64 by seven years. It is produced separately by
+# scripts/build-arm64.sh on the Apple Silicon orchestration Mac, so here it is
+# OPTIONAL and picked up if present. Its absence is a Rosetta 2 downgrade on
+# Apple Silicon, not a fault, and the fuse says which way it went either way
+# rather than leaving it to be discovered from a lipo -archs later.
+SLICES="g3 g4 g5 lion i386"
+if [ -x "build/quakespasm-arm64" ]; then
+  SLICES="$SLICES arm64"
+  echo "[build-fat] arm64 slice present — it WILL be included"
+else
+  echo "[build-fat] arm64 slice absent — fusing without it."
+  echo "[build-fat]   Apple Silicon will run the x86_64 slice under Rosetta 2."
+  echo "[build-fat]   To include it: run scripts/build-arm64.sh on an Apple Silicon Mac first."
+fi
 
 # lipo lives on Lion's build host, not necessarily on the orchestration
 # host. Send the four slices over, lipo there, scp the fat back. (lipo
@@ -94,14 +112,38 @@ done
 : "${BUILD_HOST:?internal error: build host should have been pinned above}"
 LION="$BUILD_HOST"
 echo "[build-fat] lipo -create on $LION (cross-build host)"
-scp -q build/quakespasm-g3 build/quakespasm-g4 build/quakespasm-g5 build/quakespasm-lion \
-  "$LION:/tmp/" >/dev/null
+SLICE_PATHS=""
+SLICE_NAMES=""
+for a in $SLICES; do
+  SLICE_PATHS="$SLICE_PATHS build/quakespasm-$a"
+  SLICE_NAMES="$SLICE_NAMES quakespasm-$a"
+done
+
+scp -q $SLICE_PATHS "$LION:/tmp/" >/dev/null
+# Lion's lipo can WRITE a correct fat containing arm64 even though its otool
+# and install_name_tool refuse the file and it cannot name the slice (it
+# prints a numeric `cputype (16777228)` instead). Writing is all that is
+# needed here; the naming check below runs on this box, whose lipo is current.
 ssh "$LION" "cd /tmp && \
-  lipo -create quakespasm-g3 quakespasm-g4 quakespasm-g5 quakespasm-lion \
-    -output quakespasm-fat && \
+  lipo -create$SLICE_NAMES -output quakespasm-fat && \
   lipo -info quakespasm-fat"
 scp -q "$LION:/tmp/quakespasm-fat" build/quakespasm-fat
-ssh "$LION" "rm -f /tmp/quakespasm-{g3,g4,g5,lion,fat}" 2>/dev/null || true
+ssh "$LION" "rm -f /tmp/quakespasm-fat$(for a in $SLICES; do printf ' /tmp/quakespasm-%s' "$a"; done)" 2>/dev/null || true
+
+# Verify the fuse HERE, not on Lion: Lion's lipo cannot name an arm64 slice,
+# so its own report would look like a corrupt fat.
+echo "[build-fat] slices in the fused binary (verified on this box):"
+lipo -archs build/quakespasm-fat
+for a in $SLICES; do
+  case $a in
+    g3) want=ppc750 ;; g4) want=ppc7400 ;; g5) want=ppc970 ;;
+    lion) want=x86_64 ;; i386) want=i386 ;; arm64) want=arm64 ;;
+  esac
+  case " $(lipo -archs build/quakespasm-fat) " in
+    *" $want "*) ;;
+    *) echo "[build-fat] fuse lost the $a slice ($want)" >&2; exit 1 ;;
+  esac
+done
 
 echo "[build-fat] sanity:"
 file build/quakespasm-fat

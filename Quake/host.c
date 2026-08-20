@@ -1026,6 +1026,12 @@ void Host_Init (void)
 			QS_ExecConfigFromBundle ("autoexec-ppc750");
 #elif defined(__x86_64__) || defined(__amd64__)
 			QS_ExecConfigFromBundle ("autoexec-x86_64");
+#elif defined(__aarch64__) || defined(__arm64__)
+			QS_ExecConfigFromBundle ("autoexec-arm64");
+#elif defined(__i386__)
+			// The 2006 Core Solo / Core Duo machines, which have no
+			// 64-bit mode and so are never handed the x86_64 slice.
+			QS_ExecConfigFromBundle ("autoexec-i386");
 #endif
 
 			{
