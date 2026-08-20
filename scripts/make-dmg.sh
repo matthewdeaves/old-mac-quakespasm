@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a distributable .dmg containing Quakespasm.app + quakespasm.pak +
-# a user-facing README — the easy way to hand the build to the old Macs.
+# a user-facing README - the easy way to hand the build to the old Macs.
 #
 # The .app is staged exactly like deploy.sh (fat 4-arch binary + SDL +
 # codec dylibs + per-machine autoexec cfgs + icon). Linux has no hdiutil,
@@ -16,7 +16,7 @@
 #               WHY TIGER, NOT THE G3 OR LION (all empirically tested 2026-05-31,
 #               and confirmed by the Quake II sister port's corrupt-DMG incident):
 #                 * Lion's hdiutil writes a UDIF container Panther's 2003-vintage
-#                   DiskImageMounter can't parse — "no mountable file systems" on
+#                   DiskImageMounter can't parse - "no mountable file systems" on
 #                   10.3.9. NO hdiutil flag fixes it (UDZO, uncompressed UDRO, and
 #                   an Apple-Partition-Map -layout SPUD image all fail to mount on
 #                   Panther). So Lion is out for any image that must reach a G3.
@@ -52,25 +52,25 @@ cd "$REPO_ROOT"
 VERSION="${1:-$(git rev-parse --short HEAD)}"
 # Tiger host → image mounts on Panther→modern (see header). If DMG_HOST is not
 # set explicitly, auto-pick the first REACHABLE Tiger box so a powered-off
-# mini-g4 doesn't break the default — all three write Panther-mountable images.
+# mini-g4 doesn't break the default - all three write Panther-mountable images.
 if [ -z "${DMG_HOST:-}" ]; then
   for cand in mini-g4 quicksilver sawtooth; do
     if ssh -o ConnectTimeout=6 -o BatchMode=yes "$cand" true 2>/dev/null; then DMG_HOST="$cand"; break; fi
   done
   DMG_HOST="${DMG_HOST:-mini-g4}"
-  echo "[make-dmg] DMG_HOST not set — using reachable Tiger host: $DMG_HOST"
+  echo "[make-dmg] DMG_HOST not set - using reachable Tiger host: $DMG_HOST"
 fi
 VOLNAME="QuakeSpasm OldMac $VERSION"
 OUT="$REPO_ROOT/dist/QuakeSpasm-OldMac-$VERSION.dmg"
 
 BIN="$REPO_ROOT/build/quakespasm-fat"
 if [ ! -f "$BIN" ]; then
-  echo "[make-dmg] build/quakespasm-fat missing — building it"
+  echo "[make-dmg] build/quakespasm-fat missing - building it"
   scripts/build-fat.sh
 fi
 # Sanity: must be the multi-slice fat, not a stray single-arch binary.
 # Use lipo (reads the Mach header directly) rather than file(1): file's ppc
-# subtype names vary by host/toolchain — on an Apple-silicon workstation it
+# subtype names vary by host/toolchain - on an Apple-silicon workstation it
 # renders the ppc750 slice as "ppc_650", so the old `file | grep ppc_750`
 # check spuriously failed on a perfectly good 4-arch fat. lipo -archs is
 # authoritative and stable.
@@ -104,9 +104,16 @@ cp    "$REPO_ROOT/scripts/bundle/Info.plist" "$APP/Contents/Info.plist"
 # Stamp the PORT release version into the bundle so a human can tell which build
 # is installed from Finder's Get Info, not just from the engine console. The
 # static plist carries upstream's engine version (0.97.0), which never changes
-# between our releases and so identifies nothing. Same source of truth as the
-# binary's own version string: QS_PORT_VERSION, i.e. `git describe`.
-QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+# between our releases and so identifies nothing.
+#
+# Defaults to $VERSION, the label this image is NAMED after, not to `git
+# describe`. Those two disagree the moment a release is cut from anything but an
+# exact clean tag, and then the DMG says one thing and the .app on the machine
+# says another, so a bench test proves nothing about WHICH build just ran. That
+# is not hypothetical: v1.15-rc1 shipped a bundle stamped
+# "v1.14-14-g24cab54e-dirty" and it was only caught by reading the plist back off
+# five machines. An explicit QS_PORT_VERSION in the environment still wins.
+QS_PORT_VERSION="${QS_PORT_VERSION:-$VERSION}"
 /usr/libexec/PlistBuddy \
   -c "Set :CFBundleShortVersionString 0.97.0-oldmac-$QS_PORT_VERSION" \
   -c "Add :CFBundleVersion string $QS_PORT_VERSION" \
@@ -116,6 +123,14 @@ QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --alwa
   -c "Set :CFBundleVersion $QS_PORT_VERSION" \
   "$APP/Contents/Info.plist" >/dev/null
 echo "[make-dmg] bundle version: 0.97.0-oldmac-$QS_PORT_VERSION"
+
+# Read it straight back. PlistBuddy's Add-then-Set fallback above fails silently
+# if both branches error, and an unstamped bundle is exactly the defect this
+# block exists to prevent.
+STAMPED=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist" 2>/dev/null || echo '')
+[ "$STAMPED" = "$QS_PORT_VERSION" ] || {
+  echo "[make-dmg] .app CFBundleVersion is '$STAMPED', expected '$QS_PORT_VERSION'" >&2; exit 1; }
+echo "[make-dmg] bundle version verified: $STAMPED"
 
 cp    "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$RESOURCES/"
 cp -r "$REPO_ROOT/MacOSX/English.lproj"      "$RESOURCES/"
@@ -132,7 +147,7 @@ done
 
 # ---- user-facing README inside the image ---------------------------------
 cat > "$IMG/README.txt" <<EOF
-QuakeSpasm — Old-Mac fat build ($VERSION)
+QuakeSpasm - Old-Mac fat build ($VERSION)
 =========================================
 
 A QuakeSpasm fork tuned to look as good as possible while staying playable
@@ -151,7 +166,7 @@ CPU family has a real floor:
    Intel, 64-bit           10.6 Snow Leopard or later  tested on 10.7.5 + 15.7
 
 A G4 on Panther and an Intel Mac on Snow Leopard should both work, but neither
-has been run on real hardware — there is no such machine here to try it on. The
+has been run on real hardware - there is no such machine here to try it on. The
 G5 line is a genuine floor, not an untested gap: its slice needs 10.5.
 
 32-bit-only Intel Macs (Core Duo / Core Solo) have no slice and cannot run this.
@@ -174,7 +189,7 @@ INSTALL
 2. Copy BOTH of these from this disk image into that folder:
        Quakespasm.app
        quakespasm.pak
-3. Add your Quake data — put your own pak files in an "id1" subfolder:
+3. Add your Quake data - put your own pak files in an "id1" subfolder:
        ~/Desktop/quake/id1/pak0.pak              (shareware)
        ~/Desktop/quake/id1/pak0.pak + pak1.pak   (registered)
    Registered Quake is on Steam and GOG.
@@ -195,7 +210,7 @@ right-click Quakespasm.app and choose Open the first time, or run:
 PER-MACHINE CONFIG
 ------------------
 The app detects the Mac it's on (sysctl hw.model) and applies a hand-tuned
-visual + performance config — anisotropic filtering, trilinear, alias
+visual + performance config - anisotropic filtering, trilinear, alias
 drop-shadows, translucent liquids, smooth lightstyles, and more on the
 machines that can afford them; leaner settings where they can't. Every knob
 is a runtime cvar or launch -flag, so nothing is locked in.
@@ -205,9 +220,9 @@ License: GPL-2.0-or-later (see the project repo).
 EOF
 
 # ---- build the .dmg on a Mac, with END-TO-END content verification -------
-# CRITICAL (learned from the Q2 sister port — see MISTAKES.md 2026-05-31
+# CRITICAL (learned from the Q2 sister port - see MISTAKES.md 2026-05-31
 # "DMG byte-flip"): `hdiutil verify` only checks the UDIF container's *internal*
-# checksum — that the compressed blocks decompress to whatever was stored. It
+# checksum - that the compressed blocks decompress to whatever was stored. It
 # does NOT verify that what was stored matches our source. A single byte flipped
 # anywhere in the rsync→hdiutil chain (e.g. a bad sector / RAM glitch on an old
 # build host) passes `hdiutil verify` and ships a corrupt binary. That exact
@@ -217,9 +232,9 @@ EOF
 # mount the finished image and md5 the actual binaries inside it against the
 # source. Retry on mismatch; fail loud if it can't be made clean.
 REMOTE="/tmp/qs-dmg-$VERSION"
-# Panther (yosemite) ships rsync 2.5.x — needs --protocol=29, same as deploy.sh.
+# Panther (yosemite) ships rsync 2.5.x - needs --protocol=29, same as deploy.sh.
 # (The default DMG_HOST is now Tiger, which ships a modern-enough rsync, so this
-# only fires on a manual DMG_HOST=yosemite override.) NOTE: dropped --partial —
+# only fires on a manual DMG_HOST=yosemite override.) NOTE: dropped --partial -
 # it can reuse a stale chunk from a previous interrupted run, defeating the
 # point of a clean re-ship on a verification-mismatch retry.
 RSYNC_EXTRA=""
@@ -231,7 +246,7 @@ RSYNC_EXTRA=""
 # md5s ARE the true-source md5s. (Paths are space-free, so word-splitting them
 # into the SRC_SUMS loop is safe; the IN-DMG list is hardcoded in the remote
 # heredoc because `ssh host bash -s "$VAR"` word-splits a multi-path arg down to
-# its first element — keep the two lists in sync.)
+# its first element - keep the two lists in sync.)
 VERIFY_FILES="Quakespasm.app/Contents/MacOS/quakespasm \
 Quakespasm.app/Contents/MacOS/libFLAC.dylib \
 Quakespasm.app/Contents/MacOS/libmad.dylib \
@@ -288,7 +303,7 @@ hdiutil detach "$MP" >/dev/null 2>&1 || hdiutil detach -force "$MP" >/dev/null 2
 REMOTE_EOF
 )
   if [ "$DMG_SUMS" = "$SRC_SUMS" ]; then verified=yes; break; fi
-  echo "[make-dmg] WARNING: DMG contents differ from source (attempt $attempt) — retrying" >&2
+  echo "[make-dmg] WARNING: DMG contents differ from source (attempt $attempt) - retrying" >&2
   echo "--- source ---"; echo "$SRC_SUMS"
   echo "--- in dmg ---"; echo "$DMG_SUMS"
 done
@@ -310,5 +325,5 @@ LCL_DMG_MD5=$(md5sum "$OUT" | cut -d' ' -f1)
 }
 ssh "$DMG_HOST" "rm -rf '$REMOTE'" 2>/dev/null || true
 
-echo "[make-dmg] OK — $OUT (container md5 $LCL_DMG_MD5, contents verified vs source)"
+echo "[make-dmg] OK - $OUT (container md5 $LCL_DMG_MD5, contents verified vs source)"
 ls -lh "$OUT"
