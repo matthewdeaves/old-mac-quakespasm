@@ -129,7 +129,7 @@ cover the setup, the build pipeline and the timedemo bench loop.
 Download the latest disk image from
 [**Releases**](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
 (`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac —
-built on Panther so it mounts on everything from 10.3.9 through modern macOS, and
+built on Tiger so it mounts on everything from 10.3.9 through modern macOS, and
 the `.app` inside is a fat binary that runs natively on each.
 
 Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder

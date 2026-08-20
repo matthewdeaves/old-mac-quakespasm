@@ -7,10 +7,10 @@ Lion mini (`mini-intel` or `mini-intel2` — `build.sh` / `build-fat.sh` ask
 `mini-intel`, `imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard
 needs the same legacy-crypto block as the other PPC boxes).
 
-Project goal, toggleability requirement, and the full perf-knob
-inventory live in `/CLAUDE.md` and `docs/KNOBS.md`. Per-machine
-shipping defaults: `scripts/bundle/autoexec-<machine>.cfg`.
-For LLM-facing per-script notes see `scripts/CLAUDE.md`.
+Project goal and the perf-knob inventory live in `/CLAUDE.md` and `docs/KNOBS.md`;
+the decisions behind this tooling are in `docs/adr/`. Per-machine shipping
+defaults: `scripts/bundle/autoexec-<machine>.cfg`. Per-script gotchas:
+`scripts/CLAUDE.md`.
 
 **Bench machines (7 Macs / 8 OS installs, 4 distinct binaries):**
 
@@ -25,9 +25,8 @@ For LLM-facing per-script notes see `scripts/CLAUDE.md`.
 | mini-intel  | Macmini2,1   C2D 2.33 GHz, GMA 950 64 MB shared, Lion 10.7.5          | `quakespasm-lion`     |
 | imac-2019   | iMac19,1     i5-9600K 3.70 GHz (6c), Radeon Pro 580X 8 GB, Sequoia 15.7.5 | `quakespasm-lion` |
 
-`imac-g5` (the only GL-2.0 GPU) is forced to the GL 1.x path — its Leopard
-GLSL driver hard-hangs the GPU — and benches **native-res only** (1440×900);
-a non-native fullscreen mode-switch wedges the R300. See `/MISTAKES.md`.
+`imac-g5` (the only GL-2.0 GPU) is forced to the GL 1.x path and benches
+**native-res only** (1440×900). ADR 0007.
 
 `mini-intel` is both A cross-build host AND a runnable bench reference. `mini-intel2`
 is an identical second build box (Macmini2,1 / 10.7.5) but appears in no bench or
@@ -119,7 +118,7 @@ before that commit use the old names, rows after use the new names.
 | `build.sh <g3\|g4\|g5\|lion>` | rsync sources to mini-intel, compile one slice (PPC cross via gcc-4.0 for g3/g4/g5, native x86_64 via clang for lion), install_name fixup, fetch binary to `build/quakespasm-<chip>`. `g5` = iMac G5 Leopard (ppc970, 10.5 SDK, `-mcpu=970`). Mostly called internally by `build-fat.sh`; useful directly only when diagnosing a one-slice compile error. |
 | `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh g5` + `build.sh lion`, then `lipo -create` the four slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine — host.c picks the right slice + per-machine cfg at boot. |
-| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac (Linux has no hdiutil). Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), **not** the G3 — a Tiger UDZO still mounts Panther→modern, and the G3's flaky old RAM/disk once flipped a byte into the Q2 DMG. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. `DMG_HOST=` overrides the host. |
+| `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac. Output `dist/QuakeSpasm-OldMac-<version>.dmg` — one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), never the G3 or Lion; `DMG_HOST=` overrides. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. Why all of that: ADR 0005. |
 | `deploy-dmg.sh <machine> [ver]` | install the release DMG the way a human does: scp to the Desktop, md5-verify it arrived, mount, `ditto` `Quakespasm.app` + copy `quakespasm.pak` into `~/Desktop/quake/`, **preserving `id1/` game data**, then detach. Default ver = newest `dist/QuakeSpasm-OldMac-*.dmg`. |
 | `smoke-dmg.sh <machine> [demo]` | launch the DMG-installed copy with the **production** bundle config (no `-noarchautoexec`, no vid/res override) + a `+timedemo` so it self-exits. Reports renderer + actual resolution + fps; PASS iff an fps line appears. This is the install→launch path that catches a crash `deploy.sh` + bench would miss. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s — slower CPU); yosemite 240 s. |
@@ -167,16 +166,16 @@ Quakespasm.app/
 
 Bundle is byte-for-byte identical across all seven machines —
 `deploy.sh` always ships the fat binary; per-machine settings travel
-inside `Contents/Resources/`. Full Info.plist key list,
-install_name_tool fixup, and the fat-SDL build recipe live in
-`MacOSX/CLAUDE.md`.
+inside `Contents/Resources/`. Full Info.plist key list, install_name_tool
+fixup and the bundle rationale: ADR 0010. The fat-SDL build recipes:
+`MacOSX/SDL-rebuild.md`.
 
 ## Why all the SSH knob-twiddling
 
 mini-intel's OpenSSH 5.6 and yosemite's older one don't speak modern
 algorithms. The SSH config entries pin the legacy crypto (`ssh-rsa`
-host keys + pubkeys, pre-2014 KEX, RSA `id_rsa_tiger` — not ed25519).
-`bench.sh` / `deploy.sh` inherit that; no inline `-o` flags needed.
-
+host keys + pubkeys, pre-2014 KEX, RSA `id_rsa_tiger`, not ed25519);
+`bench.sh` / `deploy.sh` inherit that, so no inline `-o` flags are needed.
 For yosemite specifically, rsync runs in `--protocol=29` mode because
-Panther ships rsync 2.5.x.
+Panther ships rsync 2.5.x. The orchestration host also needs a real
+rsync rather than macOS 15+'s openrsync (`/CLAUDE.md`).

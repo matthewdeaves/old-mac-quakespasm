@@ -1,126 +1,83 @@
 ---
 name: ppc-ops
-description: Build, deploy, and benchmark QuakeSpasm on the 6 bench machines (yosemite, sawtooth, quicksilver, mini-g4, mini-intel, imac-2019) from this Ubuntu workstation via the mini-intel cross-build host. Use this skill any time the user asks to compile, ship, or measure a build on any of the bench machines.
+description: Build, deploy, and benchmark QuakeSpasm on the bench fleet (yosemite, yosemite-tiger, sawtooth, quicksilver, mini-g4, imac-g5, mini-intel, imac-2019) from the orchestration Mac via a claimed Intel Lion cross-build mini. Use this skill any time the user asks to compile, ship, or measure a build on any of the bench machines.
 ---
 
 # PPC operations skill
 
-The QuakeSpasm port has 5 bench machines, named by Apple codename (towers)
-or form-factor + chip (minis). All driven through a stable build/deploy/
-bench pipeline. Don't reinvent it inline — invoke the scripts.
+Seven Macs, eight OS installs, four build targets, one fat binary. All driven
+through a stable build/deploy/bench pipeline — invoke the scripts, don't
+reinvent them inline.
 
-| machine     | hardware                                                              | binary chip family |
-|-------------|-----------------------------------------------------------------------|--------------------|
-| yosemite    | PowerMac1,1  / G3 B&W 449 MHz / Rage 128 16 MB / Panther 10.3.9       | g3                 |
-| sawtooth    | PowerMac3,1  / G4 AGP 500 MHz / GeForce2 MX 32 MB / Tiger 10.4.11     | g4                 |
-| quicksilver | PowerMac3,5  / G4    733 MHz / Radeon 9000 64 MB / Tiger 10.4.11     | g4                 |
-| mini-g4     | PowerMac10,1 / G4   1.25 GHz / Radeon 9200 32 MB / Tiger 10.4.11     | g4                 |
-| mini-intel  | Macmini2,1   / C2D  2.33 GHz / GMA 950 64 MB / Lion 10.7.5            | lion               |
-| imac-2019   | iMac19,1     / i5-9600K 3.70 GHz / Radeon Pro 580X 8 GB / Sequoia 15.7.5 | lion               |
+| machine | hardware | target |
+|---|---|---|
+| yosemite | PowerMac1,1 / G3 B&W 449 MHz / Rage 128 16 MB / Panther 10.3.9 | g3 |
+| yosemite-tiger | the SAME Mac, 2nd partition, Tiger 10.4.11 | g3 |
+| sawtooth | PowerMac3,1 / G4 AGP 500 MHz / GeForce2 MX 32 MB / Tiger 10.4.11 | g4 |
+| quicksilver | PowerMac3,5 / G4 733 MHz / Radeon 9000 64 MB / Tiger 10.4.11 | g4 |
+| mini-g4 | PowerMac10,1 / G4 1.25 GHz / Radeon 9200 32 MB / Tiger 10.4.11 | g4 |
+| imac-g5 | PowerMac8,2 / G5 2.0 GHz / Radeon 9600 128 MB / Leopard 10.5.8 | g5 |
+| mini-intel | Macmini2,1 / C2D 2.33 GHz / GMA 950 64 MB / Lion 10.7.5 | lion |
+| imac-2019 | iMac19,1 / i5-9600K 3.7 GHz / Radeon Pro 580X 8 GB / Sequoia 15.7.5 | lion |
 
-`mini-intel` is also the cross-build host for all PPC binaries.
+`yosemite` and `yosemite-tiger` are one Mac on one IP, one OS booted at a time,
+so they are mutually exclusive bench legs. Cross-building happens on a claimed
+Intel Lion mini (`mini-intel` or `mini-intel2`), picked by
+`scripts/pick-build-host.sh`; `mini-intel` is also a bench reference.
 
 ## When to use
 
-- "build the binary" / "build fat" → `scripts/build-fat.sh`
-  (produces `build/quakespasm-fat` — the only binary we deploy. Calls
-  `build.sh g3/g4/lion` internally; those sub-builders are also useful
-  on their own when diagnosing a one-slice compile error.)
+- "build" / "build fat" → `scripts/build-fat.sh` (four slices lipo'd into
+  `build/quakespasm-fat`, the only binary we deploy). `scripts/build.sh
+  <g3|g4|g5|lion>` builds one slice; useful only for a one-slice compile error.
 - "deploy" / "ship to <machine>" → `scripts/deploy.sh <machine>`
-  (always ships the fat binary; build first if `build/quakespasm-fat`
-  doesn't exist or isn't from current HEAD)
 - "run a bench" / "timedemo" → `scripts/bench.sh <machine> <demo> <WxH>`
-- "full benchmark sweep" → `scripts/full-bench.sh all`   (all 6 machines)
-- "PPC-only sweep" → `scripts/full-bench.sh ppc`         (4 PPC machines)
-- "Intel-only sweep" → `scripts/full-bench.sh intel`     (mini-intel + imac-2019)
+- "full sweep" → `scripts/full-bench.sh all` (or `ppc` / `intel` / one machine)
 - "parallel sweep" / "smoke" → `scripts/parallel-bench.sh [--quick]`
-  (default runs all 6 legs concurrently; `--no-<machine>` to skip a leg)
-- "bench + commit" (post-phase canonical) → `scripts/bench-and-commit.sh "<phase desc>"`
+- "bench + commit" → `scripts/bench-and-commit.sh "<phase desc>"`
 - "set up a fresh build host" → `scripts/setup-lion.sh`
 
-All scripts live in `scripts/` at the repo root. Read `scripts/README.md`
-once to know the contract.
+Read `scripts/README.md` once for the full contract, and `scripts/CLAUDE.md` for
+the gotchas.
 
 ## Inputs and outputs
 
-- Sources: working tree of this repo (rsynced to mini-intel automatically)
-- Build artifacts: `build/quakespasm-{g3,g4,lion}` (gitignored). The three
-  G4 machines (sawtooth, quicksilver, mini-g4) all reuse `quakespasm-g4`.
+- Sources: this working tree, rsynced to the build host automatically.
+- Build artifacts: `build/quakespasm-{g3,g4,g5,lion,fat}`, gitignored.
 - Deploy targets: `<machine>:~/Desktop/quake/Quakespasm.app`
-- Bench results: appended to `benchmarks/results.csv`
-- Raw bench logs: `benchmarks/raw/<commit>_<machine>_<demo>_<res>_run<N>.log`
+- Bench rows: `benchmarks/results.csv`, schema
+  `timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps`.
+  Median is over runs 2 and 3; run 1 includes texture-upload warmup.
+- Raw logs: `benchmarks/raw/<commit>_<machine>_<demo>_<res>_run<N>.log`.
+  `scripts/parse_qconsole.py <path>` extracts fps and GL info (`--json`).
 
-## SSH aliases used
-
-All six configured in `~/.ssh/config` with legacy crypto algorithms
-(ssh-rsa, dh-group1-sha1, aes128-cbc on Panther) and `id_rsa_tiger` as
-the keypair (imac-2019 is modern OpenSSH and doesn't need the legacy
-knobs). Each Mac also has `~/bin/qsreboot.sh` installed via
-`scripts/install-host-tools.sh` for SSH-side reboot recovery (Tier 1
-sudo NOPASSWD reboot, Tier 2 Finder Apple Event).
+Historical CSV rows use the old names `g3`, `g4`, `g4mini`, `lion` for
+`yosemite`, `quicksilver`, `mini-g4`, `mini-intel`.
 
 ## Things to avoid
 
-1. **Don't pipe `scp` through `tee` without `set -o pipefail`** — exit
-   codes get masked, silent failures.
-2. **Don't use `pkill` on the PPC machines** — they don't have it.
-   Use `killall <name>`.
-3. **Don't pass `CPUFLAGS` via env** to `make -f Makefile.darwin` — the
-   makefile resets it with `CPUFLAGS=`. Pass on the make command line.
-   The build.sh script handles this correctly.
-4. **Don't hard-KILL quakespasm in fullscreen on yosemite** — Panther's
-   Rage 128 driver leaves the display LUT corrupt. The scripts use
-   TERM-grace-then-KILL pre-AND-post-run to give SDL_Quit a chance to
-   restore display state. Recovery if you do trip it: `ssh yosemite
-   '~/bin/qsreboot.sh'`.
-5. **Don't use `+timedemo demo1 +timedemo demo1 +quit`** in one launch —
-   the cmd buffer stomps each timedemo with the next. `bench.sh` does
-   one launch per run.
-6. **Don't sleep mini-intel during benchmarks/transfers** — wifi+sleep
-   makes it drop off the LAN.
+1. **Don't build g3/g4/g5 in parallel** — the `.o` race stamps the wrong CPU
+   subtype. `build.sh` flocks; don't bypass it. ADR 0004.
+2. **Don't run `bench.sh` legs in parallel from one shell** — ssh-stack
+   contention gave a wrong G3 reading. Use `parallel-bench.sh`. ADR 0009.
+3. **Don't use `pkill` on the PowerPC or Lion machines** — they don't have it.
+   `killall`.
+4. **Don't hard-KILL quakespasm in fullscreen on yosemite or imac-g5** — the
+   Rage 128 LUT and the R300 both wedge. TERM, grace, then KILL. Recovery:
+   `ssh <host> '~/bin/qsreboot.sh'`. ADR 0007.
+5. **Don't pipe `scp` through `tee` without `set -o pipefail`.**
+6. **Don't pass `CPUFLAGS` via env** to `make -f Makefile.darwin`; the makefile
+   resets it. `build.sh` handles it.
+7. **Don't sleep the Intel minis during benchmarks or transfers.**
 
-## Reading bench results
+## Discipline
 
-`scripts/parse_qconsole.py <path>` extracts fps + GL info from a raw
-log. Use `--json` for machine-readable output.
+Bench every change on every reachable machine — the three G4s span GeForce2 MX /
+Radeon 9000 / Radeon 9200 and disambiguate fillrate-bound from CPU-bound within
+one CPU family, and the two Intel machines give the GMA 950 fillrate floor and
+modern headroom. 3 runs, median of 2 and 3, two commits per phase, same-session
+A/B before any regression verdict. ADR 0009. Never re-chase a recorded negative:
+`MISTAKES.md`.
 
-`benchmarks/results.csv` schema:
-`timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps`
-
-Median is computed across runs 2 and 3 (run 1 includes texture upload
-warmup). For comparing optimization wins, the relevant cell is
-`(commit, machine, demo, res) → median_fps`.
-
-NOTE: machine column historical values include `g3`, `g4`, `g4mini`,
-`lion` (rows tagged before the rename round); current rows use the
-new names. Both refer to the same hardware — `g4` = `quicksilver`,
-`g4mini` = `mini-g4`, `lion` = `mini-intel`, `g3` = `yosemite`.
-
-## Required source patches (already applied)
-
-Three patches that any PPC build needs (committed):
-
-- `Quake/pl_osx.m` — Obj-C 2.0 dot-notation → setter calls (gcc-4.0)
-- `Quake/gl_vidsdl.c` — `kCGLCEMPEngine` 10.4-gate
-- `MacOSX/QuakeArguments.m` + `AppController.m` — NSString encoding
-  APIs version-gated for Panther
-
-These are in the working tree. `CLAUDE.md` documents them in detail.
-
-## Optimization roadmap
-
-There is no current plan doc. The Round v2 → v11.1 plan is archived at
-`docs/archive/PPC_PLAN_v2-v11.md` — useful for historical context, not
-a roadmap. New optimisation work starts with a fresh evidence pass
-(end-of-round bench grid, code review, static-analysis sweep) and a
-new plan written from that evidence.
-
-Always benchmark each change on **all 6 machines** — AltiVec wins can
-be no-ops or regressions on yosemite if dispatch is wrong; the three
-G4 machines (sawtooth, quicksilver, mini-g4) have very different GPU
-classes (GeForce2 MX vs Radeon 9000 vs Radeon 9200) so they
-disambiguate fillrate-bound vs CPU-bound effects within the G4 family;
-the two Intel machines (mini-intel, imac-2019) reference the GMA 950
-fillrate floor and modern discrete headroom respectively.
-`scripts/parallel-bench.sh` runs all six legs concurrently and is the
-default canonical sweep.
+There is no current optimisation plan doc. `docs/archive/PPC_PLAN_v2-v11.md` is
+history, not a roadmap.

@@ -1,10 +1,9 @@
 # Toggleable knobs inventory
 
-Every per-target visual / perf decision shipped to date can be flipped
-without rebuild — most via cvars, some via launch-time `-flag` parsed
-in the relevant `*_Init`. **Toggleability is a hard project requirement**
-so end-of-round code review can A/B individual contributions without
-rebuild. Per-machine shipping defaults live in
+Every per-target visual or perf decision shipped to date can be flipped without
+a rebuild — most via cvars, some via a launch-time `-flag` parsed in the
+relevant `*_Init`. Why that is a hard requirement, and how a split result gets
+gated rather than dropped: ADR 0008. Per-machine shipping defaults live in
 `scripts/bundle/autoexec-<machine>.cfg`.
 
 Updated 2026-06-06.
@@ -28,8 +27,8 @@ Updated 2026-06-06.
 
 | Flag/cvar | Default | What it does | File |
 |-----------|---------|--------------|------|
-| `-atigl` (cmdline) | off | **Override** the ATI R300 GL-1.x gate. By default, renderers matching `Radeon 9500/9600/9700/9800` (R300 family, e.g. the iMac G5's Radeon 9600) are forced onto the GL 1.x fixed-function path because their Leopard GL2 driver **hard-hangs the GPU on the GLSL/VBO path** (see MISTAKES.md 2026-05-31). `-atigl` re-enables the full GL 2.0 path for A/B retesting — **expect a wedge**. | `gl_vidsdl.c` `GL_CheckExtensions` |
-| `vid_desktopfullscreen` (cvar) | 0 | When 1, fullscreen uses the **captured desktop resolution + depth** (a same-mode display CAPTURE, not a mode SWITCH). Avoids the mode-switch that hard-hangs the R300 driver, and auto-selects each panel's native max res (17" iMac G5 1440x900, 20" 1680x1050) with no per-model hard-coding. Set to 1 in `autoexec-ppc970.cfg` (all G5s). SDL2 builds get this free via `SDL_WINDOW_FULLSCREEN_DESKTOP`; the SDL-1.2 substitution lives in `VID_SetMode`. Engine-default 0 so external-display machines (minis/towers) keep their tuned fixed res. | `gl_vidsdl.c` `VID_SetMode` |
+| `-atigl` (cmdline) | off | **Override** the ATI R300 GL-1.x gate (ADR 0007). Re-enables the full GL 2.0 path for A/B retesting — **expect a wedge**. | `gl_vidsdl.c` `GL_CheckExtensions` |
+| `vid_desktopfullscreen` (cvar) | 0 | When 1, fullscreen uses the captured desktop resolution and depth: a same-mode display CAPTURE, not a mode SWITCH (ADR 0007). Auto-selects each panel's native max res (17" iMac G5 1440x900, 20" 1680x1050) with no per-model hard-coding. Set to 1 in `autoexec-ppc970.cfg` (all G5s). Engine-default 0 so external-display machines keep their tuned fixed res. | `gl_vidsdl.c` `VID_SetMode` |
 
 The R300 gate makes the existing `-noglsl -novbo -notexturenpot -nowarpmipmaps` switches redundant on these cards (the gate already skips all four), but they remain available for finer A/B.
 
@@ -37,10 +36,10 @@ The R300 gate makes the existing `-noglsl -novbo -notexturenpot -nowarpmipmaps` 
 
 | Flag/cvar | Default | What it does | File |
 |-----------|---------|--------------|------|
-| `vid_lock` (command) | applied on G3 + G5 | Freezes the current video mode: `vid_restart`, `vid_test`, alt-enter (`VID_Toggle`), and the video-menu resolution/bpp/rate items all become **inert** until `vid_unlock`. Called as the LAST line of `autoexec-ppc750.cfg` (G3 Rage 128) and `autoexec-ppc970.cfg` (G5 R300), AFTER the boot `vid_restart` has set the safe resolution. Prevents a live fullscreen **resolution switch**, which hard-crashes the Panther Rage 128 driver (confirmed 2026-05-31) and hard-hangs the Leopard R300. Upstream only locked internally during gamedir changes; this port exposes it as a console command. | `gl_vidsdl.c` `VID_Lock` / `Cmd_AddCommand("vid_lock", …)` |
+| `vid_lock` (command) | applied on G3 + G5 | Freezes the current video mode: `vid_restart`, `vid_test`, alt-enter (`VID_Toggle`) and the video-menu resolution/bpp/rate items all become **inert** until `vid_unlock`. Last line of `autoexec-ppc750.cfg` and `autoexec-ppc970.cfg`, after the boot `vid_restart`. Upstream only locked internally during gamedir changes; this port exposes it as a console command. ADR 0007. | `gl_vidsdl.c` `VID_Lock` |
 | `vid_unlock` (command) | — | Re-enables in-game mode switching (upstream command). Type it at the console on a G3/G5 if you know your GPU tolerates a mode switch (e.g. a GeForce-equipped Power Mac G5 tower), then `vid_width N; vid_height M; vid_restart`. | `gl_vidsdl.c` `VID_Unlock` |
 
-The lock only sticks on a real `.app` launch: the per-arch CFBundle autoexec runs AFTER host.c's post-`quake.rc` `vid_unlock`, so its `vid_lock` is the last word. On a **bench** run the cfgs are staged as `id1/autoexec.cfg` (executed BY `quake.rc`, before that `vid_unlock`), so the staged `vid_lock` is cleared — benching and `-width`/`-height` overrides are unaffected. The G4 and Lion/Intel slices are NOT locked (their GPUs switch modes fine).
+The lock sticks only on a real `.app` launch, by boot order (ADR 0006); on a bench run the staged `vid_lock` is cleared, so benching and `-width`/`-height` overrides are unaffected. The G4 and Intel slices are NOT locked — their GPUs switch modes fine.
 
 ## Visual cvars (runtime, set in per-machine autoexec)
 
@@ -58,7 +57,7 @@ Per-machine configs live at
 | `gl_texture_lodbias`    | (default 0)            | -1.5         | 0            | Round v4 Task #20: bias the diffuse-texture mipmap LOD selection. User reported soft mips on G4 / Radeon 9000 distant brick walls; Lion / GMA 950 unaffected on the same engine. Negative pulls sharper mip chains. Wired via `glTexEnvf(GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, …)` in `gl_texmgr.c`. Inert if neither GL 1.4 nor `EXT_texture_lod_bias` is present (R128 falls back silently). |
 | `r_dynamic_distance`    | 768                    | (default 0)  | (default 0)  | Round v5 B1: elide dlight BSP-mark + surface-reblend pass past N units from viewer. R128 has no fragment-shader dlight path, so each dlight = full extra GPU pass per touched surface. G3 GPU-bound regime ⇒ removing GPU work is the only fps lever. G4/Lion left at 0 = unlimited (they have headroom). Squared compare in `R_PushDlights`. Headline G3 lever — expect +5–15% on demo3 (dlight-heavy). |
 | `r_wateralpha`          | 0.6                    | 0.6 (all 3)  | 0.6          | Round v5 wrap pass 2 (2026-05-09): plain water translucency. Same path as the existing `r_lavaalpha`/`r_telealpha`/`r_slimealpha` 0.6 family — see-through liquid surfaces. On classic-warp targets (yosemite/sawtooth/mini-intel) goes through the `R_DrawTextureChains_Water` `R_OldWaterEffective()` branch; on shader-water targets (quicksilver/mini-g4) goes through the GLSL alpha uniform. Negligible cost across all targets. |
-| `r_lavaalpha` / `r_telealpha` / `r_slimealpha` | (default 1.0 = opaque) | 0.6 (all 3) | 0.6 | **Round v5 wrap polish enabled liquid alpha across yosemite + 3 G4s + mini-intel.** Round v8 followup (2026-05-10): bisect on yosemite demo3 1024 (e1m6 lava-heavy) showed `r_lavaalpha 0.6` alone drops fps from 19.65 → 14.40 (-26%), pushing G3 below the 20-fps floor. Tele + slime alpha together also showed regression on the same bisect. Decision: drop `r_lavaalpha`/`r_telealpha`/`r_slimealpha` on G3 (autoexec-yosemite.cfg), keep `r_wateralpha 0.6` (water see-through is the most-common transparent-liquid effect in regular play). G4 trio + Lion + iMac keep all four liquid alphas (different fillrate envelope). Possible follow-up: add `r_lavaalpha_distance` mirroring `r_dynamic_distance` so close-up lava can blend while far-field stays opaque. |
+| `r_lavaalpha` / `r_telealpha` / `r_slimealpha` | (default 1.0 = opaque) | 0.6 (all 3) | 0.6 | Round v5 wrap enabled these across yosemite + 3 G4s + mini-intel. Round v8 bisect (2026-05-10) on yosemite demo3 1024 (e1m6, lava-heavy): `r_lavaalpha 0.6` **alone** drops 19.65 → 14.40 fps, **−26%**, below the 20-fps floor; tele + slime together also regressed. Dropped on G3 only; `r_wateralpha 0.6` kept there. G4 trio + Lion + iMac keep all four. ADR 0008. |
 | `gl_clear`              | 0 | 0 (quicksilver + mini-g4 only — sawtooth stays at 1) | 0 | Round v5 wrap pass 3 (2026-05-09): skip per-frame backbuffer clear. Quake's world+sky covers 100% of the screen so the clear is a redundant fillrate-bound write. Wins: yosemite +4.7%, mini-intel +3.5%, quicksilver +7.1%, mini-g4 +9.3% on demo3 1024. **Sawtooth regresses -2.1%** (GeForce2 MX driver quirk — no-clear path is slower than the explicit clear), so sawtooth stays at engine default 1. Visually verified clean on yosemite e1m1 (sky + water — no ghosting at sky edges, no garbage artifacts). |
 
 ## Round v8 lightmap + multitex hygiene knobs (2026-05-10)
@@ -87,7 +86,7 @@ Per-machine configs live at
 
 | Knob | Type | Per-machine default | What it gates | File |
 |------|------|---------------------|---------------|------|
-| `vid_bpp` | cvar (CVAR_ARCHIVE) | **32** quicksilver + imac-2019; **16** (engine default) everywhere else | Colour depth, but really the depth/stencil allocation: `vid_bpp 16` → 16-bit z-buffer + **0 stencil** (so `r_shadows`' stencil self-intersection mask is inert — gl_rmain.c:1081 `if (gl_stencilbits)`); `vid_bpp 32` → 24-bit z-buffer + 8-bit stencil. Set 32 on quicksilver (Radeon 9000, verified +stencil shadows + 24-bit depth for ~3%, holds 60 floor) and imac-2019 (unverified — machine was offline). **NOT** on mini-g4 (Radeon 9200 hard-wedges intermittently on the 32bpp boot vid_restart — see MISTAKES.md 2026-05-29), nor on the fillrate-bound G3/sawtooth/mini-intel. Needs a boot `vid_restart` in the per-machine autoexec to apply (VID_Init runs before the autoexec). | `scripts/bundle/autoexec-{quicksilver,imac-2019}.cfg` |
+| `vid_bpp` | cvar (CVAR_ARCHIVE) | **32** quicksilver + imac-2019; **16** (engine default) everywhere else | Colour depth, but really the depth/stencil allocation: `vid_bpp 16` → 16-bit z-buffer + **0 stencil** (so `r_shadows`' stencil self-intersection mask is inert — `gl_rmain.c:1081`, `if (gl_stencilbits)`); `vid_bpp 32` → 24-bit z-buffer + 8-bit stencil. 32 on quicksilver (Radeon 9000, verified, ~3%, holds the 60 floor) and imac-2019 (unverified, machine offline). **NOT** on mini-g4, nor on the fillrate-bound G3 / sawtooth / mini-intel. Needs a boot `vid_restart` in the per-machine autoexec to apply (VID_Init runs before the autoexec). ADR 0007. | `scripts/bundle/autoexec-{quicksilver,imac-2019}.cfg` |
 | `vid_fsaa` | cvar (CVAR_ARCHIVE) | **8** imac-2019 only; 0 elsewhere | MSAA sample count. Only imac-2019's Radeon Pro 580X gets it (8x — "spend the headroom"); the PPC GPUs lack `ARB_multisample` (sawtooth, G3) or are fillrate-bound near floor (Radeons/GMA950). **Required engine fix:** `VID_Restart` (gl_vidsdl.c) now re-reads the file-scope `fsaa` global from `vid_fsaa` before `VID_SetMode` — upstream only set it in VID_Init / `-fsaa` cmdline, so a `vid_fsaa` in autoexec + `vid_restart` was silently ignored. Inert where `vid_fsaa` is 0. | `gl_vidsdl.c` `VID_Restart`; `scripts/bundle/autoexec-imac-2019.cfg` |
 
 ## Smooth lightstyle interpolation (2026-05-29, code-review finding #5)
@@ -240,9 +239,4 @@ specifically.
 
 ## Why this matters
 
-Project goal is best-looking Quake at playable fps; the only way to
-navigate that trade-space honestly is to be able to flip individual
-contributions at runtime and watch fps + visuals together. Gate any
-new perf or visual phase behind a named knob unless you have a strong
-reason not to (e.g. a code-size win that's only realised by removing
-the scalar fallback).
+ADR 0008.

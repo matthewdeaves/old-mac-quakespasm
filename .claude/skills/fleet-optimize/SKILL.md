@@ -13,8 +13,10 @@ It is the optimization *loop*; it uses the build/deploy/bench mechanics (see the
 
 ## Before you touch anything — read these (they encode hard-won limits)
 - `MISTAKES.md` — what already broke. **Never re-chase a recorded negative.**
-- `docs/BENCHMARKING.md` — how to profile/bench on real hardware + known hotspots.
-- `docs/KNOBS.md` — the exact cvar names and what they do.
+- `docs/adr/` — the standing decisions and their evidence; ADR 0008 (gating) and
+  ADR 0009 (bench discipline) are the two this loop runs inside.
+- `docs/DEVELOPMENT.md` — the optimisation hot-file list and profiling tooling.
+- `docs/KNOBS.md` — the exact cvar names and what each one measured.
 - `benchmarks/results.csv` — current per-machine fps (your baseline).
 - `scripts/bundle/autoexec-*.cfg` — each machine's shipped config.
 
@@ -91,8 +93,8 @@ maxfps); **sound mix rate** (CPU win on the G3); vertex-array / submission mode.
 Expose every new behaviour as a cvar → the one fat binary enables it per class.
 
 ## Toolbox
-**This host (Linux):** read/grep the source (`Quake/`); `git log` for prior
-attempts; cross-build via `build-fat.sh` (mini-intel).
+**This host (orchestration Mac):** read/grep the source (`Quake/`); `git log`
+for prior attempts; cross-build via `build-fat.sh` on a claimed Intel mini.
 **On the Macs (analysis):**
 - `/usr/bin/sample` (Panther→Lion, no Xcode) — statistical profiler; build a
   non-stripped slice, trigger on load-complete, sample the render thread.

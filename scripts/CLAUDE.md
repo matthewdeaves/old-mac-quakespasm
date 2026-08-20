@@ -1,58 +1,49 @@
-# scripts/ — sticky facts for Claude
+# scripts/ — per-script gotchas
 
-Per-script contracts + the host matrix live in `scripts/README.md` (the table
-covers what every script does and its arguments). This file holds only the
-LLM-critical gotchas the table doesn't — read both when editing scripts.
+The host matrix and what every script does live in `scripts/README.md`. The
+decisions behind the tooling are in `docs/adr/`. This file holds only the
+gotchas neither of those covers.
 
-Build TARGET names (`g3`/`g4`/`g5`/`lion`) refer to chip family + SDK, NOT a
-machine. Machine names (`yosemite`/`sawtooth`/`quicksilver`/`mini-g4`/
-`mini-intel`/`imac-2019`/`imac-g5`) refer to specific bench Macs. (`g5` = ppc970
-/ 10.5 SDK / -mcpu=970 / -DQS_ARCH_PPC970, for the iMac G5 on Leopard 10.5.8.)
-`build.sh` produces one slice; `build-fat.sh` lipo's all four into
-`build/quakespasm-fat`. **`deploy.sh` always ships the fat binary** — `build.sh`
-exists as build-fat.sh's sub-step + for diagnosing one-slice compile errors.
+Build TARGET names (`g3`/`g4`/`g5`/`lion`) are chip family plus SDK, not
+machines. Machine names (`yosemite`, `yosemite-tiger`, `sawtooth`,
+`quicksilver`, `mini-g4`, `imac-g5`, `mini-intel`, `imac-2019`) are specific
+bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
+`build-fat.sh`'s sub-step and for diagnosing a one-slice compile error.
 
-## Per-script gotchas (beyond the README table)
+## Per-script gotchas
 
-- **build.sh** flocks `~/quakespasm/build/.build.lock` to serialize concurrent
-  g3/g4/g5 invocations (the `.o`-race in /CLAUDE.md). After any build, `file
-  build/quakespasm-<t>` must report the right CPU subtype (ppc_750 / ppc_7400 /
-  ppc_970 / x86_64) — anything else is the race. It also stamps the release
-  version: `QS_PORT_VERSION` (env-overridable; default `git describe --tags
-  --always --dirty`) becomes `-DQUAKESPASM_VER_SUFFIX` in `Makefile.darwin`, so
-  the binary reports e.g. `0.97.0-oldmac-v1.9`. Tag the commit before a release
-  build or the stamp carries `-N-g…-dirty`. build-fat.sh resolves it once and
-  exports it so all four slices match.
-- **deploy.sh / bench.sh** load two autoexec layers (per-arch baseline +
-  per-machine overlay) from the bundle via CFBundle; bench.sh STAGES them as a
-  temp `id1/autoexec.cfg` and passes `-noarchautoexec` to avoid double-apply.
-  `EXTRA_CVARS="+cvar val"` runs as a stuffcmd AFTER the autoexec, so it wins for
-  a single-cvar A/B. Full detail: `docs/GATING.md`.
-- **make-dmg.sh** defaults to a reachable TIGER host (not the flaky G3) and
-  content-verifies the binaries inside the image vs source. **deploy-dmg.sh /
-  smoke-dmg.sh** install + production-launch the DMG (the path bench skips);
-  deploy-dmg first removes any older `QuakeSpasm-OldMac-*.dmg` from the target
-  Desktop so releases don't pile up. Why it matters: MISTAKES.md 2026-05-31
-  "DMG byte-flip".
+- **build.sh** flocks `~/quakespasm/build/.build.lock` to serialise concurrent
+  g3/g4/g5 invocations. After any build, `file build/quakespasm-<t>` must report
+  the right CPU subtype — anything else is the `.o` race (ADR 0004). It also
+  stamps `QS_PORT_VERSION` (ADR 0004).
+- **deploy.sh / bench.sh** load the two autoexec layers from the bundle;
+  `bench.sh` stages them as a temp `id1/autoexec.cfg` and passes
+  `-noarchautoexec` to avoid double-apply. `EXTRA_CVARS="+cvar val"` runs as a
+  stuffcmd after the autoexec, so it wins for a single-cvar A/B. ADR 0006.
+- **bench.sh** timeouts differ by machine: mini-intel 60 s, G4s 120 s, sawtooth
+  180 s (slower CPU), yosemite 240 s.
+- **make-dmg.sh** defaults to a reachable Tiger host and content-verifies the
+  binaries inside the image against source. **deploy-dmg.sh / smoke-dmg.sh**
+  install and production-launch it; deploy-dmg first removes any older
+  `QuakeSpasm-OldMac-*.dmg` from the target Desktop so releases don't pile up.
+  ADR 0005.
 - **bench-and-commit.sh** refuses dirty trees and any NA fps cell; the
-  manual-commit override for a lone transient is in `docs/BENCHMARKING.md`.
-- **make-icon.py** — see "Icon pipeline philosophy" below.
-
-The timedemo-invocation pattern (why bench.sh launches 3× separately) moved to
-`docs/BENCHMARKING.md`.
+  manual-commit override for a lone transient is in ADR 0009.
+- **make-icon.py** — conservative defaults, Photoshop over `--scrub-interior`.
+  ADR 0010.
 
 ## Host-side reboot recovery
 
-When Quake hard-kills in fullscreen on G3, Panther's Rage 128 driver leaves the
-display LUT corrupt — black screen, mouse moves, OS alive over SSH. Apple-menu
-Restart fails because Finder itself can be wedged. After running
-`qsreboot-setup.sh` once per machine, `ssh <host> '~/bin/qsreboot.sh'` from the
-orchestration host issues a kernel-level reboot regardless of display/Finder
-state. This is the canonical recovery path; do not power-cycle unless qsreboot.sh
-has been verified failed (very rare — would mean sudoers got mangled, which the
-in-script `visudo -c` restore should have caught).
+When Quake hard-kills in fullscreen on the G3, Panther's Rage 128 driver leaves
+the display LUT corrupt: black screen, mouse moves, OS alive over SSH. The
+Apple-menu Restart fails because Finder itself can be wedged. After running
+`qsreboot-setup.sh` once per machine, `ssh <host> '~/bin/qsreboot.sh'` issues a
+kernel-level reboot regardless of display or Finder state. This is the canonical
+recovery path; do not power-cycle unless `qsreboot.sh` has been verified failed,
+which would mean sudoers got mangled and the in-script `visudo -c` restore
+should have caught it. Leopard's `sudo` has no `-n` (ADR 0007).
 
-## ssh remote `cd && X &` puts cd in the subshell
+## ssh remote `cd && X &` puts the cd in the subshell
 
 `ssh host "cd /foo && rm -f bar && ./prog &"` parses as `(cd && rm && ./prog) &`
 because `&&` binds tighter than `&`. The whole chain runs in a background
@@ -60,24 +51,11 @@ subshell, the parent shell's cwd never changes, and `[ -f bar ]` in the parent
 checks `$HOME/bar`, not `/foo/bar`. Put `cd` and `rm` on their own foreground
 lines and `&` only the long-running command.
 
-## Icon pipeline philosophy
+## Don't pipe `scp` through `tee` without `set -o pipefail`
 
-`make-icon.py` ships **conservative defaults**: edge-flood-fill bg removal that
-preserves all interior detail, no auto-scrubbing of interior bg-coloured pockets.
-The `--scrub-interior` knob exists for AI-generated artwork that has bg leaking
-through logo glyph gaps or detail-sparse areas, but the heuristics (size +
-score-purity + annulus darkness) can't reliably distinguish bg-bleed from
-saturated specular highlights on metallic surfaces.
+Exit codes get masked and failures go silent.
 
-**Use Photoshop touch-up over algorithmic perfection.** Proven workflow for the
-Q1 + Q2 icons we shipped:
+## Don't pass `CPUFLAGS` via env to `make -f Makefile.darwin`
 
-1. Run `make-icon.py` with defaults to produce a conservative transparent-bg
-   master + (if `--preview`) a magenta-composited preview.
-2. User opens master in Photoshop, paints visible bg pockets to alpha=0 using the
-   magenta preview as a guide.
-3. User saves back as RGBA PNG, hands it back via `--keep-bg` to regenerate the
-   ICNS without re-running bg removal.
-
-Don't burn cycles trying to make `--scrub-interior` work perfectly on new
-artwork — if defaults leave visible bg pockets, ship to Photoshop.
+The makefile resets it with `CPUFLAGS=`. Pass it on the make command line;
+`build.sh` already does.

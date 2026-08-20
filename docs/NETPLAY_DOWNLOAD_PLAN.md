@@ -14,8 +14,9 @@ over the existing UDP game connection**. TLS only ever matters for the *optional
 HTTPS fast-download mirror path, which QSS itself doesn't bother with. See
 [§7 TLS](#7-tls--the-optional-last-5-not-part-of-this-plan).
 
-Cross-refs: [`GATING.md`](GATING.md) (toggleability), [`KNOBS.md`](KNOBS.md)
-(knob inventory — add the new cvar there), [`BENCHMARKING.md`](BENCHMARKING.md)
+Cross-refs: [`adr/0008`](adr/0008-every-knob-is-toggleable-gate-a-change-do-not-drop-it.md)
+(toggleability), [`KNOBS.md`](KNOBS.md)
+(knob inventory — add the new cvar there), [`adr/0009`](adr/0009-benchmarks-are-three-runs-on-hardware-with-a-same-session-ab.md)
 (bench cadence), [`../MISTAKES.md`](../MISTAKES.md) (read the caveats in §8).
 
 ---
@@ -177,7 +178,7 @@ Only if in-protocol UDP proves too slow in practice (see §8 packet-loss caveat)
 
 ---
 
-## 5. Gating + toggleability (hard requirement — see GATING.md)
+## 5. Gating + toggleability (hard requirement — see ADR 0008)
 
 - **Master cvar `allow_download`** (matches QSS): governs both client fetch and
   server serve. **Default it to `0` on this port** given the vintage-OS attack
@@ -202,7 +203,7 @@ Only if in-protocol UDP proves too slow in practice (see §8 packet-loss caveat)
   instead of `Host_Error`-crashing.
 - **Bench:** Phase 1 must be timedemo-neutral on all targets (it touches the hot
   signon/precache path). Phases 2-4 don't touch the render loop, so timedemo
-  should be unchanged — still run the cadence in [`BENCHMARKING.md`](BENCHMARKING.md)
+  should be unchanged — still run the cadence in ADR 0009
   and commit numbers. Download throughput is a separate manual measurement, not a
   timedemo.
 

@@ -1,189 +1,128 @@
-# QuakeSpasm PPC port — guidance for Claude
+# QuakeSpasm old-Mac port
 
-Sticky facts loaded every session. **There is no current plan doc.** The Round
-v2 → v11.1 plan is archived at `docs/archive/PPC_PLAN_v2-v11.md` — read it for
-historical phase decisions and reverted-experiment context, but don't treat it as
-a roadmap. Any new optimisation work starts with a fresh evidence pass
-(end-of-round bench grid, code review, static-analysis sweep) and a new plan
-written from that evidence.
+QuakeSpasm as ONE fat binary across PowerPC and Intel Macs, from a single
+`Quakespasm.app`, 10.3.9 Panther through modern macOS. Sticky facts only, loaded
+every session. Reasoning, evidence and rejected alternatives live in
+`docs/adr/`; recorded negative results live in `MISTAKES.md`.
 
-## Where things live (read on demand)
-
-- `MISTAKES.md` — append-only log of approaches that broke. **Read before
-  lighting up an idea that smells "easy" or "load-time only / zero risk".**
-- `docs/GATING.md` — toggleability requirement + per-machine gating mechanisms
-- `docs/BENCHMARKING.md` — bench discipline, cadence, timedemo invocation
-- `docs/DEVELOPMENT.md` — build path, mini-intel build-host isolation, hot files,
-  codebase facts you can't grep for
-- `docs/KNOBS.md` — toggleable cvar / cmdline knob inventory
-- `scripts/CLAUDE.md` + `scripts/README.md` — tooling contracts + host matrix
-- `MacOSX/CLAUDE.md` — bundle layout, Tiger/Panther Cocoa, required patches
-  (`MacOSX/SDL-rebuild.md` for the fat-SDL recipe)
-- `docs/README.md` — full documentation index (archive, research, ideas)
+**There is no current plan doc.** The round v2 → v11.1 plan is archived at
+`docs/archive/PPC_PLAN_v2-v11.md` — historical context, not a roadmap. New
+optimisation work starts from a fresh evidence pass and a new plan.
 
 ## Goal in one line
 
-Best-looking QuakeSpasm port for G3 Panther/Tiger + G4 Tiger + G5 Leopard + Lion Intel,
-keeping framerate comfortably playable on each (≥ 60 fps on G4, ≥ 60 fps on G5,
-≥ 60 fps on Lion, ≥ 20 fps on G3). Visual upgrades that cost 10–15% fps are in
-scope when they leave the cell above its playability threshold. Lion + iMac-2019
-are also bench references — useful data points that separate GPU-bound from
-CPU-bound effects across the GPU axis (R128 / GeForce2 MX / Radeon 9000/9200 /
-Radeon 9600 / GMA 950 / Radeon Pro 580X).
+Best-looking QuakeSpasm on G3 Panther/Tiger, G4 Tiger, G5 Leopard and Lion
+Intel, staying playable on each: **≥ 20 fps on the G3, ≥ 60 fps on the G4s, G5
+and Lion**, uncapped on modern hardware. Above the floor, effects beat fps.
 
-**iMac G5 (PowerMac8,2, Radeon 9600 / R300, Leopard 10.5.8)** is the one
-GL-2.0-class GPU in the fleet, and is forced onto the GL 1.x fixed-function path
-because its Leopard GLSL/VBO driver hard-hangs the GPU (engine ATI R300 gate in
-`gl_vidsdl.c`; `-atigl` overrides). It runs native-panel-res fullscreen via a
-same-mode CAPTURE (`vid_desktopfullscreen` in the ppc970 baseline — a mode SWITCH
-wedges the R300). ~100/74/86 fps (demo1/2/3) at native 1440×900. Integrated-panel
-iMacs (G5, and the untested-but-baked-in iMac G4) default to native panel res;
-external-display Macs keep their tuned fixed res. See MISTAKES.md 2026-05-31.
+## Commands — do not reinvent these inline
 
-## Hard requirements
+Per-script contracts are in `scripts/CLAUDE.md`; the host matrix and the full
+script table are in `scripts/README.md`.
 
-- **Toggleability.** Every per-target visual/perf knob must be flippable at
-  runtime (cvar) or launch (`-flag`) so end-of-round review can A/B it without a
-  rebuild. An fps win must not regress visuals on any target. When a change helps
-  some machines and hurts others, **gate it, don't drop it** (compile-time /
-  per-machine autoexec / runtime cvar). Mechanisms + inventory: `docs/GATING.md`,
-  `docs/KNOBS.md`.
-- **Bench every change on all targets**, 3× runs median of 2 & 3, commit the
-  numbers (code commit + bench commit). Full cadence: `docs/BENCHMARKING.md`.
+```sh
+scripts/build-fat.sh                        # THE build: 4 slices, lipo'd, on a claimed Intel mini
+scripts/build.sh <g3|g4|g5|lion>            # one slice; sub-step, or to diagnose a compile error
+scripts/deploy.sh <machine>                 # stage Quakespasm.app + ship; always the fat binary
+scripts/bench.sh <machine> <demo> <WxH>     # one 3-run cell into benchmarks/results.csv
+scripts/parallel-bench.sh [--quick]         # the concurrent matrix
+scripts/bench-and-commit.sh "<phase>"       # canonical post-phase bench commit
+scripts/make-dmg.sh [version]               # release image, on a Tiger box, content-verified
+scripts/deploy-dmg.sh HOST [ver]            # install from the DMG as a human does
+scripts/smoke-dmg.sh HOST [demo]            # launch the installed copy, production config
+scripts/screenshot.sh <machine>             # visual A/B captures
+scripts/build-server-linux.sh               # Linux dedicated server, in a container
+ssh <host> '~/bin/qsreboot.sh'              # reboot a Mac whose display is wedged
+```
 
-## Hard rule — slice stamping (exact cpusubtype, never generic ppc ALL)
+There is a `ppc-ops` skill and `/bench` + `/deploy` slash commands wrapping
+these.
 
-Every PPC slice must carry its EXACT cpusubtype — **ppc750** (9), **ppc7400**
-(10), **ppc970** (100) — which `build.sh` gets for free because Apple's gcc-4.0
-propagates `-mcpu=750/7400/970` into the Mach-O header. Verify it every time:
-`lipo -detailed_info build/quakespasm-fat` must list `CPU_SUBTYPE_POWERPC_750 /
-_7400 / _970`, never `_ALL`. (`file` prints subtype 9 as `ppc_650`; that's a
-naming quirk in modern `file`, not a wrong stamp — trust `lipo`.)
+Build TARGET names (`g3`/`g4`/`g5`/`lion`) are **chip family plus SDK, not
+machines**. `yosemite` and `yosemite-tiger` are ONE Mac (PowerMac1,1) on ONE IP
+with two OS installs, one booted at a time, so they are mutually exclusive bench
+legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
+`autoexec-yosemite` overlay.
 
-A generic `ppc (ALL)` slice is not merely imprecise, it is a launch blocker: it
-loads under Panther's lax 2003 dyld, but the Tiger/Leopard **kernel** mis-grades a
-fat of `[ppc ALL, ppc7400, ppc970]` on a 750 host and refuses to exec at all.
-Proven on hardware in the sister Half-Life port (its v1.0.0 could not launch on
-the G3 under Tiger for exactly this reason; fixed by re-stamping to ppc750).
+## Hard rules
 
-## Hard rule — build verification and version stamping
-
-**Never trust "done" or exit 0.** After every build:
-
-1. Confirm each `build/quakespasm-{g3,g4,g5,lion}` has a fresh mtime from THIS
-   run, not a mix of old and new (the `.o` race in "Operational gotchas" can
-   silently ship a stale or wrongly-stamped slice).
-2. `lipo -detailed_info build/quakespasm-fat` — four slices, exact subtypes.
-3. After `deploy.sh`, check its md5 comparison passed. It warns rather than
-   fails; a WARN line means the target is NOT running what you built.
-
-**Bump the version for every build that gets deployed or released.**
-`QS_PORT_VERSION` (default `git describe --tags --always --dirty`) is stamped
-into the binary, so a tagged build self-identifies and an untagged one is
-visibly `-N-g…-dirty`. That stamp is the only way to confirm from a running copy
-which build is on a machine — don't ship an ambiguous one.
-
-## Hard rule — releases
-
-- The DMG must be **content-verified**, not just `hdiutil verify`: md5 every
-  shipped binary inside the image against source (`make-dmg.sh` does this — read
-  its output, don't assume). MISTAKES.md 2026-05-31 "DMG byte-flip" is why.
-- Build it on a Tiger host, never the G3 (flaky hdiutil) or Lion (writes a UDIF
-  Panther can't mount).
-- Install it the end-user way (`deploy-dmg.sh` + `smoke-dmg.sh`) on at least the
-  oldest and newest targets before publishing.
-- **Fact-check the docs in the same commit.** README, `scripts/README.md`, the
-  per-CPU OS table and the tested-machines table must state what this build
-  actually supports — the per-CPU/per-OS floors, not an aspirational range.
-- The GitHub release gets a **real description** (what changed, what was verified
-  on which machine, what is known-unverified), not a bare tag.
-
-## Tooling — DON'T reinvent inline
-
-Contracts in `scripts/CLAUDE.md`; host matrix in `scripts/README.md`. Target
-names (`g3`/`g4`/`g5`/`lion`) = chip family + SDK, NOT machines. `yosemite` and
-`yosemite-tiger` are ONE Mac (PowerMac1,1) on ONE IP with two OS installs —
-Panther and Tiger, one booted at a time — so they are mutually exclusive bench
-legs, never concurrent. Both run the `ppc750` slice and both read
-`hw.model = PowerMac1,1`, so both get the `autoexec-yosemite` overlay. Top of mind:
-
-- `scripts/build-fat.sh` — 4-arch (ppc750+ppc7400+ppc970+x86_64) lipo'd binary,
-  the only binary we deploy (`build.sh <g3|g4|g5|lion>` builds one slice)
-- `scripts/deploy.sh <machine>` — stage Quakespasm.app + ship; per-machine
-  settings travel inside Contents/Resources/
-- `scripts/bench.sh <machine> <demo> <WxH>` / `scripts/parallel-bench.sh
-  [--quick]` / `scripts/bench-and-commit.sh "<msg>" [--quick]`
-- `scripts/make-dmg.sh` + `scripts/{deploy,smoke}-dmg.sh` — release image
-  build / install / smoke (content-verified; Tiger host)
-- `scripts/screenshot.sh <machine>` — visual A/B captures
-- `ssh <host> '~/bin/qsreboot.sh'` — reboot a Mac when a fullscreen kill wedged
-  the display (one-time `qsreboot-setup.sh` per machine first)
-
-There's a `ppc-ops` skill (`.claude/skills/ppc-ops/SKILL.md`) and `/bench` +
-`/deploy` slash commands that wrap these.
+- **Never trust "done" or exit 0.** After every build: fresh mtimes on each
+  `build/quakespasm-{g3,g4,g5,lion}` from THIS run; `lipo -detailed_info
+  build/quakespasm-fat` showing four slices at their exact subtypes; and after
+  `deploy.sh`, read its md5 comparison — it WARNS rather than fails, and a WARN
+  means the target is not running what you built. ADR 0002.
+- **Every PowerPC slice carries its exact cpusubtype**, never generic `ppc
+  (ALL)`, which is a launch blocker on Tiger and Leopard. `build.sh` asserts and
+  re-stamps. Trust `lipo`, not `file` (modern `file` renders subtype 9 as
+  `ppc_650`). ADR 0002.
+- **Bench every change on all targets**, 3 runs, median of 2 and 3, two commits
+  per phase (code, then bench). A regression verdict needs a same-session A/B on
+  the suspected target. ADR 0009.
+- **Every per-target knob must be flippable** at runtime or launch without a
+  rebuild, and a change that helps some machines and hurts others gets gated,
+  not dropped. ADR 0008, inventory in `docs/KNOBS.md`.
+- **Releases:** content-verify the DMG (md5 every binary inside it against
+  source — `make-dmg.sh` does it, read the output), build it on a Tiger host and
+  never the G3 or Lion, install it the end-user way on at least the oldest and
+  newest targets, fact-check the README's per-CPU OS floors in the same commit,
+  and give the GitHub release a real description. ADR 0005.
+- **Bump the version for every build that gets deployed or released.**
+  `QS_PORT_VERSION` is the only way to tell from a running copy which build is
+  on a machine. Tag before building. ADR 0004.
+- **Never hard-KILL the engine in fullscreen on the G3 or the G5.** TERM, grace,
+  then `killall -KILL quakespasm`. ADR 0007.
+- **We ship code, not content.** ADR 0012.
 
 ## Operational gotchas — every session
 
-**Don't run `scripts/bench.sh` legs in parallel from one shell.** Local ssh-stack
-contention can produce a wrong G3 fps reading (14.7 vs 23.1 fps for the same
-binary). Use `parallel-bench.sh` for the proper concurrent matrix, or serial
-`bench.sh`.
+- **Do not run `build.sh g3` and `g4` in parallel.** Both rsync to the same tree
+  on the build host and `make -j2` in it; the `.o` race produces a wrongly
+  stamped binary that crashes Panther during AppKit NIB init. `build.sh` flocks;
+  if you bypass it, serialise. `parallel-bench.sh` is fine — it parallelises
+  bench legs, not builds.
+- **Do not run `bench.sh` legs in parallel from one shell.** Local ssh-stack
+  contention gave a wrong G3 reading, 14.7 vs 23.1 fps for the same binary.
+- **No `pkill` on Tiger or Panther.** `killall` by name, out of `ps` if needed.
+- **Panther's `/bin/sleep` is integer-only** — `sleep 0.2` returns immediately
+  on 10.3 (Tiger fixes it). Poll loops on the G3 use `sleep 1`.
+- **Leopard's `sudo` has no `-n`**, so `qsreboot.sh`'s Tier-1 silently fails on
+  10.5; plain `sudo /sbin/reboot` works with the NOPASSWD entry.
+- **The orchestration host needs a REAL rsync, not Apple's openrsync.** macOS
+  15+ replaced `/usr/bin/rsync` with openrsync, which always sends `--dirs`, an
+  option that did not exist before rsync 2.6.4. Panther's rsync 2.5.x and the G3
+  Tiger partition's 2.6.3 both reject it, so `deploy.sh` fails on exactly the two
+  oldest boxes. Fix on this end: `brew install rsync` and put
+  `/opt/homebrew/bin` ahead of `/usr/bin`. `--protocol=28/29` does NOT help; the
+  option is sent regardless.
+- **Old-Mac SSH (Lion and PowerPC) needs legacy crypto**: `~/.ssh/config`
+  carries `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
+  pre-2014 `KexAlgorithms` and the RSA key `id_rsa_tiger`. Ad-hoc `ssh user@ip`
+  without these fails.
+- **The Intel minis sleep aggressively.** `No route to host` from `build.sh`
+  means that mini is asleep; `pick-build-host.sh` treats it as unusable and
+  picks the other one.
+- **The shared SDKs on the minis are read-only.** Never modify
+  `/Developer/SDKs/*` — the Q2 port depends on the same install and reinstalling
+  is multi-hour recovery. ADR 0005.
 
-**Don't run `scripts/build.sh g3` and `g4` in parallel.** Both rsync to
-`mini-intel:quakespasm/` and `make -j2` in the same dir → `.o` races → binary
-stamped with wrong CPU subtype → Panther crashes during AppKit NIB init.
-`build.sh` flocks now; if you bypass, serialize. After any build sanity-check
-`file build/quakespasm-g3` reports `ppc_750` and `quakespasm-g4` reports
-`ppc_7400`. `parallel-bench.sh` is fine — it parallelizes bench legs, not builds.
+## Codebase facts you cannot grep for
 
-**Panther's `/bin/sleep` is integer-only.** `sleep 0.2` returns immediately on
-10.3 (Tiger fixes this). Poll loops on G3 must use integer sleeps; `bench.sh`
-uses `sleep 1` for this reason.
+- **No software renderer.** QuakeSpasm dropped FitzQuake's software path; this
+  is GL-only. "Palette blit hot path" and "software inner loops" do not apply.
+- **No upstream PowerPC code.** No `__VEC__`, `<altivec.h>`, `frsqrte` or asm
+  anywhere upstream; every PowerPC path here is ours.
+- **The two `SSE` mentions are defensive.** `gl_model.c:1414` and
+  `gl_rlight.c:326` cast lightmap-extent calculations to `double` to dodge
+  x87/SSE2 precision drift. Nothing to patch.
 
-**Killing the engine.** SDL/CoreAudio threads don't always answer SIGTERM. Use
-`killall -KILL quakespasm` after a brief SIGTERM grace. **Don't use `pkill`** —
-not on Tiger or Panther. A hard KILL in fullscreen wedges the Rage 128 (G3) and
-hangs the R300 (G5), so TERM-before-KILL on those.
+## Read on demand
 
-**The orchestration host needs a REAL rsync, not Apple's openrsync.** macOS 15+
-replaced `/usr/bin/rsync` with openrsync, which always sends `--dirs` — an option
-that did not exist before rsync 2.6.4. Panther's rsync 2.5.x and the G3 Tiger
-partition's 2.6.3 both reject it (`--dirs: unknown option`), so `deploy.sh` fails
-on exactly the two oldest boxes. Fix is on this end: `brew install rsync` (3.x
-negotiates down correctly) and make sure `/opt/homebrew/bin` precedes `/usr/bin`
-on PATH. `--protocol=28/29` does NOT help — the option is sent regardless.
-
-**Old-Mac SSH (Lion + PPC) needs legacy crypto.** `~/.ssh/config` carries the
-required `HostKeyAlgorithms +ssh-rsa`, `PubkeyAcceptedKeyTypes +ssh-rsa`,
-pre-2014 `KexAlgorithms`, and RSA key `id_rsa_tiger`. Ad-hoc `ssh user@ip`
-without these fails.
-
-**The Intel minis sleep aggressively.** If `build.sh` fails with `ssh: connect to
-host ... No route to host`, that mini is asleep — wake it and retry.
-`pick-build-host.sh` treats an unreachable host as unusable and simply picks the
-other one, so a sleeping box no longer blocks a build.
-
-## Build + codebase essentials
-
-Build via `Quake/Makefile.darwin` (`MACH_TYPE=ppc`, SDK + `-mcpu` via
-`CPUFLAGS`/`LDFLAGS`) — **NOT** the Xcode project. There are now **TWO
-interchangeable Intel cross-build minis**: `mini-intel` (10.188.1.190) and
-`mini-intel2` (10.188.1.216) — same Macmini2,1 / 10.7.5 / identical toolchain.
-`build.sh` and `build-fat.sh` no longer hardcode a host: they call
-`scripts/pick-build-host.sh --acquire` to take one that is reachable and idle,
-and release it on exit. So this port and the Q2/Q3 sister projects can now build
-**at the same time on different minis**. Set `BUILD_HOST=<alias>` to pin one.
-Within a single host the old isolation still holds (separate rsync dirs +
-flock), and the 10.3.9 / 10.4u SDKs remain **read-only shared — never modify**
-(multi-hour Q2 recovery). Per-target flags + the isolation table:
-`docs/DEVELOPMENT.md`, `MacOSX/CLAUDE.md`.
-
-**Why the claim lives on the mini, not in the repo:** a per-checkout `flock`
-cannot see a build the Q2 repo (or another Claude) started on the same box.
-`pick-build-host.sh` locks `/tmp/.retro-build-lock` ON the host and also treats
-running compiler processes as busy, so it detects builds started outside this
-mechanism entirely.
-
-Codebase facts that bite: **no software renderer** (GL-only — no "palette blit
-hot path"); the two `SSE` mentions are defensive `double` casts, not SSE code.
-More + the optimisation hot-file list: `docs/DEVELOPMENT.md`.
+- `docs/adr/` — the decisions and their evidence. Index in `docs/adr/README.md`.
+- `MISTAKES.md` — recorded negative results. **Read before lighting up an idea
+  that smells "easy" or "load-time only, zero risk".**
+- `docs/KNOBS.md` — every toggleable cvar and `-flag`, with what each measured.
+- `docs/DEVELOPMENT.md` — build path, build-host tenancy, optimisation hot files.
+- `scripts/CLAUDE.md`, `scripts/README.md` — per-script contracts, host matrix.
+- `MacOSX/CLAUDE.md` — toolchain paths and per-target flags on the build host;
+  `MacOSX/SDL-rebuild.md` for the fat-SDL recipes.
+- `docs/README.md` — index of the rest (features, research, archive).
