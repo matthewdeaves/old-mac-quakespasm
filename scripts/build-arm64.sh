@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build-arm64.sh — build the arm64 (Apple Silicon) slice.
+# build-arm64.sh: build the arm64 (Apple Silicon) slice.
 #
 # This one runs HERE, on the orchestration Mac, not on an Intel Lion mini.
 # Lion's Xcode 4.6 toolchain predates arm64 by seven years and cannot target
@@ -71,5 +71,5 @@ codesign --verify --verbose=1 build/quakespasm-arm64
 GOT=$(lipo -archs build/quakespasm-arm64)
 [ "$GOT" = "arm64" ] || { echo "[build-arm64] expected arm64, got '$GOT'" >&2; exit 1; }
 
-echo "[build-arm64] OK — build/quakespasm-arm64 ($GOT, signed)"
+echo "[build-arm64] OK: build/quakespasm-arm64 ($GOT, signed)"
 file build/quakespasm-arm64

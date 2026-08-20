@@ -40,9 +40,9 @@
 #        this script builds it for you if missing)
 # post:  dist/QuakeSpasm-OldMac-<version>.dmg
 #
-# The same .dmg installs on every supported Mac — the fat binary's four
-# slices (ppc750 / ppc7400 / ppc970 / x86_64) + the CFBundle per-machine
-# autoexec layer mean one disk image serves G3 Panther through modern Intel.
+# The same .dmg installs on every supported Mac: the fat binary's six
+# slices (ppc750 / ppc7400 / ppc970 / i386 / x86_64 / arm64) + the CFBundle per-machine
+# autoexec layer mean one disk image serves G3 Panther through Apple Silicon.
 
 set -euo pipefail
 
@@ -82,11 +82,11 @@ ARCHS=$(lipo -archs "$BIN" 2>/dev/null || echo)
 for a in ppc750 ppc7400 ppc970 i386 x86_64; do
   case " $ARCHS " in
     *" $a "*) ;;
-    *) echo "[make-dmg] $BIN is missing the $a slice (got: ${ARCHS:-none}) — run scripts/build-fat.sh" >&2; exit 1;;
+    *) echo "[make-dmg] $BIN is missing the $a slice (got: ${ARCHS:-none}), run scripts/build-fat.sh" >&2; exit 1;;
   esac
 done
 case " $ARCHS " in
-  *" arm64 "*) echo "[make-dmg] arm64 slice present — native on Apple Silicon" ;;
+  *" arm64 "*) echo "[make-dmg] arm64 slice present, native on Apple Silicon" ;;
   *) echo "[make-dmg] NOTE: no arm64 slice; Apple Silicon will use Rosetta 2" ;;
 esac
 
@@ -126,7 +126,7 @@ chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
 cp    "$REPO_ROOT/Quake/quakespasm.pak" "$IMG/"
 # Per-arch baselines + per-machine overlays, picked at boot by host.c.
-for cfg in ppc750 ppc7400 ppc970 x86_64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
+for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
   cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
 done
 

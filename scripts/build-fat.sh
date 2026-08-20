@@ -93,9 +93,9 @@ done
 SLICES="g3 g4 g5 lion i386"
 if [ -x "build/quakespasm-arm64" ]; then
   SLICES="$SLICES arm64"
-  echo "[build-fat] arm64 slice present — it WILL be included"
+  echo "[build-fat] arm64 slice present, it WILL be included"
 else
-  echo "[build-fat] arm64 slice absent — fusing without it."
+  echo "[build-fat] arm64 slice absent, fusing without it."
   echo "[build-fat]   Apple Silicon will run the x86_64 slice under Rosetta 2."
   echo "[build-fat]   To include it: run scripts/build-arm64.sh on an Apple Silicon Mac first."
 fi
