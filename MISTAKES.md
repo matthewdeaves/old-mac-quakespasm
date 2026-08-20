@@ -14,6 +14,48 @@ we learned. Newest at the top.
 > respectively (and the new `sawtooth` G4 AGP tower joined the matrix).
 > Same hardware, just renamed. See CLAUDE.md "Hosts" for the full table.
 
+## 2026-08-20 — "this port uses SDL2" was wrong; every shipped slice is SDL 1.2
+
+**What we claimed.** While proving an arm64 slice could be built, commit
+`fd507839` asserted that "QuakeSpasm was easy because it is on SDL2 and its
+bundled framework was already fat with arm64 in it", and used that to argue
+this port was structurally ahead of the Quake II and Quake III ports, which
+are pinned to SDL 1.2 on purpose.
+
+**What is actually true.** `Quake/Makefile.darwin:13` sets `USE_SDL2=0`, and
+`scripts/build.sh:219` passes only `MACH_TYPE`, `CC`, `QS_PORT_VERSION`,
+`CPUFLAGS` and `LDFLAGS`, so nothing overrides it. `otool -L` on
+`build/quakespasm-fat` shows every slice linking
+`@executable_path/SDL.framework/Versions/A/SDL` at current version 12.4.0,
+which is SDL 1.2.15. `USE_SDL2=1` appears only in the Linux, server and
+static-analysis paths, never in a shipped Mac build.
+
+So this port reached the same conclusion as its two siblings, independently:
+SDL 1.2 for the PowerPC machines. It is not an exception and it is not an
+existence proof that SDL2 runs on Panther or Tiger.
+
+**Where the wrong idea came from.** `MacOSX/SDL2.framework` IS vendored here
+and IS fat with arm64 (2.0.22, x86_64 + i386 + arm64, no PowerPC), and
+upstream QuakeSpasm does maintain a live `USE_SDL2` code path. Seeing both,
+and then building the arm64 probe with `USE_SDL2=1` because that was the only
+way it would link, the conclusion "this port is on SDL2" was assumed rather
+than checked. One `otool -L` would have settled it.
+
+**What it changes.** The arm64 slice is still buildable and still runs, but it
+would be the ONLY slice in the fat on a different SDL major version. That is
+legal, since each slice carries its own `LC_LOAD_DYLIB`, but it means the
+bundle has to ship both frameworks, and the arm64 slice exercises the
+`#if defined(USE_SDL2)` half of roughly seventy conditionals that have never
+shipped from this repo on any platform. Notably `MacOSX/SDLApplication.m`
+compiles itself out under SDL2 while `Info.plist` still names
+`NSPrincipalClass = SDLApplication`, which would then resolve to SDL2's own
+class rather than ours.
+
+**Lesson.** The same one as the `-faltivec` entry above, in a different
+costume: a property of the tree that is easy to check was inferred from
+adjacent evidence instead. Check what the artifact links, not what the
+source tree contains.
+
 ## 2026-07-25 — `-faltivec` silently un-stamps the ppc7400 cpusubtype
 
 **Tried:** rebuilding the G4 slice against the 10.3.9 SDK at min-10.3 (so a G4
