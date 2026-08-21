@@ -124,6 +124,17 @@ cover the setup, the build pipeline and the timedemo bench loop.
   the ranger's live state to an iPhone + Watch; off by default. Shared with the
   Quake II port ([quake2-tactical-watch](https://github.com/matthewdeaves/quake2-tactical-watch)).
 
+## The Linux dedicated server
+
+There is also a headless Linux server, so a game does not have to be hosted on
+one of the old Macs. It builds from the same tree and ships as its own release
+(`server-v*`), for x86_64 and aarch64. It needs glibc 2.31 or newer, so Ubuntu
+20.04 or Debian 11 upward, and it ships no content.
+
+Read [`server/README.md`](server/README.md) before putting one on the internet.
+NetQuake has no password and no rcon, so who can reach the port is the only
+access control there is.
+
 ## Get the latest release
 
 Download the latest disk image from
