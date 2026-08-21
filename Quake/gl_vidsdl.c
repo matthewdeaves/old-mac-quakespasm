@@ -683,10 +683,39 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 	/* Make window fullscreen if needed, and show the window */
 
 	if (fullscreen) {
-		const Uint32 flag = vid_desktopfullscreen.value ?
+		/* Upstream makes a failed fullscreen request FATAL. It should not be:
+		 * the window already exists and works, and being unable to take the
+		 * display is not a reason to refuse to run. The SDL 1.2 branch below
+		 * carries the measured PowerPC case; this is the same policy for the
+		 * SDL2 path, so both behave the same way when a driver will not give
+		 * up the display.
+		 *
+		 * Try what was asked for, then the other fullscreen kind, then give up
+		 * and stay windowed. A player gets a window instead of a crash, and
+		 * the console says why. */
+		const Uint32 want = vid_desktopfullscreen.value ?
 				SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
-		if (SDL_SetWindowFullscreen (draw_context, flag) != 0)
-			Sys_Error ("Couldn't set fullscreen state mode");
+		const Uint32 other = vid_desktopfullscreen.value ?
+				SDL_WINDOW_FULLSCREEN : SDL_WINDOW_FULLSCREEN_DESKTOP;
+
+		if (SDL_SetWindowFullscreen (draw_context, want) != 0)
+		{
+			Con_Printf ("SDL: fullscreen (%s) refused: %s\n",
+				vid_desktopfullscreen.value ? "desktop" : "exclusive", SDL_GetError());
+
+			if (SDL_SetWindowFullscreen (draw_context, other) == 0)
+			{
+				Con_Printf ("SDL: fell back to %s fullscreen\n",
+					vid_desktopfullscreen.value ? "exclusive" : "desktop");
+			}
+			else
+			{
+				Con_Printf ("SDL: %s\nSDL: staying windowed at %dx%d\n",
+					SDL_GetError(), width, height);
+				SDL_SetWindowFullscreen (draw_context, 0);
+				Cvar_SetValueQuick (&vid_fullscreen, 0);
+			}
+		}
 	}
 
 	SDL_ShowWindow (draw_context);
@@ -746,9 +775,68 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 	if (!draw_context) { // scale back SDL_GL_STENCIL_SIZE
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
 		draw_context = SDL_SetVideoMode(width, height, bpp, flags);
-		if (!draw_context)
-			Sys_Error ("Couldn't set video mode");
 	}
+
+	/* Every fallback above keeps the same WIDTH and HEIGHT and only gives up
+	 * pixel-format extras, so none of them helps when the RESOLUTION itself is
+	 * what SDL cannot set. Without this block the engine calls Sys_Error, and
+	 * on PowerPC that is not a clean exit: Sys_Error runs Host_Shutdown ->
+	 * VID_Shutdown -> SDL_QuitSubSystem, and SDL 1.2's QZ_TearDownOpenGL then
+	 * segfaults in objc_msgSend. The player gets "Quakespasm quit
+	 * unexpectedly", which looks like an engine bug rather than a display mode
+	 * the driver would not take.
+	 *
+	 * Measured on a G5 quad (GeForce 6600, Leopard) at its desktop 1920x1080:
+	 *
+	 *   VID_Restart -> VID_SetMode -> Sys_Error -> Host_Shutdown
+	 *     -> VID_Shutdown -> SDL_QuitSubSystem -> QZ_TearDownOpenGL -> SIGSEGV
+	 *
+	 * This block was briefly REMOVED on the grounds that it never engaged, on
+	 * the strength of five resolutions benched clean. That measurement was
+	 * real and the conclusion was wrong: the bench sets resolution with
+	 * +vid_width / +vid_height stuffcmds, which never exercises the
+	 * `vid_restart` path the shipped configs actually use, and it is that path
+	 * which fails. Do not remove it again without driving vid_restart at the
+	 * desktop mode on real hardware.
+	 *
+	 * So fall back on the geometry too, most preferred first, and only then
+	 * give up. Dropping fullscreen is the last thing tried before failing,
+	 * because a window at the right size beats a crash. */
+	if (!draw_context && (flags & SDL_FULLSCREEN))
+	{
+		Con_Printf ("SDL: %dx%d fullscreen unavailable, trying alternatives\n", width, height);
+
+		if (!draw_context && display_width && display_height &&
+		    (width != display_width || height != display_height))
+		{	/* the desktop's own mode, if that is not what we just tried */
+			draw_context = SDL_SetVideoMode(display_width, display_height, bpp, flags);
+			if (draw_context) { width = display_width; height = display_height; }
+		}
+		if (!draw_context)
+		{	/* modes every Mac GPU of this era enumerates */
+			static const int safe[][2] = { {1280,1024}, {1024,768}, {800,600}, {640,480} };
+			size_t i;
+			for (i = 0; i < sizeof(safe)/sizeof(safe[0]) && !draw_context; i++)
+			{
+				if (safe[i][0] > width) continue;	/* never scale UP */
+				draw_context = SDL_SetVideoMode(safe[i][0], safe[i][1], bpp, flags);
+				if (draw_context) { width = safe[i][0]; height = safe[i][1]; }
+			}
+		}
+		if (!draw_context)
+		{	/* windowed at the original size: no display mode set at all */
+			flags &= ~SDL_FULLSCREEN;
+			draw_context = SDL_SetVideoMode(width, height, bpp, flags);
+			if (draw_context)
+				Cvar_SetValueQuick (&vid_fullscreen, 0);
+		}
+		if (draw_context)
+			Con_Printf ("SDL: using %dx%d %s\n", width, height,
+				(flags & SDL_FULLSCREEN) ? "fullscreen" : "windowed");
+	}
+
+	if (!draw_context)
+		Sys_Error ("Couldn't set video mode (%dx%d %dbpp)", width, height, bpp);
 
 	SDL_WM_SetCaption(caption, caption);
 #endif /* !defined(USE_SDL2) */
@@ -1712,7 +1800,11 @@ static void GL_Init (void)
 	// https://developer.apple.com/library/mac/technotes/tn2085/
 	// kCGLCEMPEngine is 10.4.8+; gate so 10.3 builds still compile.
 	// Single-core G3s are no-op anyway (numcpus check fails first).
-	if (host_parms->numcpus > 1 &&
+	if (COM_CheckParm("-nomtgl"))
+	{
+		Con_Printf ("Multi-threaded OpenGL disabled by -nomtgl\n");
+	}
+	else if (host_parms->numcpus > 1 &&
 	    kCGLNoError != CGLEnable(CGLGetCurrentContext(), kCGLCEMPEngine))
 	{
 		Con_Warning ("Couldn't enable multi-threaded OpenGL");

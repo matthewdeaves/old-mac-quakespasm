@@ -136,6 +136,18 @@ cp    "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$RESOURCES/"
 cp -r "$REPO_ROOT/MacOSX/English.lproj"      "$RESOURCES/"
 cp    "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$APP/Contents/MacOS/"
 cp -r "$REPO_ROOT/MacOSX/SDL.framework"      "$APP/Contents/MacOS/"
+# SDL2 as well, and it is NOT optional. The arm64 slice is the only one that
+# links SDL2 rather than SDL 1.2 (build-arm64.sh), and it links it as
+# @executable_path/SDL2.framework/Versions/A/SDL2. Shipping only SDL.framework
+# meant every Apple Silicon Mac got a bundle whose arm64 slice could not
+# resolve its own SDL, and the app died at launch, before main(), with
+#   Termination Reason: Namespace DYLD, Code 1, Library missing
+#   Library not loaded: @executable_path/SDL2.framework/Versions/A/SDL2
+# macOS shows that as "Quakespasm quit unexpectedly", which reads like an
+# engine crash rather than a missing file. Shipped broken in v1.15.
+# SDL.framework has no arm64 slice and SDL2.framework has no ppc slice, so
+# both have to be here: neither is a substitute for the other.
+cp -r "$REPO_ROOT/MacOSX/SDL2.framework"     "$APP/Contents/MacOS/"
 cp    "$BIN" "$APP/Contents/MacOS/quakespasm"
 chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
