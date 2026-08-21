@@ -742,3 +742,8 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
 2026-07-25T18:02:10Z,1f42bb14,yosemite,demo1,1024x768,15.9,17.1,17.2,17.15
 2026-07-25T18:05:37Z,1f42bb14,yosemite,demo1,640x480,34.5,32.8,34.4,33.60
 2026-08-21T10:15:43Z,1a95295b,quad-leopard,demo1,1024x768,163.4,163.5,163.5,163.50
+2026-08-21T10:29:23Z,56ec7952,quad-leopard,demo1,1920x1080,85.6,NA,NA,85.6
+2026-08-21T10:29:43Z,56ec7952,quad-leopard,demo1,1366x768,88.7,NA,NA,88.7
+2026-08-21T10:30:02Z,56ec7952,quad-leopard,demo1,1152x864,87.8,NA,NA,87.8
+2026-08-21T10:30:20Z,56ec7952,quad-leopard,demo1,1024x600,88.1,NA,NA,88.1
+2026-08-21T10:30:39Z,56ec7952,quad-leopard,demo1,1280x800,88.3,NA,NA,88.3
