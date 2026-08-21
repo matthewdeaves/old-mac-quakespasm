@@ -135,7 +135,15 @@ echo "[make-dmg] bundle version verified: $STAMPED"
 cp    "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$RESOURCES/"
 cp -r "$REPO_ROOT/MacOSX/English.lproj"      "$RESOURCES/"
 cp    "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$APP/Contents/MacOS/"
-cp -r "$REPO_ROOT/MacOSX/SDL.framework"      "$APP/Contents/MacOS/"
+# cp -a, NOT -r or -R. Both of those FOLLOW the symlinks that make a versioned
+# framework a framework, so SDL.framework/Versions/Current stops being a link to
+# A and becomes a second real copy of it. Measured: 2.0M as a proper framework,
+# 4.5M flattened. Two consequences, and the second is fatal:
+#   1. the image carries every framework twice over;
+#   2. codesign refuses a flattened framework with "bundle format is ambiguous
+#      (could be app or framework)", so the .app cannot be signed at all, and an
+#      unsigned/invalid bundle is killed on Apple Silicon before it runs.
+cp -a "$REPO_ROOT/MacOSX/SDL.framework"      "$APP/Contents/MacOS/"
 # SDL2 as well, and it is NOT optional. The arm64 slice is the only one that
 # links SDL2 rather than SDL 1.2 (build-arm64.sh), and it links it as
 # @executable_path/SDL2.framework/Versions/A/SDL2. Shipping only SDL.framework
@@ -147,7 +155,7 @@ cp -r "$REPO_ROOT/MacOSX/SDL.framework"      "$APP/Contents/MacOS/"
 # engine crash rather than a missing file. Shipped broken in v1.15.
 # SDL.framework has no arm64 slice and SDL2.framework has no ppc slice, so
 # both have to be here: neither is a substitute for the other.
-cp -r "$REPO_ROOT/MacOSX/SDL2.framework"     "$APP/Contents/MacOS/"
+cp -a "$REPO_ROOT/MacOSX/SDL2.framework"     "$APP/Contents/MacOS/"
 cp    "$BIN" "$APP/Contents/MacOS/quakespasm"
 chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
@@ -291,6 +299,84 @@ Quakespasm.app/Contents/MacOS/libvorbis.dylib \
 Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
 Quakespasm.app/Contents/MacOS/libxmp.dylib \
 Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL"
+
+# ---- ad-hoc code-sign the staged bundle ----------------------------------
+# REQUIRED for Apple Silicon. macOS on arm64 refuses to map a page whose code
+# signature does not validate, and kills the process:
+#
+#   Termination Reason: CODESIGNING, Invalid Page
+#   EXC_BAD_ACCESS ... SIGKILL (Code Signature Invalid)
+#
+# The prebuilt codec dylibs in MacOSX/codecs/lib are in exactly that state:
+# `codesign -v` reports "invalid signature (code or signature have been
+# modified)" on nine of them, because they were signed once and then had extra
+# architecture slices lipo'd in. An INVALID signature is worse than none: an
+# unsigned binary gets an implicit ad-hoc identity, a broken one is rejected.
+#
+# It also fixes a second, less obvious symptom. macOS keys its privacy grants
+# (the "wants to access files in your Desktop folder" prompt) on the app's code
+# identity, so a bundle whose identity is unstable re-prompts on every launch.
+#
+# Signed here rather than on DMG_HOST because DMG_HOST is a Tiger G4, which has
+# no codesign and no notion of arm64. Signed BEFORE SRC_SUMS is computed so the
+# end-to-end byte verification below hashes the files as they will ship.
+#
+# Nested-first order matters: signing the bundle before its contents would be
+# invalidated by signing the contents afterwards.
+if command -v codesign >/dev/null 2>&1; then
+	echo "[make-dmg] ad-hoc code-signing the staged bundle"
+	SAPP="$IMG/Quakespasm.app"
+	# Order is not optional. codesign validates a bundle's nested code when it
+	# signs the bundle, so anything inside must already be signed:
+	#   1. plain dylibs beside the executable  (skip anything inside a framework)
+	#   2. each framework, signed as a DIRECTORY, never by its inner binary path
+	#   3. the .app last, which signs the main executable as part of it
+	# Signing the executable directly instead fails with
+	#   "code object is not signed at all / In subcomponent: libopus.dylib"
+	find "$SAPP" -type f -name '*.dylib' -not -path '*.framework/*' -print0 \
+	  | while IFS= read -r -d '' f; do
+			codesign --force --sign - "$f" >/dev/null 2>&1 \
+			  || echo "[make-dmg] WARN: could not sign ${f#$SAPP/}" >&2
+		done
+	for fw in "$SAPP"/Contents/MacOS/*.framework "$SAPP"/Contents/Frameworks/*.framework; do
+		[ -d "$fw" ] || continue
+		# A versioned framework may only have symlinks and Versions/ at its root.
+		# SDL.framework ships License.rtf, ReadMe.txt and UniversalBinaryNotes.rtf
+		# there, and codesign refuses the lot with
+		#   "unsealed contents present in the root directory of an embedded
+		#    framework"
+		# Move them under Versions/A/Resources rather than delete them: they are
+		# the upstream licence and notes and should still ship.
+		for stray in "$fw"/*; do
+			[ -L "$stray" ] && continue
+			[ "$(basename "$stray")" = "Versions" ] && continue
+			mkdir -p "$fw/Versions/A/Resources"
+			mv "$stray" "$fw/Versions/A/Resources/" 2>/dev/null || true
+		done
+		codesign --force --sign - "$fw" >/dev/null 2>&1 \
+		  || echo "[make-dmg] WARN: could not sign $(basename "$fw")" >&2
+	done
+	codesign --force --sign - "$SAPP" >/dev/null 2>&1 \
+	  || echo "[make-dmg] WARN: could not sign the .app bundle" >&2
+
+	# Assert it took, on the bundle AND on every Mach-O in it. A silently
+	# unsigned bundle is exactly the defect this block exists to prevent, so it
+	# fails the build rather than shipping.
+	codesign -v "$SAPP" >/dev/null 2>&1 || {
+		echo "[make-dmg] FATAL: the .app bundle signature does not validate" >&2; exit 1; }
+	BADSIG=$(find "$SAPP" -type f \( -name '*.dylib' -o -perm -u+x \) 2>/dev/null \
+	  | while IFS= read -r f; do
+			file "$f" 2>/dev/null | grep -q 'Mach-O' || continue
+			codesign -v "$f" >/dev/null 2>&1 || echo "  ${f#$SAPP/}"
+		done)
+	[ -z "$BADSIG" ] || {
+		echo "[make-dmg] FATAL: still not validly signed:" >&2
+		echo "$BADSIG" >&2; exit 1; }
+	echo "[make-dmg] signatures verified: bundle + every Mach-O inside it"
+else
+	echo "[make-dmg] WARN: no codesign here; the bundle will NOT run on Apple Silicon" >&2
+fi
+
 SRC_SUMS=$(cd "$IMG" && for f in $VERIFY_FILES; do \
              printf '%s  %s\n' "$(md5sum "$f" | cut -d' ' -f1)" "$f"; done)
 
