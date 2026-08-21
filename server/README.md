@@ -38,6 +38,11 @@ sudo cp pak0.pak pak1.pak /opt/quakespasm-server/id1/
 
 sudo chown -R quake:quake /opt/quakespasm-server
 sudo cp /opt/quakespasm-server/systemd/quakespasm-server.service /etc/systemd/system/
+
+# REQUIRED. Set QS_IP to the address players will reach this machine on.
+# The unit ships it empty and refuses to start until you set it. See below.
+sudo editor /etc/systemd/system/quakespasm-server.service   # Environment=QS_IP=
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now quakespasm-server
 ```
@@ -65,6 +70,32 @@ journalctl -u quakespasm-server -f
 
 If you would rather watch it live and type into it directly, run the binary
 under `tmux` instead of systemd and attach when you want it.
+
+## Serving custom maps: `allow_download`
+
+Off by default. Set `allow_download 1` in `server.cfg` and clients that are
+missing a map fetch it over the existing UDP game connection, DarkPlaces style.
+No HTTP, no TLS, no extra port. Full description in
+[`../docs/KNOBS.md`](../docs/KNOBS.md).
+
+**Custom content has to be loose files, not a `.pak`.** The server opens
+`<gamedir>/<name>` directly, so it can only send files that exist on disk under
+that name. Anything inside a pak is invisible to it. That failure is silent from
+both ends: `allow_download` reads as enabled, and the client gets the same
+"not available" reply it would get for a forbidden path. If downloads look
+enabled and nothing transfers, unpack the pak so the files sit on disk:
+
+```
+/opt/quakespasm-server/id1/maps/mymap.bsp
+```
+
+Most custom maps are distributed as a zip of loose files already, so this only
+comes up for content someone has packaged into a `.pak`.
+
+Requests are filtered regardless of the cvar, so a client cannot ask for
+arbitrary files. Only `maps/`, `sound/`, `progs/` and `models/` are reachable,
+only known content extensions (`bsp`, `mdl`, `md3`, `spr`, `wav`, `ogg`, `tga`,
+`png` and similar), no `..`, no dotfiles, and nothing over 50 MB.
 
 ## The network side
 
@@ -175,7 +206,23 @@ errors, on either side.
 Measured: the client reported a successful connection while `tcpdump` on the
 server saw **zero packets** on port 26000.
 
-Fix: pass `-ip <the address players reach this machine on>` in the systemd
-unit. It is both the bind and the advertised address, so it must be a real
-address of the machine, not `0.0.0.0`. After setting it, the query reply
+Fix: set `Environment=QS_IP=` in the systemd unit to the address players reach
+this machine on. It is both the bind and the advertised address, so it must be a
+real address of the machine, not `0.0.0.0`. After setting it, the query reply
 changes to `<address>:26000` and clients genuinely join.
+
+The unit ships `QS_IP` **empty** and will not start without it:
+
+```
+quakespasm-server: QS_IP is not set. Edit Environment=QS_IP= in this unit ...
+quakespasm-server.service: Main process exited, code=exited, status=78/n/a
+```
+
+It refuses loopback, `0.0.0.0` and the RFC 5737 documentation ranges for the
+same reason. `RestartPreventExitStatus=78` stops it restart-looping over a
+misconfiguration that restarting cannot fix, so the message stays readable in
+`journalctl -u quakespasm-server`.
+
+It used to ship `-ip 192.0.2.1` hardcoded. That is TEST-NET-1, reserved for
+documentation, so no machine has it and a clean install bound to nothing.
+A placeholder that looks configured is worse than a blank: it gets read past.

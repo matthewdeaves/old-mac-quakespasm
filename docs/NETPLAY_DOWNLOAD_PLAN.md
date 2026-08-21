@@ -1,7 +1,26 @@
 # Online network play + auto-download missing maps: implementation plan
 
-**Status:** not started. Evidence-gathered 2026-06-06 (codebase audit + QSS/FTE/
-DarkPlaces/ironwail source read). Execute later.
+**Status: SHIPPED.** Evidence-gathered 2026-06-06 (codebase audit + QSS/FTE/
+DarkPlaces/ironwail source read); implemented and in the tree since. This
+document is kept for the reasoning and the rejected alternatives, not as a
+to-do list. It said "not started" until 2026-08-21, long after the feature was
+live, which is how it got read as outstanding work.
+
+Where it landed:
+
+| Part | Code |
+|---|---|
+| `allow_download` cvar, default `0` | `Quake/common.c` `COM_InitFilesystem` |
+| Server side | `Quake/host_cmd.c` `Host_Download_f` |
+| Client side | `Quake/cl_main.c`, `Quake/cl_parse.c` (`svcdp_downloaddata`) |
+| Operator documentation | [`KNOBS.md`](KNOBS.md), `../server/README.md` |
+
+**One shipped limitation worth knowing:** `Host_Download_f` opens
+`com_gamedir/<name>` with `fopen` and therefore serves **loose files only, never
+anything inside a pak**. Custom content delivered to a server as a `.pak` makes
+`allow_download 1` look enabled and transfer nothing, with no error the operator
+can see: the client simply gets `cl_downloadbegin -1`, the same reply as "file
+not permitted". Package server content as loose files.
 
 **Goal:** let the fat binary join Quake servers over the internet and
 automatically fetch the maps / models / sounds it's missing, instead of crashing

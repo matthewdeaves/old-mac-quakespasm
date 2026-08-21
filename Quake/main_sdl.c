@@ -77,6 +77,23 @@ int main(int argc, char *argv[])
 	int		t;
 	double		time, oldtime, newtime;
 
+	/* Line buffer stdout before anything is printed.
+	 *
+	 * When stdout is a pipe rather than a tty, libc fully buffers it and holds
+	 * output until 4 KB accumulates. A dedicated server running normally never
+	 * produces 4 KB quickly, so under systemd `journalctl -u quakespasm-server`
+	 * shows only systemd's own start and stop lines: no banner, no
+	 * "execing server.cfg", no "player entered the game", no errors. The
+	 * journal is the ONLY record of who connected and what went wrong, because
+	 * NetQuake has no rcon to ask after the fact.
+	 *
+	 * This has to be before the first Sys_Printf, and it costs nothing on a
+	 * tty, where line buffering is already the default. The deployed server
+	 * previously needed a drop-in wrapping ExecStart in `stdbuf -o0 -e0` to
+	 * see anything at all. Issue #9.
+	 */
+	setvbuf(stdout, NULL, _IOLBF, 0);
+
 	host_parms = &parms;
 	parms.basedir = ".";
 

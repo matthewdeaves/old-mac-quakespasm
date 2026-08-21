@@ -170,7 +170,7 @@ cd \$WORK/src/Quake
 # a memory-safety bug being a crash and being a shell.
 #
 # Routed through EXTRA_CFLAGS/EXTRA_LDFLAGS rather than CFLAGS=, because a
-# command-line CFLAGS assignment defeats every conditional `CFLAGS +=` in the
+# command-line CFLAGS assignment defeats every conditional \`CFLAGS +=\` in the
 # Makefile above it. The Makefile says so itself.
 #
 # Exported rather than put on the make command line: MAKE_ARGS is expanded

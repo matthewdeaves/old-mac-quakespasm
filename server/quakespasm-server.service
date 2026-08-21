@@ -47,15 +47,34 @@ ExecStartPre=/usr/bin/mkfifo -m 0600 /run/quakespasm-server/console
 # of this machine, not 0.0.0.0. Verified working on a LAN with the server's own
 # address: the query reply changed from 127.0.1.1:26000 to <address>:26000 and
 # a PowerPC client then genuinely joined, taking the server from 0/8 to 1/8.
-ExecStart=/bin/sh -c 'exec 3<>/run/quakespasm-server/console; \
+#
+# It is deliberately EMPTY as shipped, and the server refuses to start until it
+# is set. This unit used to ship `-ip 192.0.2.1`, which is TEST-NET-1 and
+# reserved for documentation: no machine has that address, so a clean install
+# bound to nothing and nobody could join. That is a worse failure than no value
+# at all, because a placeholder that looks configured gets read straight past.
+Environment=QS_IP=
+
+ExecStart=/bin/sh -c 'case "$QS_IP" in \
+      "") echo "quakespasm-server: QS_IP is not set. Edit Environment=QS_IP= in this unit and set it to the address players reach this machine on. Without it the server advertises 127.0.1.1 and every client silently plays alone. See README.md." >&2; exit 78 ;; \
+      0.0.0.0|127.*) echo "quakespasm-server: QS_IP=$QS_IP is not reachable by anyone else. It is both the bind and the ADVERTISED address, so it has to be a real address of this machine." >&2; exit 78 ;; \
+      192.0.2.*|198.51.100.*|203.0.113.*) echo "quakespasm-server: QS_IP=$QS_IP is a documentation address (TEST-NET, RFC 5737) and belongs to no machine. Set it to a real address of this machine." >&2; exit 78 ;; \
+    esac; \
+    exec 3<>/run/quakespasm-server/console; \
     exec /opt/quakespasm-server/quakespasm-server \
         -dedicated 8 \
-        -ip 192.0.2.1 \
+        -ip "$QS_IP" \
         -basedir /opt/quakespasm-server \
         +exec server.cfg <&3'
 
 Restart=on-failure
 RestartSec=5s
+
+# 78 is EX_CONFIG, which the guard above uses for "you have not set QS_IP".
+# Without this the unit would restart-loop every 5 seconds forever on a
+# misconfiguration that no amount of restarting will fix, and bury the one
+# message that says what is wrong.
+RestartPreventExitStatus=78
 
 # The server is a 1996 UDP protocol with no authentication, reachable from the
 # internet. Give it as little of the machine as it can run with.
