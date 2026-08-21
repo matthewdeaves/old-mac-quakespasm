@@ -54,6 +54,7 @@ cvar_t		sys_throttle = {"sys_throttle", "0.02", CVAR_ARCHIVE};
 #define	MAX_HANDLES		32	/* johnfitz -- was 10 */
 static FILE		*sys_handles[MAX_HANDLES];
 static qboolean		stdinIsATTY;	/* from ioquake3 source */
+static qboolean		stdinReadable;	/* tty OR a pipe/FIFO we can actually read */
 
 
 static int findhandle (void)
@@ -413,8 +414,39 @@ void Sys_Init (void)
 	const char* term = getenv("TERM");
 	stdinIsATTY = isatty(STDIN_FILENO) &&
 			!(term && (!strcmp(term, "raw") || !strcmp(term, "dumb")));
-	if (!stdinIsATTY)
+
+	/* Console input must also work when stdin is a PIPE or a FIFO, not just a
+	 * terminal. The shipped systemd unit hands the server a FIFO on fd 0 so an
+	 * operator can `echo "map e1m2" > /run/quakespasm-server/console`, and
+	 * isatty() is false for that, so gating console input on stdinIsATTY alone
+	 * threw every one of those commands away.
+	 *
+	 * Silently, which is the bad part: a write into a FIFO nobody reads still
+	 * succeeds, so `tee` exits 0 and every layer above is told the command
+	 * landed. Map changes and cvar sets were reported as applied and had no
+	 * effect on the running server.
+	 *
+	 * This function is adapted from ioquake3, and that is where the bug came
+	 * in: ioquake3's CON_Input has `if (ttycon_on) {...} else if (stdin_active)
+	 * {...}`, and only the first half was carried across. Restoring the second
+	 * half is all this is. The select()/read() loop below already handles a
+	 * pipe correctly, it was just never reached.
+	 *
+	 * Deliberately NOT accepting a character device: an unattached service gets
+	 * /dev/null on fd 0, where select() reports readable forever and read()
+	 * returns 0, so treating that as a console would spin. */
+	{
+		struct stat st;
+		stdinReadable = stdinIsATTY;
+		if (!stdinReadable && fstat(STDIN_FILENO, &st) == 0 &&
+		    (S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode)))
+			stdinReadable = true;
+	}
+
+	if (!stdinReadable)
 		Sys_Printf("Terminal input not available.\n");
+	else if (!stdinIsATTY)
+		Sys_Printf("Console input: reading commands from a pipe.\n");
 
 	memset (cwd, 0, sizeof(cwd));
 	Sys_GetBasedir(host_parms->argv[0], cwd, sizeof(cwd));
@@ -502,7 +534,7 @@ const char *Sys_ConsoleInput (void)
 	fd_set		set;
 	struct timeval	timeout;
 
-	if (!stdinIsATTY || con_eof)
+	if (!stdinReadable || con_eof)
 		return NULL;
 
 	FD_ZERO (&set);
