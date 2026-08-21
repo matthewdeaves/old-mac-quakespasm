@@ -1159,17 +1159,57 @@ static void GL_CheckExtensions (void)
 	// finished) then wedged the GPU, and a GLSL fullscreen launch killed
 	// the box outright (no SSH, fans to max). This matches QuakeSpasm
 	// bug #43 ("0.85.x worked, 0.91.0 broke") -- exactly when GLSL+VBO
-	// landed. NVIDIA G5s (GeForce 5200/6800) drive GLSL fine, so this is
-	// gated to the renderer string, not the ppc970 slice.
+	// landed.
 	// Fix: force these renderers down the GL 1.x fixed-function path that
 	// the GL-1.3 G4s (Radeon 9000/9200) already run rock-solid -- i.e.
 	// skip VBO, NPOT, GLSL and warp-mipmap generation below. Same idiom
 	// as the Rage 128 CVA skip further down.
 	// Toggle: -atigl re-enables the full GL2 path for A/B retesting.
+	//
+	// This block used to add "NVIDIA G5s (GeForce 5200/6800) drive GLSL
+	// fine, so this is gated to the renderer string, not the ppc970
+	// slice." That was never measured and is now known to be wrong: see
+	// the NVIDIA gate immediately below.
 	qboolean gl_ati_r300_force_gl1 = gl_renderer &&
 	    (strstr(gl_renderer, "Radeon 9500") || strstr(gl_renderer, "Radeon 9600") ||
 	     strstr(gl_renderer, "Radeon 9700") || strstr(gl_renderer, "Radeon 9800")) &&
 	    !COM_CheckParm("-atigl");
+
+	// PPC port -- NVIDIA-on-PowerPC GLSL gate. Measured 2026-08-21 on the
+	// G5 quad (PowerMac11,2, GeForce 6600, Leopard 10.5.8).
+	//
+	// The GLSL world program links with no error and then draws every
+	// world surface unlit black. Alias models, particles, the view model
+	// and the 2D/HUD layer are all correct, so it is the world program
+	// specifically. A `sample` of the running process shows the driver
+	// re-allocating a vertex buffer inside the draw loop every frame:
+	//   R_DrawTextureChains_GLSL -> gleDrawArraysOrElements_VBO_Exec
+	//     -> gldAllocVertexBuffer -> io_connect_map_memory -> mach_msg
+	//
+	// With Apple's multi-threaded GL engine also enabled (which GL_Init
+	// does by default on any multi-core Mac) the same path does not merely
+	// render wrong, it SIGSEGVs about two seconds after launch, inside
+	// gleLLVMLoadDataFromAryFloatInVector on the GL command thread
+	// (glDrawArrays_UnpackThread). That crash is what made the game appear
+	// to "hang at the console": SDL's parachute caught the signal and
+	// deadlocked tearing down GL against the main thread's buffer swap, so
+	// the window froze on its last frame at 0% CPU.
+	//
+	// Blocking GLSL alone fixes BOTH symptoms, verified by screenshot with
+	// the multi-threaded engine left ON. So unlike the R300 case this does
+	// NOT force GL 1.x wholesale: VBO, NPOT and MT GL stay enabled,
+	// because with GLSL off they are stable and fast on this card.
+	//
+	// Scoped to PowerPC + NVIDIA rather than to the 6600 alone. No other
+	// NVIDIA PowerPC card was available to test, and the previous
+	// untested-but-confident claim about this exact family is what let the
+	// bug ship. Toggle: -nvglsl re-enables it for A/B retesting.
+#if defined(__ppc__) || defined(__ppc64__)
+	qboolean gl_ppc_nvidia_no_glsl = gl_vendor &&
+	    strstr(gl_vendor, "NVIDIA") && !COM_CheckParm("-nvglsl");
+#else
+	qboolean gl_ppc_nvidia_no_glsl = false;
+#endif
 
 	// ARB_vertex_buffer_object
 	//
@@ -1549,6 +1589,8 @@ static void GL_CheckExtensions (void)
 		Con_Warning ("GLSL disabled at command line\n");
 	else if (gl_ati_r300_force_gl1)
 		Con_Warning ("GLSL skipped on ATI R300 (Leopard driver GPU-hang -- forcing GL 1.x)\n");
+	else if (gl_ppc_nvidia_no_glsl)
+		Con_Warning ("GLSL skipped on NVIDIA PowerPC (world draws black; -nvglsl overrides)\n");
 	else if (gl_version_major >= 2)
 	{
 		GL_CreateShaderFunc = (QS_PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
@@ -1752,7 +1794,11 @@ static void GL_Init (void)
 	// https://developer.apple.com/library/mac/technotes/tn2085/
 	// kCGLCEMPEngine is 10.4.8+; gate so 10.3 builds still compile.
 	// Single-core G3s are no-op anyway (numcpus check fails first).
-	if (host_parms->numcpus > 1 &&
+	if (COM_CheckParm("-nomtgl"))
+	{
+		Con_Printf ("Multi-threaded OpenGL disabled by -nomtgl\n");
+	}
+	else if (host_parms->numcpus > 1 &&
 	    kCGLNoError != CGLEnable(CGLGetCurrentContext(), kCGLCEMPEngine))
 	{
 		Con_Warning ("Couldn't enable multi-threaded OpenGL");
