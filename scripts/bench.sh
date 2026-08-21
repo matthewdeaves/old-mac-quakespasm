@@ -2,7 +2,7 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
@@ -81,6 +81,8 @@ case "$TARGET" in
   mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;
   imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # i5-9600K + Radeon Pro 580X — fastest
   imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
+  quad-leopard)
+               HOST="quad-leopard"; TIMEOUT=110; ARCH_CFG="ppc970"; COOLDOWN=2 ;;  # PowerMac11,2 quad 2.5 GHz + GeForce 6600, Leopard
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 MACHINE_CFG="${MACHINE_CFG:-$TARGET}"
@@ -115,8 +117,16 @@ mkdir -p "$RAW_DIR"
 # Finder launch after the bench falls back to the bundle path (no stale id1/
 # autoexec to double-apply on top of CFBundle).
 TMP_AE=$(mktemp -t qsbenchae.XXXXXX)
-cat "$REPO_ROOT/scripts/bundle/autoexec-$ARCH_CFG.cfg" \
-    "$REPO_ROOT/scripts/bundle/autoexec-$MACHINE_CFG.cfg" > "$TMP_AE"
+# The per-machine overlay is OPTIONAL. A machine that has no tuned config of
+# its own (quad-leopard is the first) benches on the per-arch baseline alone
+# rather than failing the whole run on a missing file. Same spirit as the
+# COOLDOWN default above: adding a row to the table should be enough.
+cat "$REPO_ROOT/scripts/bundle/autoexec-$ARCH_CFG.cfg" > "$TMP_AE"
+if [ -f "$REPO_ROOT/scripts/bundle/autoexec-$MACHINE_CFG.cfg" ]; then
+  cat "$REPO_ROOT/scripts/bundle/autoexec-$MACHINE_CFG.cfg" >> "$TMP_AE"
+else
+  echo "[bench] no per-machine autoexec-$MACHINE_CFG.cfg — using autoexec-$ARCH_CFG.cfg only" >&2
+fi
 scp -q "$TMP_AE" "$HOST:Desktop/quake/id1/autoexec.cfg" || \
   echo "[bench] WARN: failed to stage autoexec.cfg on $HOST — bench will run vanilla" >&2
 rm -f "$TMP_AE"
