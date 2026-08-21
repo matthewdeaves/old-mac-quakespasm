@@ -98,7 +98,7 @@ cover the setup, the build pipeline and the timedemo bench loop.
 
 ![Build and bench rack: one orchestration box drives the fleet via the Lion mini cross-build host](docs/images/architecture.svg)
 
-![Build pipeline: four slices (ppc750, ppc7400, ppc970, x86_64) lipo'd into one fat binary](docs/images/build-pipeline.svg)
+![Build pipeline: six slices (ppc750, ppc7400, ppc970, i386, x86_64, arm64) lipo'd into one fat binary](docs/images/build-pipeline.svg)
 
 ![Bench loop: The orchestration Mac launches a timedemo over SSH, reads qconsole.log back, and the median lands in results.csv](docs/images/bench-loop.svg)
 
@@ -139,9 +139,10 @@ Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder
 [GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click
 `Quakespasm.app`. On modern macOS, clear Gatekeeper with
 `xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app` (not needed on
-Panther/Tiger/Leopard/Lion). On an Apple Silicon Mac the `x86_64` slice runs under
-Rosetta 2, there is no native `arm64` slice. The only Macs with no slice at all are
-the 32-bit-only Core Duo / Core Solo models.
+Panther/Tiger/Leopard/Lion). An Apple Silicon Mac now runs a **native `arm64`
+slice** rather than the `x86_64` one under Rosetta 2, and the 2006 Core Duo /
+Core Solo machines have their own `i386` slice, so there is no longer any Mac
+this binary cannot run on natively.
 
 ## Sister projects
 
