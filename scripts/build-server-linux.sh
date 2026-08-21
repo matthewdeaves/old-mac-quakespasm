@@ -108,7 +108,16 @@ docker build --platform "$DOCKER_PLATFORM" \
 echo "[server] staging source"
 rm -rf "$WORK/src"
 mkdir -p "$WORK/src"
-tar cf - Quake | tar xf - -C "$WORK/src"
+# --exclude the object and dependency files. A local macOS build leaves 174 of
+# them in Quake/, and the .d files carry absolute-ish dependency lines pointing
+# at the Mac SDL framework. Staged into the container, make reads them and stops
+# with
+#   No rule to make target '../MacOSX/SDL2.framework/Headers/SDL.h',
+#   needed by 'gl_refrag.o'
+# which looks like a missing dependency in the container rather than what it is:
+# a Mac build leaking into a Linux one. Same class of bug as the Quake II driver
+# staging yquake2/release/. These are build output, never inputs.
+tar cf - --exclude='*.o' --exclude='*.d' Quake | tar xf - -C "$WORK/src"
 
 cat > "$WORK/build-in-container.sh" <<CONTAINER_SCRIPT
 #!/bin/sh
@@ -167,7 +176,7 @@ cd \$WORK/src/Quake
 # Exported rather than put on the make command line: MAKE_ARGS is expanded
 # unquoted, so a multi-word value there word-splits and make reads the tail of
 # it as its own options. make imports the environment for variables it does not
-# set itself, so this reaches $(EXTRA_CFLAGS) intact.
+# set itself, so this reaches \$(EXTRA_CFLAGS) intact.
 HARDEN_CFLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE"
 HARDEN_LDFLAGS="-Wl,-z,relro,-z,now -Wl,-z,noexecstack -pie"
 export EXTRA_CFLAGS="\$HARDEN_CFLAGS"
@@ -284,9 +293,10 @@ echo "[container] hardening: canaries yes, full RELRO, NX, PIE"
 # build exists to avoid.
 ldd \$WORK/quakespasm-server > \$WORK/ldd.txt 2>&1 || true
 if grep -qE '=> */' \$WORK/ldd.txt; then
-	BAD=\$(grep -oE '^[[:space:]]*[a-zA-Z0-9_.+-]+\\.so[0-9.]*' \$WORK/ldd.txt \\
-		| tr -d '[:space:]' \\
-		| grep -vE '^(libc|libm|libdl|libpthread|librt|ld-linux.*)\\.so' || true)
+	BAD=\$(awk '{print \$1}' \$WORK/ldd.txt \\
+		| sed 's|.*/||' \\
+		| grep -E '\\.so' \\
+		| grep -vE '^(linux-vdso|libc|libm|libdl|libpthread|librt|ld-linux.*)\\.so' || true)
 	if [ -n "\$BAD" ]; then
 		echo "[container] binary depends on libraries outside glibc:" >&2
 		echo "\$BAD" >&2
