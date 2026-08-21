@@ -141,8 +141,28 @@ chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
 cp    "$REPO_ROOT/Quake/quakespasm.pak" "$IMG/"
 # Per-arch baselines + per-machine overlays, picked at boot by host.c.
+#
+# Shipped COMMENT-STRIPPED, and that is not cosmetic. Quake's Cbuf_Execute
+# splits a line on ';' as well as on newline (cmd.c:162), and it does that
+# BEFORE it decides whether the line is a '//' comment. So a semicolon inside a
+# comment ends the comment as far as the command buffer is concerned, and
+# everything after it is executed. Every config in this port had between 2 and
+# 11 of them, including, with some irony, the comment in autoexec-ppc970.cfg
+# that warns not to put semicolons in comments.
+#
+# Seen on hardware: a G5 quad logged two "Unknown command `" lines at startup,
+# one for each semicolon in that warning. Harmless there, but only by luck. The
+# text after a semicolon is whatever the prose happened to say, and if its first
+# word matches a real command or cvar it will be run with the rest of the
+# sentence as arguments.
+#
+# Stripping also keeps the combined baseline + overlay well inside Cbuf's fixed
+# 8 KB, which is the same reason the Quake II port strips its own.
 for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
-  cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
+  sed -e 's,//.*,,' -e 's/[[:space:]]*$//' \
+      "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" \
+    | grep -v '^[[:space:]]*$' \
+    > "$RESOURCES/autoexec-$cfg.cfg"
 done
 
 # ---- user-facing README inside the image ---------------------------------

@@ -97,8 +97,14 @@ cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 # Per-arch baselines + per-machine overlays. host.c picks the right
 # baseline at compile time and the right overlay at runtime via sysctl
 # hw.model. All ship inside the .app so the bundle is self-contained.
+# Comment-stripped, for the same reason make-dmg.sh strips them: Cbuf_Execute
+# splits on ';' before it decides a line is a '//' comment, so a semicolon
+# inside a comment ends the comment and the rest of the sentence is executed.
 for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
-  cp "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" "$RESOURCES/"
+  sed -e 's,//.*,,' -e 's/[[:space:]]*$//' \
+      "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" \
+    | grep -v '^[[:space:]]*$' \
+    > "$RESOURCES/autoexec-$cfg.cfg"
 done
 
 echo "[deploy] ship to $HOST:~/Desktop/quake/"

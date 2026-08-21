@@ -683,10 +683,43 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 	/* Make window fullscreen if needed, and show the window */
 
 	if (fullscreen) {
-		const Uint32 flag = vid_desktopfullscreen.value ?
+		/* Upstream makes a failed fullscreen request FATAL. It should not be:
+		 * the window already exists and works, and being unable to take the
+		 * display is not a reason to refuse to run.
+		 *
+		 * It happens in practice. On a G5 quad (GeForce 6600, Leopard) whose
+		 * desktop is 1920x1080, SDL_WINDOW_FULLSCREEN_DESKTOP fails and the
+		 * game died on "Couldn't set video mode" before drawing a frame, while
+		 * the same build ran windowed, and ran fullscreen at 1280x1024, on the
+		 * same machine. Another G5 on the identical config at 1680x1050 was
+		 * fine, so it is that mode on that driver rather than the setting.
+		 *
+		 * So try what was asked for, then the other fullscreen kind, then give
+		 * up and stay windowed. A player gets a window instead of a black
+		 * screen and a fatal alert, and the console says why. */
+		const Uint32 want = vid_desktopfullscreen.value ?
 				SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
-		if (SDL_SetWindowFullscreen (draw_context, flag) != 0)
-			Sys_Error ("Couldn't set fullscreen state mode");
+		const Uint32 other = vid_desktopfullscreen.value ?
+				SDL_WINDOW_FULLSCREEN : SDL_WINDOW_FULLSCREEN_DESKTOP;
+
+		if (SDL_SetWindowFullscreen (draw_context, want) != 0)
+		{
+			Con_Printf ("SDL: fullscreen (%s) refused: %s\n",
+				vid_desktopfullscreen.value ? "desktop" : "exclusive", SDL_GetError());
+
+			if (SDL_SetWindowFullscreen (draw_context, other) == 0)
+			{
+				Con_Printf ("SDL: fell back to %s fullscreen\n",
+					vid_desktopfullscreen.value ? "exclusive" : "desktop");
+			}
+			else
+			{
+				Con_Printf ("SDL: %s\nSDL: staying windowed at %dx%d\n",
+					SDL_GetError(), width, height);
+				SDL_SetWindowFullscreen (draw_context, 0);
+				Cvar_SetValueQuick (&vid_fullscreen, 0);
+			}
+		}
 	}
 
 	SDL_ShowWindow (draw_context);
@@ -746,9 +779,58 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 	if (!draw_context) { // scale back SDL_GL_STENCIL_SIZE
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
 		draw_context = SDL_SetVideoMode(width, height, bpp, flags);
-		if (!draw_context)
-			Sys_Error ("Couldn't set video mode");
 	}
+
+	/* Every fallback above keeps the same WIDTH and HEIGHT and only gives up
+	 * pixel-format extras, so none of them helps when the resolution itself is
+	 * the thing SDL cannot set. Then the engine died on "Couldn't set video
+	 * mode" before drawing a single frame.
+	 *
+	 * That is not hypothetical. A G5 quad with a GeForce 6600 on Leopard,
+	 * desktop at 1920x1080, failed exactly this way, while the same build on
+	 * the same machine ran windowed and ran fullscreen at 1280x1024. SDL 1.2's
+	 * Quartz driver enumerates CoreGraphics display modes, and a panel can be
+	 * DISPLAYING a mode that is not in that list, so "use the desktop
+	 * resolution" is not automatically a settable fullscreen mode.
+	 *
+	 * So fall back on the geometry too, most preferred first, and only then
+	 * give up. Dropping fullscreen is the last thing tried before failing,
+	 * because a window at the right size beats a fatal alert. */
+	if (!draw_context && (flags & SDL_FULLSCREEN))
+	{
+		Con_Printf ("SDL: %dx%d fullscreen unavailable, trying alternatives\n", width, height);
+
+		if (!draw_context && display_width && display_height &&
+		    (width != display_width || height != display_height))
+		{	/* the desktop's own mode, if that is not what we just tried */
+			draw_context = SDL_SetVideoMode(display_width, display_height, bpp, flags);
+			if (draw_context) { width = display_width; height = display_height; }
+		}
+		if (!draw_context)
+		{	/* modes every Mac GPU of this era enumerates */
+			static const int safe[][2] = { {1280,1024}, {1024,768}, {800,600}, {640,480} };
+			size_t i;
+			for (i = 0; i < sizeof(safe)/sizeof(safe[0]) && !draw_context; i++)
+			{
+				if (safe[i][0] > width) continue;	/* never scale UP */
+				draw_context = SDL_SetVideoMode(safe[i][0], safe[i][1], bpp, flags);
+				if (draw_context) { width = safe[i][0]; height = safe[i][1]; }
+			}
+		}
+		if (!draw_context)
+		{	/* windowed at the original size: no display mode set at all */
+			flags &= ~SDL_FULLSCREEN;
+			draw_context = SDL_SetVideoMode(width, height, bpp, flags);
+			if (draw_context)
+				Cvar_SetValueQuick (&vid_fullscreen, 0);
+		}
+		if (draw_context)
+			Con_Printf ("SDL: using %dx%d %s\n", width, height,
+				(flags & SDL_FULLSCREEN) ? "fullscreen" : "windowed");
+	}
+
+	if (!draw_context)
+		Sys_Error ("Couldn't set video mode (%dx%d %dbpp)", width, height, bpp);
 
 	SDL_WM_SetCaption(caption, caption);
 #endif /* !defined(USE_SDL2) */
