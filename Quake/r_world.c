@@ -756,6 +756,27 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 	if (r_drawflat_cheatsafe || r_lightmap_cheatsafe) // ericw -- !r_drawworld_cheatsafe check moved to R_DrawWorld_Water ()
 		return;
 
+	// Both fixed-function branches below submit vertices from CLIENT memory
+	// (glpoly_t on the hunk) through glVertexPointer / glTexCoordPointer. From
+	// GL 1.5 on, while a buffer object is bound to GL_ARRAY_BUFFER those
+	// pointer arguments are byte OFFSETS into that buffer rather than
+	// addresses. Leave the world's VBO bound and every liquid vertex becomes a
+	// wild offset: the geometry is garbage, nothing rasterises, and GL reports
+	// no error at all.
+	//
+	// This is why liquids vanished on Apple Silicon and nowhere else. arm64 is
+	// the only slice with a GLSL world program, so it is the only one that ever
+	// binds a VBO. PowerPC and the GMA Intels take the fixed-function world
+	// path, never bind one, and the identical client pointers work there.
+	//
+	// Measured 2026-08-21 on an M5, with the surfaces reported as: correct
+	// texture bound, real texel data, texcoords varying correctly per vertex,
+	// GL_MODULATE, blend/cull/depth/scissor/colormask all sane, glGetError 0,
+	// and no pixels. Forcing the polygons solid red and skipping the draw
+	// entirely both left the screen identical, which is what finally ruled out
+	// every colour and state explanation and pointed at the vertices.
+	GL_ClearBufferBindings ();
+
 	has_lit_water = false;
 	has_unlit_water = false;
 
@@ -898,6 +919,7 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 		GL_DisableVertexAttribArrayFunc (LMCoordsAttrIndex);
 		GL_UseProgramFunc (0);
 		GL_SelectTexture (GL_TEXTURE0);
+		GL_ClearBufferBindings ();  // unbind where we bound; see note above
 	}
 	else
 		has_unlit_water = true;
@@ -1209,6 +1231,12 @@ void R_DrawTextureChains_GLSL (qmodel_t *model, entity_t *ent, texchain_t chain)
 
 	GL_UseProgramFunc (0);
 	GL_SelectTexture (GL_TEXTURE0);
+	// Unbind where we bound. Everything later in the frame that submits
+	// vertices from client memory (liquid surfaces, the warp-texture update,
+	// particles, decals) would otherwise have its pointers reinterpreted as
+	// offsets into this VBO. See the note in R_DrawTextureChains_Water.
+	// No-op unless gl_vbo_able, so PowerPC and the GMA Intels are unaffected.
+	GL_ClearBufferBindings ();
 
 	if (entalpha < 1)
 	{
@@ -1299,6 +1327,7 @@ void R_DrawLightmapChains_GLSL(qmodel_t* model, entity_t* ent, texchain_t chain)
 
 	GL_UseProgramFunc(0);
 	GL_SelectTexture(GL_TEXTURE0);
+	GL_ClearBufferBindings ();  // unbind where we bound; see note above
 }
 
 /*

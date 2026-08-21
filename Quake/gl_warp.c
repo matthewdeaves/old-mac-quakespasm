@@ -291,6 +291,16 @@ void R_UpdateWarpTextures (void)
 	if (R_OldWaterEffective() || cl.paused || r_drawflat_cheatsafe || r_lightmap_cheatsafe)
 		return;
 
+	// The warp grid below is submitted from a stack buffer through
+	// glVertexPointer / glTexCoordPointer, so a VBO left bound by the GLSL
+	// world pass turns those pointers into offsets and the grid never draws.
+	// The glCopyTexSubImage2D that follows then captures whatever was already
+	// sitting in that corner of the backbuffer, which is the scene itself, so
+	// every liquid surface and teleporter ends up showing a mirror of the room.
+	// Same root cause as the invisible liquids: see R_DrawTextureChains_Water.
+	// No-op unless gl_vbo_able, so PowerPC and the GMA Intels are unaffected.
+	GL_ClearBufferBindings ();
+
 	warptess = 128.0f/CLAMP (3.0f, floorf(r_waterquality.value), 64.0f);
 
 	for (i=0; i<cl.worldmodel->numtextures; i++)
