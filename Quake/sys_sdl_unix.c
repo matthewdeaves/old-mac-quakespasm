@@ -528,6 +528,7 @@ double Sys_DoubleTime (void)
 const char *Sys_ConsoleInput (void)
 {
 	static qboolean	con_eof = false;
+	static qboolean	warned_nowriter = false;
 	static char	con_text[256];
 	static int	textlen;
 	char		c;
@@ -546,10 +547,40 @@ const char *Sys_ConsoleInput (void)
 	{
 		if (read(0, &c, 1) <= 0)
 		{
-			// Finish processing whatever is already in the
-			// buffer (if anything), then stop reading
-			con_eof = true;
-			c = '\n';
+			if (stdinIsATTY)
+			{
+				// A terminal really has reached end of input.
+				// Finish processing whatever is already in the
+				// buffer (if anything), then stop reading
+				con_eof = true;
+				c = '\n';
+			}
+			else
+			{
+				// A FIFO reads EOF whenever no process holds it
+				// open for writing, and that is its ordinary
+				// state BETWEEN commands, not an error: every
+				// `echo ... > console` closes the FIFO when it
+				// finishes. Latching con_eof here would kill the
+				// console for the life of the process the first
+				// time that happened, after the line above had
+				// already reported it working, which is the same
+				// silent lie this function was just fixed for.
+				//
+				// The shipped unit never reaches this, because it
+				// holds the FIFO open read-write itself
+				// (`exec 3<>` in ExecStart) so the server is its
+				// own writer. Anything that gets here is opening
+				// the FIFO read-only instead, systemd's
+				// StandardInput=file: being the likely way, so
+				// say what to do about it and keep reading.
+				if (!warned_nowriter)
+				{
+					warned_nowriter = true;
+					Sys_Printf("Console input: no writer on the FIFO. Hold it open read-write (exec 3<>) or commands will be missed.\n");
+				}
+				return NULL;
+			}
 		}
 		if (c == '\n' || c == '\r')
 		{
