@@ -156,3 +156,26 @@ scripts/build-server-linux.sh --arch aarch64  # ARM VPS
 Needs Docker or Colima and nothing else. The build runs in a Debian 11
 container so the result depends on glibc 2.31 rather than on whatever the
 build machine happens to have.
+
+## On Debian and Ubuntu, set `-ip` or nobody can join
+
+NetQuake's connect handshake has the server **tell the client which address to
+use** for the game session, and it derives that from `gethostname()` +
+`gethostbyname()`. Debian and Ubuntu map the hostname to `127.0.1.1` in
+`/etc/hosts`, so the server answers every query with:
+
+```
+127.0.1.1:26000 UNNAMED start
+```
+
+The client switches to `127.0.1.1`, which on the client is *itself*. It prints
+**"Connection accepted"**, starts a local server, and plays alone. Nothing
+errors, on either side.
+
+Measured: the client reported a successful connection while `tcpdump` on the
+server saw **zero packets** on port 26000.
+
+Fix: pass `-ip <the address players reach this machine on>` in the systemd
+unit. It is both the bind and the advertised address, so it must be a real
+address of the machine, not `0.0.0.0`. After setting it, the query reply
+changes to `<address>:26000` and clients genuinely join.

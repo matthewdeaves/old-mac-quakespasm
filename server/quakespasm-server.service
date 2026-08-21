@@ -27,9 +27,30 @@ WorkingDirectory=/opt/quakespasm-server
 RuntimeDirectory=quakespasm-server
 RuntimeDirectoryMode=0750
 ExecStartPre=/usr/bin/mkfifo -m 0600 /run/quakespasm-server/console
+# -ip is NOT optional on Debian or Ubuntu, and getting it wrong looks like a
+# working server that nobody can join.
+#
+# NetQuake's connect handshake has the server TELL the client which address to
+# use for the game session, and net_udp.c derives that from gethostname()
+# followed by gethostbyname(). Debian and Ubuntu ship an /etc/hosts line
+# mapping the hostname to 127.0.1.1, so the server answers every query with
+#
+#     127.0.1.1:26000 UNNAMED start
+#
+# The client dutifully switches to 127.0.1.1, which on the client is ITSELF, so
+# it connects to its own loopback, prints "Connection accepted", starts a local
+# server and plays alone. Measured 2026-08-21: the client said it was connected
+# while tcpdump on the server saw zero packets on 26000.
+#
+# EDIT THIS to the address players will actually reach the server on. It is
+# both the bind address and the advertised one, so it has to be a real address
+# of this machine, not 0.0.0.0. Verified working on a LAN with the server's own
+# address: the query reply changed from 127.0.1.1:26000 to <address>:26000 and
+# a PowerPC client then genuinely joined, taking the server from 0/8 to 1/8.
 ExecStart=/bin/sh -c 'exec 3<>/run/quakespasm-server/console; \
     exec /opt/quakespasm-server/quakespasm-server \
         -dedicated 8 \
+        -ip 192.0.2.1 \
         -basedir /opt/quakespasm-server \
         +exec server.cfg <&3'
 
