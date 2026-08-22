@@ -139,46 +139,66 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   `gl_rlight.c:326` cast lightmap-extent calculations to `double` to dodge
   x87/SSE2 precision drift. Nothing to patch.
 
+<!-- retro-shared-block: canonical copy lives in retro-agents/briefs/SHARED-BLOCK.md.
+     Do not edit this region in a port repo; it is overwritten by the sync.
+     Everything here must be true of EVERY repo it lands in. -->
+
 ## Working alongside the other repos
 
-Seven repos share one board: the four game ports, `old-mac-build-host`,
-`retro-agents`, and the private `retro-server-infra`, which runs the servers
-those ports build. A session may be open in each at once. Three rules keep them
-out of each other's way.
+This repo is one of seven worked on together: four game ports, the private
+`retro-server-infra` which runs the servers, the private `old-mac-build-host`
+which owns the machines, and `retro-agents` which runs the sessions. One board
+covers all seven: <https://github.com/users/matthewdeaves/projects/8>.
 
 **Hardware is claimed, never assumed free.** Every script that deploys to,
-benches on, or otherwise drives a fleet machine re-execs itself under
+benches on or otherwise drives a fleet machine re-execs under
 `scripts/pick-bench-host.sh --run`, so the machine is claimed for the run and
-released however it ends. The lock is a directory on the target, so it is shared
-with the build lock and visible to every repo, agent and workstation. Check
-`scripts/pick-bench-host.sh --status` before assuming a box is idle, and never
-work around a busy one. `BENCH_NO_LOCK=1` exists only for debugging the picker.
+released however it ends. The lock is a directory on the target, shared with the
+build lock and visible to every repo and workstation. Check
+`pick-bench-host.sh --status` before assuming a box is idle and NEVER work around
+a busy one.
 
-A split acquire/release pair must also export `BENCH_LOCK_CLAIM`. Without it the
+Some repos' own scripts honour `BENCH_NO_LOCK=1` to skip the claim, for debugging
+the picker itself. The shared picker does not read it; each script implements it
+locally, so it is an escape hatch nothing central audits. Do not use it to get
+past a machine someone else is holding.
+
+Nothing arbitrates WORKING TREES. Two sessions in one repo can collide silently,
+and a sync can write into your tree mid-task, so stage by name and never
+`git add -A`.
+
+**The board columns are gates, not labels:**
+
+    Triage -> Measuring -> Ready -> In progress -> Blocked -> Review -> Done
+
+`Triage` is the user's gate; only a human moves work out of it. `Measuring` means
+approved: work it. STOP AT `Review` — `Done` is the user's, not yours. Write
+`Refs #12` in commit messages, never `Closes` or `Fixes`, or GitHub closes the
+issue behind your back while the column still says Review.
+
+Filing an issue does NOT put it on the board and nothing sets a status on a new
+item, so it lands in no column at all and looks like work nobody raised. Run
+`retro-agents/bin/board-add.sh <repo>#<n>` after filing, every time.
+
+**The full rules are in `retro-agents/briefs/`, not here.** Every session is
+launched with them. This block is the short version for a human reading this repo
+cold; where the two differ, the briefs win.
+
+<!-- end retro-shared-block -->
+
+## Working alongside them: what is specific to this repo
+
+**A split acquire/release pair must export `BENCH_LOCK_CLAIM`.** Without it the
 picker can only match `user@host:repo`, which every session in this repo shares,
 so a sibling session's `--release` silently drops your lock. `--run` handles this
-itself. `build-fat.sh` and `build.sh` export it; measured 2026-08-22.
+itself. `build-fat.sh` and `build.sh` export it. Measured 2026-08-22.
 
-**Cross-repo work goes through GitHub, not chat.** One board covers all seven:
-<https://github.com/users/matthewdeaves/projects/8>. Columns are
-`Triage / Measuring / Ready / In progress / Blocked / Review / Done`.
-
-Three scripts, all REST, all zero GraphQL. Use them rather than `gh project`,
-which is GraphQL on a 5000/hour budget the whole fleet shares and has hit zero:
-
-```sh
-../retro-agents/bin/board.sh --diff                          # read
-../retro-agents/bin/board-add.sh <repo>#<n>                  # add + set Triage
-../retro-agents/bin/board-move.sh <repo>#<n> "In progress"   # move one ticket
-```
-
-Do NOT file with `gh issue create --project Retro`: measured 2026-08-22, it does
-not reliably land in `Triage`. Nothing on this board sets a status on a new item,
-so an issue added any other way arrives with no status at all and is invisible on
-a gated board. File the issue, then `board-add.sh` it.
-
-**Your own work stops at `Review`, never `Done`.** Review is where you hand it to
-the user. Done is theirs to set.
+**Guard a re-exec on WHICH host is held, not whether any is.**
+`pick-bench-host.sh --run` exports `RETRO_BENCH_LOCK` naming the claimed host, so
+`[ -z "${RETRO_BENCH_LOCK:-}" ]` now means "inside ANY claim" and makes a script
+skip claiming a DIFFERENT machine. Compare against the target instead:
+`[ "${RETRO_BENCH_LOCK:-}" != "$TARGET" ]`. Ten scripts here were wrong; fixed in
+77b78a02.
 
 Labels, the same four in every repo: **`from:infra`** raised by the server side
 for a port to act on, **`from:port`** raised by a port for another repo,
@@ -186,19 +206,18 @@ for a port to act on, **`from:port`** raised by a port for another repo,
 **`cross-port`** it affects more than one port, so expect sibling issues.
 
 **Anything one session raises at another starts in `Triage` with
-`needs-measurement`, and is not worked until a human or a measurement moves it.**
-An issue written by another agent carries no more evidence than the reasoning
-that produced it, and it arrives looking exactly like one backed by a bench run.
-That gate is the whole reason the board has a `Measuring` column. The same
-finding really does recur across ports (the PowerPC SDL2 `--disable-joystick`
-issue was filed in three repos on the same day), so `cross-port` is worth using,
-but file the sibling issues rather than assuming the fix transfers.
+`needs-measurement`.** An issue written by another agent carries no more evidence
+than the reasoning that produced it, and it arrives looking exactly like one
+backed by a bench run. The same finding does recur across ports (the PowerPC SDL2
+`--disable-joystick` issue was filed in three repos on one day), so `cross-port`
+is worth using, but file the sibling issues rather than assuming the fix
+transfers.
 
-**This repo is PUBLIC. `retro-server-infra` is PRIVATE.** It describes the
-topology, firewall rules and admin surface of a live host. Never copy addresses,
-key material, tunnel tokens or `.env` content out of it into this repo, in code,
-docs or a commit message. Referring to a server release tag is fine; describing
-where it runs is not.
+**This repo is PUBLIC. `retro-server-infra` and `old-mac-build-host` are
+PRIVATE.** They describe the topology, firewall rules and admin surface of a live
+host. Never copy addresses, key material, tunnel tokens or `.env` content out of
+them into this repo, in code, docs or a commit message. Referring to a server
+release tag is fine; describing where it runs is not.
 
 ## Read on demand
 
