@@ -439,6 +439,8 @@ void R_InitDecals (void);
 void R_ClearDecals (void);
 void R_DrawDecals (void);
 void R_SpawnDecal (const vec3_t pos, int type);
+void R_DecalStats_Reset (void);
+void R_DecalStats_Report (void);
 // decal types (must match the enum in r_decals.c)
 #define DECALTYPE_BULLET	0	// shotgun / axe wall hits
 #define DECALTYPE_NAIL		1	// nailgun (smaller bullet mark)

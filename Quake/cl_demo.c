@@ -1126,6 +1126,7 @@ static void CL_FinishTimeDemo (void)
 	if (!time)
 		time = 1;
 	Con_Printf ("%i frames %5.1f seconds %5.1f fps\n", frames, time, frames/time);
+	R_DecalStats_Report ();	// no-op unless r_decal_stats is set
 
 	sysreport_last_fps = frames / time;
 	if (CL_SysReport_Active ())
@@ -1170,5 +1171,7 @@ void CL_TimeDemo_f (void)
 	cls.timedemo = true;
 	cls.td_startframe = host_framecount;
 	cls.td_lastframe = -1;	// get a new message this frame
+
+	R_DecalStats_Reset ();	// counters cover exactly this run
 }
 

@@ -138,6 +138,51 @@ cvar_t r_decal_max   = {"r_decal_max",   "32", CVAR_ARCHIVE};
 cvar_t r_decal_life  = {"r_decal_life",  "30", CVAR_ARCHIVE};
 cvar_t r_decal_fade  = {"r_decal_fade",  "5",  CVAR_ARCHIVE};
 
+/* Instrumentation, off by default and reported only at the end of a
+ * timedemo, so a bench run costs nothing extra until it is asked for.
+ * Exists because an A/B of r_decals 0 vs 1 is meaningless unless we can
+ * show a decal was actually spawned, kept and drawn during the run. */
+cvar_t r_decal_stats = {"r_decal_stats", "0", CVAR_NONE};
+
+static unsigned long ds_spawn_calls;	/* R_SpawnDecal entered, before any gate */
+static unsigned long ds_spawn_gated;	/* dropped: r_decals 0 or bad type */
+static unsigned long ds_probe_fail;	/* no surface found within probe reach */
+static unsigned long ds_add_calls;	/* probe hit, R_AddDecal entered */
+static unsigned long ds_drop_nofrag;	/* clipper produced no fragments */
+static unsigned long ds_drop_verts;	/* fragment set too big for one slot */
+static unsigned long ds_committed;	/* decal actually stored in a slot */
+static unsigned long ds_draw_frames;	/* R_DrawDecals entered with r_decals on */
+static unsigned long ds_draw_empty;	/* ...and took the nothing-live early out */
+static unsigned long ds_draw_work;	/* ...and drew at least one decal */
+static unsigned long ds_drawn_decals;	/* decal-draws summed over frames */
+static unsigned long ds_drawn_frags;	/* triangle fans issued */
+static unsigned long ds_drawn_verts;	/* vertices issued */
+static int           ds_peak_live;	/* most decals live in any one frame */
+
+void R_DecalStats_Reset (void)
+{
+	ds_spawn_calls = ds_spawn_gated = ds_probe_fail = ds_add_calls = 0;
+	ds_drop_nofrag = ds_drop_verts = ds_committed = 0;
+	ds_draw_frames = ds_draw_empty = ds_draw_work = 0;
+	ds_drawn_decals = ds_drawn_frags = ds_drawn_verts = 0;
+	ds_peak_live = 0;
+}
+
+void R_DecalStats_Report (void)
+{
+	if (!r_decal_stats.value)
+		return;
+
+	Con_Printf ("decalstats: spawn=%lu gated=%lu probefail=%lu add=%lu "
+			"dropnofrag=%lu dropverts=%lu committed=%lu\n",
+			ds_spawn_calls, ds_spawn_gated, ds_probe_fail, ds_add_calls,
+			ds_drop_nofrag, ds_drop_verts, ds_committed);
+	Con_Printf ("decalstats: drawframes=%lu empty=%lu work=%lu "
+			"decaldraws=%lu frags=%lu verts=%lu peaklive=%d\n",
+			ds_draw_frames, ds_draw_empty, ds_draw_work,
+			ds_drawn_decals, ds_drawn_frags, ds_drawn_verts, ds_peak_live);
+}
+
 /*
 =================================================================
  Fragment clipper -- carves a square decal patch out of the BSP
@@ -426,6 +471,8 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
 	r_decal_t   *d;
 	float        now;
 
+	ds_add_calls++;
+
 	if (!r_decals.value || !cl.worldmodel)
 		return;
 	if (type < 0 || type >= DECAL_TYPE_COUNT || !r_decal_textures[decal_tex[type]])
@@ -441,13 +488,13 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
 	numFrags = R_MarkFragments (origin, (const vec3_t *)axis, radius,
 			MAX_FRAGMENT_POINTS, scratch_points, 16, scratch_frags);
 	if (numFrags <= 0)
-		return;
+		{ ds_drop_nofrag++; return; }
 
 	verts_needed = 0;
 	for (i = 0; i < numFrags; i++)
 		verts_needed += scratch_frags[i].numPoints;
 	if (verts_needed <= 0 || verts_needed > DECAL_VERTS_PER)
-		return;	/* too complex to fit one slot's vertex window -- drop it */
+		{ ds_drop_verts++; return; }	/* too complex for one slot's vertex window */
 
 	slot = r_decal_next % maxDecals;
 	r_decal_next = (r_decal_next + 1) % maxDecals;
@@ -488,6 +535,7 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
 	d->fadeStart = now + r_decal_life.value;
 	d->fadeEnd   = d->fadeStart + r_decal_fade.value;
 	d->texture = r_decal_textures[decal_tex[type]];
+	ds_committed++;
 }
 
 /*
@@ -561,13 +609,19 @@ void R_SpawnDecal (const vec3_t pos, int type)
 {
 	vec3_t hit, normal;
 
+	/* counted before the gate: proves the demo produced impacts at all,
+	 * even on the r_decals 0 leg of an A/B */
+	ds_spawn_calls++;
+
 	if (!r_decals.value)
-		return;
+		{ ds_spawn_gated++; return; }
 	if (type < 0 || type >= DECAL_TYPE_COUNT)
-		return;
+		{ ds_spawn_gated++; return; }
 
 	if (R_DecalProbeSurface (pos, decal_probe[type], hit, normal))
 		R_AddDecal (hit, normal, decal_radius[type], type);
+	else
+		ds_probe_fail++;
 }
 
 /*
@@ -761,6 +815,7 @@ void R_InitDecals (void)
 	Cvar_RegisterVariable (&r_decal_max);
 	Cvar_RegisterVariable (&r_decal_life);
 	Cvar_RegisterVariable (&r_decal_fade);
+	Cvar_RegisterVariable (&r_decal_stats);
 
 	GenBulletHole (bullet_data);
 	DecalBlurAlpha (bullet_data, 64, 64);
@@ -822,9 +877,12 @@ void R_DrawDecals (void)
 	int   i, frag_i, j;
 	float now, alpha;
 	int   any_in_use;
+	int   live_this_frame = 0;
 
 	if (!r_decals.value)
 		return;
+
+	ds_draw_frames++;
 
 	/* Fast path: skip every GL state change when nothing is live. The
 	 * Tiger ATI driver flushes the pipeline on each enable/disable, so an
@@ -833,7 +891,9 @@ void R_DrawDecals (void)
 	for (i = 0; i < MAX_DECALS; i++)
 		if (r_decal_list[i].inUse) { any_in_use = 1; break; }
 	if (!any_in_use)
-		return;
+		{ ds_draw_empty++; return; }
+
+	ds_draw_work++;
 
 	now = cl.time;
 
@@ -863,12 +923,17 @@ void R_DrawDecals (void)
 
 		glColor4f (1.0f, 1.0f, 1.0f, alpha);
 		GL_Bind (d->texture);
+		ds_drawn_decals++;
+		live_this_frame++;
 
 		for (frag_i = 0; frag_i < d->numFragments; frag_i++)
 		{
 			int   fn = d->fragLens[frag_i];
 			int   base = d->firstPoint + d->fragOffsets[frag_i];
 			float s, t;
+
+			ds_drawn_frags++;
+			ds_drawn_verts += (unsigned long)fn;
 
 			glBegin (GL_TRIANGLE_FAN);
 			for (j = 0; j < fn; j++)
@@ -880,6 +945,9 @@ void R_DrawDecals (void)
 			glEnd ();
 		}
 	}
+
+	if (live_this_frame > ds_peak_live)
+		ds_peak_live = live_this_frame;
 
 	GL_PolygonOffset (0);
 	glDepthMask (GL_TRUE);
