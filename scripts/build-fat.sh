@@ -50,6 +50,12 @@ echo "[build-fat] stamping port version: $QS_PORT_VERSION"
 # Claiming once also stops another repo/agent taking the box between sub-builds.
 # An explicit BUILD_HOST (or LION) from the caller always wins.
 if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
+	# Strict release. Without a nonce the picker can only match user@host:repo,
+	# which every session in this repo shares, so a sibling session's --release
+	# would silently drop this build's lock -- the case build-host#7 was filed
+	# for. Exported, not local, because the EXIT trap below runs --release in a
+	# separate process and has to present the same claim this acquire made.
+	export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
 	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
 		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build-fat")" || {
 		echo "[build-fat] no free Intel build host; see scripts/pick-build-host.sh --status" >&2
