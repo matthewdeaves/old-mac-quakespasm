@@ -32,6 +32,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$REPO_ROOT/scripts/source-stamp.sh"
+. "$REPO_ROOT/scripts/source-stamp-excludes.sh"
 cd "$REPO_ROOT"
 
 # Resolve the port release label ONCE here and export it so all five sub-builds
@@ -97,7 +98,7 @@ SLICES="g3 g4 g5 lion i386"
 # What the source looks like RIGHT NOW. Every slice we fuse must have been built
 # from exactly this. Computed once; the five slices above were just rebuilt from
 # it, so this is also what their own stamps must say.
-WANT_STAMP="$(source_stamp_compute "$REPO_ROOT")"
+WANT_STAMP="$(source_stamp_compute "$REPO_ROOT" "$SOURCE_STAMP_EXCLUDES")"
 echo "[build-fat] source stamp $(printf %s "$WANT_STAMP" | cut -c1-12)"
 
 # The five mini-built slices are rebuilt by this script every run, so a mismatch

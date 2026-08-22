@@ -19,6 +19,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$REPO_ROOT/scripts/source-stamp.sh"
+. "$REPO_ROOT/scripts/source-stamp-excludes.sh"
 cd "$REPO_ROOT"
 
 if [ "$(uname -m)" != "arm64" ]; then
@@ -90,5 +91,5 @@ file build/quakespasm-arm64
 # either leaves no stamp.
 STAMP_DIR="$REPO_ROOT/build/stamps/arm64"
 mkdir -p "$STAMP_DIR"
-source_stamp_write "$STAMP_DIR" "$(source_stamp_compute "$REPO_ROOT")"
+source_stamp_write "$STAMP_DIR" "$(source_stamp_compute "$REPO_ROOT" "$SOURCE_STAMP_EXCLUDES")"
 echo "[build-arm64] source stamp $(source_stamp_read "$STAMP_DIR" | cut -c1-12) → build/stamps/arm64"

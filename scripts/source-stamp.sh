@@ -30,54 +30,16 @@
 # factor this out as the shared primitive across the four ports, so keep it that
 # way: no product names, no build/ layout, no per-port logic.
 
-# dist/ is a BUILD OUTPUT directory that lives inside the source tree: it holds
-# the release DMGs make-dmg.sh writes and the tarballs build-server-linux.sh
-# writes. Gitignored, tracked by nothing, and 64 MB of it. Left in the hashed
-# set it means an unchanged source tree hashes differently depending on whether
-# a release has been cut, so cutting a DMG would invalidate every slice stamp
-# and demand an arm64 rebuild that cannot change a single byte of the binary. A
-# gate that fires on noise gets switched off. Measured: touching one file in
-# dist/ moved the hash from 1e5aea07554c to 5e892fcb0db0.
-#
-# It is the ONE entry here that rsync did not already exclude, so it is also the
-# one place the shared list changes build.sh's transfer. Two consequences, both
-# checked: the mini stops receiving 64 MB of DMGs it never reads, and because
-# `rsync --delete` PROTECTS excluded paths on the receiver, an existing remote
-# quakespasm/dist/ is now left in place rather than deleted. Nothing on the
-# build host reads it -- the remote only ever runs make in quakespasm/Quake --
-# so it is inert, but it does not self-clean.
-#
-# The one definition of "what a build is built from". build.sh's rsync reads
-# this too (source_stamp_rsync_excludes), so the two cannot drift apart. A file
-# outside this set cannot affect a build; a file inside it must change the hash.
-# Newline-separated, NOT space-separated. Reading it with `for e in $VAR`
-# would depend on word-splitting, which sh and bash do and zsh does NOT: sourced
-# from a zsh shell the whole list collapses to one word, nothing is pruned, and
-# the hash silently covers build/ and fires on every bench run. Read it with
-# `while IFS= read -r` instead, which behaves identically in all three.
-SOURCE_STAMP_EXCLUDES='.git
-*.o
-*.d
-build/
-benchmarks/
-prereqs/
-dist/
-quakespasm
-quakespasm-g3
-quakespasm-g4
-quakespasm-g5
-quakespasm-lion
-quakespasm-i386
-quakespasm-arm64'
-
+# source_stamp_rsync_excludes <excludes>
 # Emit the --exclude= flags for rsync, from the same list the hash uses.
 source_stamp_rsync_excludes () {
-	printf '%s\n' "$SOURCE_STAMP_EXCLUDES" | while IFS= read -r e; do
+	[ "$#" -ge 1 ] || { echo "source_stamp_rsync_excludes: need an exclude list" >&2; return 2; }
+	printf '%s\n' "$1" | while IFS= read -r e; do
 		[ -n "$e" ] && printf -- '--exclude=%s ' "$e"
 	done
 }
 
-# source_stamp_compute <dir>  ->  64 hex chars on stdout
+# source_stamp_compute <dir> <excludes>  ->  64 hex chars on stdout
 #
 # shasum -a 256, not md5: `md5 -q` is BSD-only and `md5sum` is Linux-only and
 # ABSENT on the 10.7.5 build minis (measured on mini-intel2), so no md5 spelling
@@ -95,7 +57,15 @@ source_stamp_rsync_excludes () {
 # passing them to find. The prune arguments are built with set -- so each
 # pattern reaches find as one quoted word.
 source_stamp_compute () {
+	[ "$#" -ge 2 ] || { echo "source_stamp_compute: need <dir> <excludes>" >&2; return 2; }
 	( cd "$1" 2>/dev/null || exit 1
+	  # Copy the list out of $2 BEFORE `set --` below clears the positional
+	  # parameters. The heredoc that feeds the loop is expanded when the loop
+	  # RUNS, not when it is written, so reading $2 there would read an empty
+	  # string, prune nothing, and hash build/ -- silently, with a plausible
+	  # hash. This trap does not exist while the list is a global; making it a
+	  # parameter is what introduces it.
+	  _ex="$2"
 	  # set -f: the list holds globs like *.o and nothing here should let the
 	  # shell match them against the cwd. Prune args are built with set -- so
 	  # each pattern reaches find as one word.
@@ -111,7 +81,7 @@ source_stamp_compute () {
 	  	if [ "$_first" = 1 ]; then set -- "$_t" "$_p"; _first=0
 	  	else set -- "$@" -o "$_t" "$_p"; fi
 	  done <<EOF
-$SOURCE_STAMP_EXCLUDES
+$_ex
 EOF
 	  set +f
 	  # One shasum per file spawns a process per file (785 here) and made this

@@ -29,6 +29,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # The one definition of what a build is built FROM. The rsync exclude list below
 # and the stamp written at the end both come from here, so they cannot drift.
 . "$REPO_ROOT/scripts/source-stamp.sh"
+. "$REPO_ROOT/scripts/source-stamp-excludes.sh"
 
 # The cross-build host is an Intel Mac mini — there are now TWO interchangeable
 # ones (mini-intel, mini-intel2: same Macmini2,1 / 10.7.5 / same toolchain). When
@@ -241,7 +242,7 @@ echo "[build] sync sources orchestrator → $LION"
 # exclude prereqs/ (5 GB of installer DMGs; only used locally for setup)
 # and benchmarks/raw/ + build/ (output dirs that shouldn't bounce through Lion)
 rsync -av --partial --inplace --delete \
-  $(source_stamp_rsync_excludes) \
+  $(source_stamp_rsync_excludes "$SOURCE_STAMP_EXCLUDES") \
   -e 'ssh -o ServerAliveInterval=15' \
   "$REPO_ROOT/" "$LION:quakespasm/" | tail -3
 
@@ -311,5 +312,5 @@ fi
 # about our layout, which is what lets old-mac-build-host replace it later.
 STAMP_DIR="$REPO_ROOT/build/stamps/$TARGET"
 mkdir -p "$STAMP_DIR"
-source_stamp_write "$STAMP_DIR" "$(source_stamp_compute "$REPO_ROOT")"
+source_stamp_write "$STAMP_DIR" "$(source_stamp_compute "$REPO_ROOT" "$SOURCE_STAMP_EXCLUDES")"
 echo "[build] source stamp $(source_stamp_read "$STAMP_DIR" | cut -c1-12) → build/stamps/$TARGET"
