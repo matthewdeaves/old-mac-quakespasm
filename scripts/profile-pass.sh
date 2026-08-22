@@ -53,7 +53,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 _PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
 _claim () {  # _claim <host> -- run the rest under a claim on <host>
   local h="$1"; shift
-  if [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -z "${RETRO_BENCH_LOCK:-}" ] && [ -x "$_PICK" ]; then
+  if [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ "${RETRO_BENCH_LOCK:-}" != "$h" ] && [ -x "$_PICK" ]; then
     # Export the guard for the duration: anything the claimed command spawns
     # must see that this machine is already held and skip re-claiming it.
     # try_acquire is a bare mkdir (pick-bench-host.sh:246) so a second claim

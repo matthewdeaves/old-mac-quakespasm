@@ -152,7 +152,7 @@ fi
 echo "[parallel-bench] pre-flight: clearing stale quakespasm processes (TERM-grace-KILL — Rage 128 LUT fix)"
 _PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
 for LEG in "${ACTIVE_LEGS[@]}"; do
-  if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+  if [ "${RETRO_BENCH_LOCK:-}" != "$LEG" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
     "$_PICK" --run "$LEG" "preflight" -- \
       ssh -o ConnectTimeout=5 "$LEG" 'if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
         killall -KILL quakespasm 2>/dev/null || true' &

@@ -38,7 +38,7 @@ HOST="${SELFHOST_HOST:-mini-intel}"
 # not reserve the machine for the server's lifetime. Anyone benching mini-intel
 # should check for a stray server, not just the lock. See issue #18.
 _PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
-if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$HOST"
 	exec "$_PICK" --run "$HOST" "selfhost" -- "$0" "$@"
 fi

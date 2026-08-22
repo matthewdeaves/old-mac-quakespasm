@@ -80,7 +80,7 @@ fi
 # bare mkdir that fails even for the current owner, and cmd_run at :306 releases
 # unconditionally, so a nested claim would free the box mid-run.
 _PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
-if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+if [ "${RETRO_BENCH_LOCK:-}" != "$DMG_HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$DMG_HOST" DMG_HOST
 	exec "$_PICK" --run "$DMG_HOST" "make-dmg" -- "$0" "$@"
 fi
