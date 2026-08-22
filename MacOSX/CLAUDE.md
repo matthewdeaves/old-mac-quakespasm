@@ -31,6 +31,14 @@ Read-only and shared with the Q2 port. **Never modify.**
   `-isysroot` (Lion's default toolchain SDK). Lion's kernel is `RELEASE_I386` on
   a Macmini2,1, but Core 2 Duo plus 10.7 user-space runs x86_64 binaries fine.
   `LTO=1` opts into `-flto`, which measures nothing (ADR 0005).
+- **i386** `-arch i386 -mmacosx-version-min=10.4 -O3 -Qunused-arguments`, no
+  `-isysroot`. For the 2006 Core Solo / Core Duo Macs, which have no 64-bit
+  mode and so are never handed the x86_64 slice.
+- **arm64** `-arch arm64 -mmacosx-version-min=11.0 -O2`. NOT built here: Lion's
+  Xcode 4.6 predates arm64 by seven years, so `build.sh` refuses this target
+  and `scripts/build-arm64.sh` builds it on the Apple Silicon orchestration Mac
+  instead. It is also the only slice that links SDL2 rather than SDL 1.2
+  (ADR 0003), and the only one at `-O2` rather than `-O3`.
 
 Three flags on that list are load-bearing and easy to misread as noise: the G4's
 `-faltivec` is required by the 10.3.9 SDK's Carbon headers and **un-stamps the

@@ -6,11 +6,13 @@
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
-# Ships ONE Mach-O (4 slices: ppc750 + ppc7400 + ppc970 + x86_64). The .app is
-# self-contained: per-arch + per-machine autoexec configs live inside
-# Quakespasm.app/Contents/Resources/, loaded by host.c via CFBundle
-# (QS_ExecConfigFromBundle). Compile-time QS_ARCH_PPC970/__VEC__/__ppc__/__x86_64__
-# picks the per-arch baseline; runtime sysctl hw.model picks the
+# Ships ONE Mach-O (6 slices: ppc750 + ppc7400 + ppc970 + i386 + x86_64 +
+# arm64). The .app is self-contained: per-arch + per-machine autoexec configs
+# live inside Quakespasm.app/Contents/Resources/, loaded by host.c via
+# CFBundle (QS_ExecConfigFromBundle). Compile-time QS_ARCH_PPC970 / __VEC__ /
+# __ppc__ / __x86_64__ / __aarch64__ / __i386__ picks the per-arch baseline
+# (host.c:1017, mirrored for the launcher panel at
+# MacOSX/AppController.m:433); runtime sysctl hw.model picks the
 # per-machine overlay. End-user install is just .app + their own
 # id1/pak0.pak alongside.
 

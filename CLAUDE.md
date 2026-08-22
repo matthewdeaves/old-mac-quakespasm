@@ -1,9 +1,10 @@
 # QuakeSpasm old-Mac port
 
-QuakeSpasm as ONE fat binary across PowerPC and Intel Macs, from a single
-`Quakespasm.app`, 10.3.9 Panther through modern macOS. Sticky facts only, loaded
-every session. Reasoning, evidence and rejected alternatives live in
-`docs/adr/`; recorded negative results live in `MISTAKES.md`.
+QuakeSpasm as ONE fat binary across PowerPC, Intel and Apple Silicon Macs,
+from a single `Quakespasm.app`, 10.3.9 Panther through modern macOS. Sticky
+facts only, loaded every session. Reasoning, evidence and rejected
+alternatives live in `docs/adr/`; recorded negative results live in
+`MISTAKES.md`.
 
 **There is no current plan doc.** The round v2 → v11.1 plan is archived at
 `docs/archive/PPC_PLAN_v2-v11.md`, historical context, not a roadmap. New
@@ -21,8 +22,9 @@ Per-script contracts are in `scripts/CLAUDE.md`; the host matrix and the full
 script table are in `scripts/README.md`.
 
 ```sh
-scripts/build-fat.sh                        # THE build: 4 slices, lipo'd, on a claimed Intel mini
-scripts/build.sh <g3|g4|g5|lion>            # one slice; sub-step, or to diagnose a compile error
+scripts/build-fat.sh                        # THE build: 6 slices, lipo'd, on a claimed Intel mini
+scripts/build.sh <g3|g4|g5|lion|i386>       # one slice; sub-step, or to diagnose a compile error
+scripts/build-arm64.sh                      # the arm64 slice; runs HERE, Lion's Xcode cannot target it
 scripts/deploy.sh <machine>                 # stage Quakespasm.app + ship; always the fat binary
 scripts/bench.sh <machine> <demo> <WxH>     # one 3-run cell into benchmarks/results.csv
 scripts/parallel-bench.sh [--quick]         # the concurrent matrix
@@ -47,10 +49,12 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
 ## Hard rules
 
 - **Never trust "done" or exit 0.** After every build: fresh mtimes on each
-  `build/quakespasm-{g3,g4,g5,lion}` from THIS run; `lipo -detailed_info
-  build/quakespasm-fat` showing four slices at their exact subtypes; and after
-  `deploy.sh`, read its md5 comparison, it WARNS rather than fails, and a WARN
-  means the target is not running what you built. ADR 0002.
+  `build/quakespasm-{g3,g4,g5,lion,i386,arm64}` from THIS run; `lipo
+  -detailed_info build/quakespasm-fat` showing six slices at their exact
+  subtypes — `build-fat.sh` deliberately fuses WITHOUT arm64 when that slice
+  is missing and only warns, so a five-slice fat is a passing build; and
+  after `deploy.sh`, read its md5 comparison, it WARNS rather than fails, and
+  a WARN means the target is not running what you built. ADR 0002.
 - **Every PowerPC slice carries its exact cpusubtype**, never generic `ppc
   (ALL)`, which is a launch blocker on Tiger and Leopard. `build.sh` asserts and
   re-stamps. Trust `lipo`, not `file` (modern `file` renders subtype 9 as
