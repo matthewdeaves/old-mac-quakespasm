@@ -39,6 +39,32 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# This script launches the engine on up to four machines in one run, so it
+# cannot claim one host up front the way bench.sh and screenshot.sh do. Each
+# engine-launching ssh is wrapped in its own claim instead, via the picker's
+# `--run HOST tag -- cmd` form. See scripts/pick-bench-host.sh and issue #18.
+#
+# KNOWN GAP, stated rather than papered over: the yosemite -pg probe below is a
+# read-only `nm` and runs unclaimed, so between the probe and the claimed run
+# another repo can take the box. The probe cannot disturb anyone -- it reads a
+# file -- and the run itself is now serialised, which is the harm that mattered.
+# Closing the gap properly means one claim around the whole per-machine section,
+# which is a restructure of this script rather than a lock fix.
+_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+_claim () {  # _claim <host> -- run the rest under a claim on <host>
+  local h="$1"; shift
+  if [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -z "${RETRO_BENCH_LOCK:-}" ] && [ -x "$_PICK" ]; then
+    # Export the guard for the duration: anything the claimed command spawns
+    # must see that this machine is already held and skip re-claiming it.
+    # try_acquire is a bare mkdir (pick-bench-host.sh:246) so a second claim
+    # fails even from the owner, and cmd_run releases unconditionally (:306) so
+    # a nested one would free the box mid-run.
+    RETRO_BENCH_LOCK="$h" "$_PICK" --run "$h" "profile" -- "$@"
+  else
+    "$@"
+  fi
+}
+
 DEMO=demo3
 RES=1024x768
 SAMPLE_SECS=30
@@ -89,7 +115,7 @@ if [ "$SKIP_YOSEMITE" = "0" ]; then
     # Run with +quit so libgmon writes gmon.out on clean exit.
     # Don't kill the process; let timedemo+quit drive it. Use a
     # timeout in case timedemo hangs (paranoia).
-    ssh yosemite "
+    _claim yosemite ssh yosemite "
       cd ~/Desktop/quake
       rm -f gmon.out qconsole.log
       ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
@@ -157,7 +183,7 @@ for HOST in sawtooth quicksilver mini-g4; do
 
   # Start quakespasm with a long timedemo, then run `sample` against the PID
   # for SAMPLE_SECS seconds. Kill quakespasm cleanly after sample finishes.
-  ssh "$HOST" "
+  _claim "$HOST" ssh "$HOST" "
     cd ~/Desktop/quake
     rm -f qconsole.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \

@@ -60,6 +60,30 @@ if [ -z "${DMG_HOST:-}" ]; then
   DMG_HOST="${DMG_HOST:-mini-g4}"
   echo "[make-dmg] DMG_HOST not set - using reachable Tiger host: $DMG_HOST"
 fi
+
+# Claim the Tiger box for the whole run. This script builds and mounts a disk
+# image on it and reads files back off it, so sharing the machine corrupts the
+# artifact we are about to ship. Same re-exec as bench.sh; see
+# scripts/pick-bench-host.sh.
+#
+# Note what is NOT being fixed here: the candidate loop above picks the first
+# REACHABLE box, and reachable is not free. If that box turns out to be held,
+# the claim below fails and this script stops. It does not silently move to the
+# next candidate, because "never work around a busy host by picking a different
+# one" is the rule, and a release image built on a different machine than the
+# one reported is exactly the kind of thing nobody notices. Set DMG_HOST
+# explicitly to choose another.
+#
+# The inner scripts/build-fat.sh claims a LION mini, a different host from this
+# Tiger one, so the two locks do not interact. The RETRO_BENCH_LOCK guard is
+# still checked, because acquiring is not reentrant: pick-bench-host.sh:246 is a
+# bare mkdir that fails even for the current owner, and cmd_run at :306 releases
+# unconditionally, so a nested claim would free the box mid-run.
+_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+	export RETRO_BENCH_LOCK="$DMG_HOST" DMG_HOST
+	exec "$_PICK" --run "$DMG_HOST" "make-dmg" -- "$0" "$@"
+fi
 VOLNAME="QuakeSpasm OldMac $VERSION"
 OUT="$REPO_ROOT/dist/QuakeSpasm-OldMac-$VERSION.dmg"
 

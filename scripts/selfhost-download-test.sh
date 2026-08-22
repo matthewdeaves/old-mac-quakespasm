@@ -22,6 +22,27 @@
 set -euo pipefail
 
 HOST="${SELFHOST_HOST:-mini-intel}"
+
+# Claim the machine for the whole run. Same re-exec as bench.sh; see
+# scripts/pick-bench-host.sh.
+#
+# This one matters more than most: `stop` and the start path both run
+# `killall -KILL quakespasm` on $HOST. Unclaimed, that kills whatever the lock
+# holder is running -- another repo's timedemo mid-flight, with no error on
+# either side. The lock is the only thing arbitrating this hardware.
+#
+# KNOWN LIMIT, deliberately not solved here: `--run` scopes the lock to this
+# INVOCATION, and `start` returns while the dedicated server keeps running. So
+# the box is released while a server is still up on it. That is still strictly
+# better than no lock -- the destructive part is now serialised -- but it does
+# not reserve the machine for the server's lifetime. Anyone benching mini-intel
+# should check for a stray server, not just the lock. See issue #18.
+_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+	export RETRO_BENCH_LOCK="$HOST"
+	exec "$_PICK" --run "$HOST" "selfhost" -- "$0" "$@"
+fi
+
 MAP="dltest"
 QDIR='~/Desktop/quake'
 BIN='./Quakespasm.app/Contents/MacOS/quakespasm'

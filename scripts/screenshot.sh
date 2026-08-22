@@ -41,7 +41,25 @@ if [ $# -lt 1 ]; then
   exit 2
 fi
 
-TARGET="$1"; shift
+TARGET="$1"
+
+# Claim this machine for the whole run. Same re-exec as bench.sh; see
+# scripts/pick-bench-host.sh for why it is a re-exec and not a trap.
+#
+# This script launches the engine on the target and deletes its screenshot
+# output first, so running it on a box someone else holds corrupts their run as
+# well as ours. It is in CLAUDE.md's command table as a normal way to drive a
+# bench machine, which is exactly why it needed the lock and did not have it.
+#
+# Placed before the `shift` below: the re-exec passes "$@" through unchanged, so
+# it has to still hold the target.
+_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+	export RETRO_BENCH_LOCK="$TARGET"
+	exec "$_PICK" --run "$TARGET" "screenshot" -- "$0" "$@"
+fi
+
+shift
 WIDTH=1024
 HEIGHT=768
 DO_FETCH=1

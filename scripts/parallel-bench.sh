@@ -131,10 +131,35 @@ fi
 
 # Pre-flight: kill any stale quakespasm on every active machine.
 # Each leg's machine name == its SSH alias after the rename round.
+#
+# Through the picker, one claim per leg. This kill used to run bare, before the
+# legs below claim anything, so it killed the engine on machines this run did
+# not hold -- truncating another repo's timedemo mid-flight, silently, with no
+# error on either side. A shortened run does not look like a failure; it looks
+# like a slow machine. See issue #18.
+#
+# Claiming here also means a leg whose machine is genuinely busy is skipped by
+# the picker rather than cleared out from under its owner.
+#
+# RETRO_BENCH_LOCK guard, and it is load-bearing rather than decoration.
+# pick-bench-host.sh:246 ends try_acquire with a bare `mkdir "$L" || exit 1`, so
+# acquiring is NOT reentrant: it fails even when the caller already holds the
+# lock. And cmd_run at :306 releases UNCONDITIONALLY when its command finishes,
+# so a nested --run would hand the machine away while the outer work is still
+# running. Both checked in this repo's copy of the picker. So a script that is a
+# STEP INSIDE already-claimed work must not re-claim, and the guard is what
+# tells the two cases apart.
 echo "[parallel-bench] pre-flight: clearing stale quakespasm processes (TERM-grace-KILL — Rage 128 LUT fix)"
+_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
 for LEG in "${ACTIVE_LEGS[@]}"; do
-  ssh -o ConnectTimeout=5 "$LEG" 'if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
-    killall -KILL quakespasm 2>/dev/null || true' &
+  if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+    "$_PICK" --run "$LEG" "preflight" -- \
+      ssh -o ConnectTimeout=5 "$LEG" 'if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
+        killall -KILL quakespasm 2>/dev/null || true' &
+  else
+    ssh -o ConnectTimeout=5 "$LEG" 'if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
+      killall -KILL quakespasm 2>/dev/null || true' &
+  fi
 done
 wait
 
