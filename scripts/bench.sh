@@ -212,9 +212,32 @@ for i in $(seq 1 $RUNS); do
     sleep $COOLDOWN
     true" 2>&1 | grep -v "^$" | tail -3 || true
 
-  LOG_NAME="${COMMIT}_${TARGET}_${DEMO}_${RES}_run${i}.log"
-  scp -q "$HOST:Desktop/quake/qconsole.log" "$RAW_DIR/$LOG_NAME" || true
-  FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | awk '{print $5}' || true)
+  # Tag the log with the cvars when this is an A/B leg. Without it both legs
+  # write ${COMMIT}_${TARGET}_${DEMO}_${RES}_runN.log and the second leg
+  # silently overwrites the first leg's raw evidence.
+  CVAR_TAG=""
+  if [ -n "${EXTRA_CVARS:-}" ]; then
+    CVAR_TAG="_$(printf '%s' "$EXTRA_CVARS" | tr -cs 'A-Za-z0-9' '_' | sed 's/^_//; s/_$//')"
+  fi
+  LOG_NAME="${COMMIT}_${TARGET}_${DEMO}_${RES}${CVAR_TAG}_run${i}.log"
+
+  # Delete first, and treat a failed fetch as a failed run. Previously this
+  # was `scp || true` followed by a grep of $LOG_NAME: when the copy failed
+  # the grep read whatever file was already at that path -- the previous
+  # leg's log, or the previous run's -- and reported ITS fps as this run's.
+  # That is not a missing number, it is a plausible number belonging to a
+  # different configuration, written into results.csv without a warning.
+  # Measured 2026-08-22 on yosemite: a decals-OFF leg recorded 34.6 fps for
+  # run 3, which was the decals-ON leg's run 3, because qconsole.log was
+  # missing on the target that run.
+  rm -f "$RAW_DIR/$LOG_NAME"
+  if scp -q "$HOST:Desktop/quake/qconsole.log" "$RAW_DIR/$LOG_NAME" 2>/dev/null; then
+    FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | awk '{print $5}' || true)
+  else
+    FPS_VAL=""
+    echo "[bench] WARNING: could not fetch qconsole.log for run $i -- recording NA" >&2
+    echo "[bench]          (target wrote no log; this run did NOT produce a number)" >&2
+  fi
   FPS+=("${FPS_VAL:-NA}")
   echo "  -> ${FPS_VAL:-NA} fps"
 done
