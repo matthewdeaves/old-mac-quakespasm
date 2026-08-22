@@ -21,20 +21,42 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO_ROOT/scripts/host-bin"
 
-HOSTS=("$@")
-[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite yosemite-tiger sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5})
+_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
 
-for host in "${HOSTS[@]}"; do
-    echo "=== $host ==="
-    # Ensure ~/bin exists.
-    ssh -o ConnectTimeout=10 "$host" 'mkdir -p ~/bin' || { echo "[$host] ssh failed"; continue; }
-    # Push each script via scp; chmod +x on the remote side.
+# --one-host does the work for a SINGLE machine and is what the loop below runs
+# under a claim. It exists because this script drives up to eight machines in one
+# invocation, so it cannot re-exec itself under the picker the way the one-target
+# scripts do (bench.sh:60). The claim has to be per host, around that host's work
+# and nothing else, or installing on eight boxes would hold eight locks for the
+# length of the whole run.
+if [ "${1:-}" = "--one-host" ]; then
+    host="${2:?--one-host needs a host}"
+    ssh -o ConnectTimeout=10 "$host" 'mkdir -p ~/bin' || { echo "[$host] ssh failed"; exit 1; }
     for script in qsreboot.sh qsreboot-setup.sh; do
         scp -q "$SRC/$script" "$host:bin/$script"
         ssh "$host" "chmod +x ~/bin/$script"
     done
     echo "[$host] installed: ~/bin/qsreboot.sh ~/bin/qsreboot-setup.sh"
     echo "[$host] next:     ssh $host 'sudo ~/bin/qsreboot-setup.sh'"
+    exit 0
+fi
+
+HOSTS=("$@")
+[ ${#HOSTS[@]} -eq 0 ] && HOSTS=(${HOSTS_ENV:-yosemite yosemite-tiger sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5})
+
+# One claim per host, held only while that host is being written to. A machine
+# that is busy or unreachable is REPORTED AND SKIPPED, not waited for and not
+# worked around: this is idempotent, so re-running it later picks up whatever was
+# missed. BENCH_NO_LOCK=1 is for debugging the picker itself, not for getting
+# past a machine someone else is using.
+for host in "${HOSTS[@]}"; do
+    echo "=== $host ==="
+    if [ "${BENCH_NO_LOCK:-0}" = 1 ] || [ ! -x "$_PICK" ]; then
+        "$0" --one-host "$host" || echo "[$host] failed"
+    else
+        "$_PICK" --run "$host" "install-host-tools" -- "$0" --one-host "$host" \
+            || echo "[$host] skipped: busy, unreachable, or install failed"
+    fi
 done
 
 echo

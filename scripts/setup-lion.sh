@@ -15,6 +15,21 @@ set -euo pipefail
 
 LION="${BUILD_HOST:-${LION:-mini-intel}}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Claim the machine for the whole run. This is a long, destructive provisioning
+# pass -- it installs Xcode from a DMG and builds SDL -- against what is by
+# default a Lion BUILD mini, so a build landing on it midway is expensive for
+# both sides.
+#
+# The RETRO_BENCH_LOCK guard means a caller that already holds this host does not
+# claim it twice: setup-lion.sh honours $BUILD_HOST, so being driven under an
+# existing lock is a legitimate way to run it. Same re-exec as bench.sh:60.
+# BENCH_NO_LOCK=1 is for debugging the picker, not for taking a busy machine.
+_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+if [ -z "${RETRO_BENCH_LOCK:-}" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
+	export RETRO_BENCH_LOCK="$LION"
+	exec "$_PICK" --run "$LION" "setup-lion" -- "$0" "$@"
+fi
 SKIP_XCODE=0
 SKIP_SDL=0
 
