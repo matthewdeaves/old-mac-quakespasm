@@ -139,10 +139,6 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   `gl_rlight.c:326` cast lightmap-extent calculations to `double` to dodge
   x87/SSE2 precision drift. Nothing to patch.
 
-<!-- retro-shared-block: canonical copy lives in retro-agents/briefs/SHARED-BLOCK.md.
-     Do not edit this region in a port repo; it is overwritten by the sync.
-     Everything here must be true of EVERY repo it lands in. -->
-
 ## Working alongside the other repos
 
 This repo is one of seven worked on together: four game ports, the private
@@ -183,9 +179,6 @@ item, so it lands in no column at all and looks like work nobody raised. Run
 **The full rules are in `retro-agents/briefs/`, not here.** Every session is
 launched with them. This block is the short version for a human reading this repo
 cold; where the two differ, the briefs win.
-
-<!-- end retro-shared-block -->
-
 ## Working alongside them: what is specific to this repo
 
 **A split acquire/release pair must export `BENCH_LOCK_CLAIM`.** Without it the
