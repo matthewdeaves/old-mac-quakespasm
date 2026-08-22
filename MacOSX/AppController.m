@@ -86,6 +86,7 @@ static const qsopt_t opt_subdiv[] = {
 static const qsitem_t sec_textures[] = {
     {"gl_texturemode",        "Texture filter",       "How textures are smoothed. Trilinear is smoothest; Nearest is the crisp retro look.", QST_POPUP, 0,0,0, opt_texmode},
     {"gl_texture_anisotropy", "Anisotropic filtering","Sharpens textures seen at steep angles. Higher is sharper for a small GPU cost.",     QST_POPUP, 0,0,0, opt_aniso},
+    {"vid_fsaa",             "Anti-aliasing (FSAA)", "Multisample AA: smooths jagged edges and alpha-tested fences. Costs fill rate. Applied at launch.", QST_POPUP, 0,0,0, opt_fsaa},
     {"gl_texture_lodbias",    "Texture sharpening",   "Mip LOD bias. More negative = sharper/grainier textures in the distance.",            QST_SLIDER, -2.0, 0.0, 0, NULL},
     {NULL}
 };
