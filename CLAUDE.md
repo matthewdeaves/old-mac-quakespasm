@@ -152,6 +152,24 @@ gh issue create -R matthewdeaves/<repo> --project Retro \
   --label from:port,needs-measurement --title "..." --body "..."
 ```
 
+**Board mechanics.** Projects v2 has a REST route, and it costs ZERO GraphQL:
+`gh api "/users/matthewdeaves/projectsV2/8/items?per_page=100&fields=402964249"`
+to read, `gh api -X PATCH /users/matthewdeaves/projectsV2/8/items/<NUMERIC_ID> -F
+"fields[][id]=402964249" -F "fields[][value]=<OPTION_ID>"` to move. Measured
+2026-08-22. The `fields=` parameter is not optional: without it every item comes
+back with no Status and the board reads as entirely statusless. Field *names*
+are rejected with HTTP 400, and the REST item id is numeric, not the `PVTI_` one
+GraphQL uses. The `gh project` subcommands are GraphQL and the whole fleet
+shares one 5000/hour budget, which hit zero on 2026-08-22. Status option ids:
+Triage `e1711c02`, Measuring `396fc342`, Ready `11c7386e`, In progress
+`f3375bca`, Blocked `5dd19fe6`, Done `e0b04066`.
+
+**After filing, read back which column the issue landed in.** Do not assume it
+is `Triage`. Half-Life measured `--project` putting a new issue straight into
+`Measuring`, which reads as approved; Quake III checked and it did not reproduce
+there. It is per-repo and per-ticket, so check rather than sweep, and never move
+a column on a rule measured in someone else's repo.
+
 Labels, the same four in every repo: **`from:infra`** raised by the server side
 for a port to act on, **`from:port`** raised by a port for another repo,
 **`needs-measurement`** the claim has no number or hardware repro behind it yet,
