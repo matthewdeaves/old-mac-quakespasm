@@ -30,6 +30,23 @@
 # factor this out as the shared primitive across the four ports, so keep it that
 # way: no product names, no build/ layout, no per-port logic.
 
+# dist/ is a BUILD OUTPUT directory that lives inside the source tree: it holds
+# the release DMGs make-dmg.sh writes and the tarballs build-server-linux.sh
+# writes. Gitignored, tracked by nothing, and 64 MB of it. Left in the hashed
+# set it means an unchanged source tree hashes differently depending on whether
+# a release has been cut, so cutting a DMG would invalidate every slice stamp
+# and demand an arm64 rebuild that cannot change a single byte of the binary. A
+# gate that fires on noise gets switched off. Measured: touching one file in
+# dist/ moved the hash from 1e5aea07554c to 5e892fcb0db0.
+#
+# It is the ONE entry here that rsync did not already exclude, so it is also the
+# one place the shared list changes build.sh's transfer. Two consequences, both
+# checked: the mini stops receiving 64 MB of DMGs it never reads, and because
+# `rsync --delete` PROTECTS excluded paths on the receiver, an existing remote
+# quakespasm/dist/ is now left in place rather than deleted. Nothing on the
+# build host reads it -- the remote only ever runs make in quakespasm/Quake --
+# so it is inert, but it does not self-clean.
+#
 # The one definition of "what a build is built from". build.sh's rsync reads
 # this too (source_stamp_rsync_excludes), so the two cannot drift apart. A file
 # outside this set cannot affect a build; a file inside it must change the hash.
@@ -44,6 +61,7 @@ SOURCE_STAMP_EXCLUDES='.git
 build/
 benchmarks/
 prereqs/
+dist/
 quakespasm
 quakespasm-g3
 quakespasm-g4
