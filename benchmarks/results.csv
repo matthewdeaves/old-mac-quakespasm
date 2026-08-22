@@ -1,4 +1,4 @@
-timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
+timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars
 2026-05-06T15:31:06Z,294bbf48,g3,demo1,1024x768,7.6,7.7,7.7,7.70
 2026-05-06T15:31:06Z,294bbf48,g4,demo1,1024x768,108.6,108.6,108.2,108.40
 2026-05-06T15:37:31Z,4c165e6f,g4,demo2,1024x768,106.0,106.0,105.9,105.95
@@ -749,3 +749,5 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
 2026-08-21T10:30:39Z,56ec7952,quad-leopard,demo1,1280x800,88.3,NA,NA,88.3
 2026-08-22T20:26:08Z,36b40a9d,mini-g4,demo1,1024x768,50.3,53.2,50.1,51.65
 2026-08-22T20:28:54Z,181346cc,mini-g4,demo1,1024x768,49.9,52.9,49.9,51.40
+2026-08-22T20:43:40Z,6b2de320,mini-g4,demo1,640x480,50.1,53.1,50.4,51.75,"+r_decals 0"
+2026-08-22T20:45:30Z,6b2de320,mini-g4,demo1,640x480,50.3,50.5,50.4,50.45,""

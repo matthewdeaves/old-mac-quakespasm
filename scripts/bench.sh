@@ -128,7 +128,7 @@ mkdir -p "$RAW_DIR"
 # CSV header (initialize once). Atomic via bash noclobber (`set -C` →
 # O_CREAT|O_EXCL), so two parallel bench.sh procs racing on a missing
 # CSV will result in exactly one header row.
-( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV" ) 2>/dev/null || true
+( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars" > "$CSV" ) 2>/dev/null || true
 
 # Stage temp id1/autoexec.cfg on the target = per-arch baseline + per-machine
 # overlay concatenated. quake.rc's `exec autoexec.cfg` runs it BEFORE
@@ -234,7 +234,16 @@ else
   MEDIAN_LABEL="run${RUNS}"
 fi
 
-echo "$TS,$COMMIT,$TARGET,$DEMO,$RES,${FPS[0]:-NA},${FPS[1]:-NA},${FPS[2]:-NA},$MEDIAN" >> "$CSV"
+# extra_cvars is the LAST column on purpose: the 750 rows written before it
+# existed have nine fields and stay parseable, and anything reading by index
+# is unaffected. Without it the two arms of a cvar A/B are byte-identical in
+# metadata and differ only in fps, which is indistinguishable from a noisy
+# repeat -- and ADR 0009 requires that A/B as the evidence for a regression
+# verdict. Measured 2026-08-22 on a decal A/B whose two rows could not be told
+# apart afterwards. Quoted, and any embedded quote stripped, so a value
+# containing a comma cannot shift the columns.
+EXTRA_CSV=$(printf '%s' "${EXTRA_CVARS:-}" | tr -d '"')
+echo "$TS,$COMMIT,$TARGET,$DEMO,$RES,${FPS[0]:-NA},${FPS[1]:-NA},${FPS[2]:-NA},$MEDIAN,\"$EXTRA_CSV\"" >> "$CSV"
 echo "[bench] $MEDIAN_LABEL = $MEDIAN fps  →  $CSV"
 
 # Surface NA runs so the orchestrator (parallel-bench.sh) exits non-zero
