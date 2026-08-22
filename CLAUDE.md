@@ -60,10 +60,21 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   `build-fat.sh` refuses to fuse any slice whose hash differs from the tree.
   This exists because arm64 is the one slice `build-fat.sh` never rebuilds, so
   it was the one that could be silently stale. Not an mtime check: a stale
-  object can carry a fresh timestamp. One exclude list in
-  `scripts/source-stamp.sh` drives both the hash and `build.sh`'s rsync, so
-  adding an exclude also stops rsync replacing that path on the build host.
-  ADR 0014.
+  object can carry a fresh timestamp. One exclude list, in
+  `scripts/source-stamp-excludes.sh`, drives both the hash and `build.sh`'s
+  rsync, so adding an exclude also stops rsync replacing that path on the build
+  host. ADR 0014.
+- **`scripts/source-stamp.sh` is not ours to edit.** It is old-mac-build-host's
+  canonical file, adopted byte-identical (currently build-host `6b8ff6d`,
+  sha256 `3878816b0277`) and replaced wholesale by its sync. An edit here is
+  silently reverted on the next sync and breaks the drift check meanwhile. Put
+  anything port-specific in `scripts/source-stamp-excludes.sh` instead, which
+  the sync does not touch. Both shared functions take the list as an argument:
+  `source_stamp_compute <dir> <excludes>` and `source_stamp_rsync_excludes
+  <excludes>`. Four call sites pass it — `build.sh:245`, `build.sh:315`,
+  `build-fat.sh:101`, `build-arm64.sh:94` — and a missing argument is refused
+  with rc=2, rsync additionally getting a deliberately unopenable
+  `--exclude-from` so the build stops instead of copying `.git` to the mini.
 - **Every PowerPC slice carries its exact cpusubtype**, never generic `ppc
   (ALL)`, which is a launch blocker on Tiger and Leopard. `build.sh` asserts and
   re-stamps. Trust `lipo`, not `file` (modern `file` renders subtype 9 as
