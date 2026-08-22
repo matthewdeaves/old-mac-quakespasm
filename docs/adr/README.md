@@ -19,3 +19,5 @@ results belong in `../../MISTAKES.md`.
 | [0010](0010-the-bundle-is-a-real-app-that-carries-everything-it-needs.md) | The bundle is a real .app, location-agnostic, carrying everything it needs |
 | [0011](0011-the-dedicated-server-is-a-linux-elf-built-in-a-container.md) | The dedicated server is a Linux ELF built in a container |
 | [0012](0012-we-ship-code-not-content.md) | We ship code, not content |
+| [0013](0013-two-more-slices-i386-for-2006-intel-and-arm64-for-apple-silicon.md) | Two more slices: i386 for 2006 Intel, arm64 for Apple Silicon |
+| [0014](0014-a-slice-is-fused-only-if-it-was-built-from-this-source.md) | A slice is fused only if it was built from this source |

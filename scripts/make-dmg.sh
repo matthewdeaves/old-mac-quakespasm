@@ -2,7 +2,7 @@
 # Build a distributable .dmg containing Quakespasm.app + quakespasm.pak +
 # a user-facing README - the easy way to hand the build to the old Macs.
 #
-# The .app is staged exactly like deploy.sh (fat 4-arch binary + SDL +
+# The .app is staged exactly like deploy.sh (fat 6-arch binary + SDL +
 # codec dylibs + per-machine autoexec cfgs + icon). Linux has no hdiutil,
 # so a Mac (the cross-build host by default) does the actual hdiutil
 # create; we stage locally, ship the folder over, build the .dmg there,
@@ -72,7 +72,7 @@ fi
 # Use lipo (reads the Mach header directly) rather than file(1): file's ppc
 # subtype names vary by host/toolchain - on an Apple-silicon workstation it
 # renders the ppc750 slice as "ppc_650", so the old `file | grep ppc_750`
-# check spuriously failed on a perfectly good 4-arch fat. lipo -archs is
+# check spuriously failed on a perfectly good 6-arch fat. lipo -archs is
 # authoritative and stable.
 ARCHS=$(lipo -archs "$BIN" 2>/dev/null || echo)
 # arm64 is deliberately NOT in this list. It is the one slice a Lion mini
@@ -281,7 +281,7 @@ RSYNC_EXTRA=""
 [ "$DMG_HOST" = "yosemite" ] && RSYNC_EXTRA="--protocol=29"
 
 # Every corruptible code artifact we ship inside the bundle, asserted end-to-end:
-# the 4-arch engine binary, the audio codec dylibs, and the SDL framework binary.
+# the 6-arch engine binary, the audio codec dylibs, and the SDL framework binary.
 # The staged $IMG copies are plain local `cp` of the source tree, so the $IMG
 # md5s ARE the true-source md5s. (Paths are space-free, so word-splitting them
 # into the SRC_SUMS loop is safe; the IN-DMG list is hardcoded in the remote

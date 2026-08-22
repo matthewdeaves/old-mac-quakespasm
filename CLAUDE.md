@@ -55,6 +55,15 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
   is missing and only warns, so a five-slice fat is a passing build; and
   after `deploy.sh`, read its md5 comparison, it WARNS rather than fails, and
   a WARN means the target is not running what you built. ADR 0002.
+- **A slice is fused only if it was built from this source.** Every build
+  writes a hash of the source set to `build/stamps/<arch>/SOURCE-STAMP`, and
+  `build-fat.sh` refuses to fuse any slice whose hash differs from the tree.
+  This exists because arm64 is the one slice `build-fat.sh` never rebuilds, so
+  it was the one that could be silently stale. Not an mtime check: a stale
+  object can carry a fresh timestamp. One exclude list in
+  `scripts/source-stamp.sh` drives both the hash and `build.sh`'s rsync, so
+  adding an exclude also stops rsync replacing that path on the build host.
+  ADR 0014.
 - **Every PowerPC slice carries its exact cpusubtype**, never generic `ppc
   (ALL)`, which is a launch blocker on Tiger and Leopard. `build.sh` asserts and
   re-stamps. Trust `lipo`, not `file` (modern `file` renders subtype 9 as

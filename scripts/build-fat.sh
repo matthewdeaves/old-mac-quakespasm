@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a 4-arch universal Quakespasm binary by composing the existing
+# Build a 6-arch universal Quakespasm binary by composing the existing
 # per-target builds with `lipo`.
 #
 # Output: build/quakespasm-fat — a Mach-O universal binary with four
@@ -34,7 +34,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$REPO_ROOT/scripts/source-stamp.sh"
 cd "$REPO_ROOT"
 
-# Resolve the port release label ONCE here and export it so all four sub-builds
+# Resolve the port release label ONCE here and export it so all five sub-builds
 # stamp the identical version into their slice (build.sh would otherwise call
 # git describe per-slice — same value in practice, but pinning it is correct and
 # documents intent). git describe gives "v1.9" on a tagged build, else a
@@ -43,7 +43,7 @@ export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags
 echo "[build-fat] stamping port version: $QS_PORT_VERSION"
 
 # Pin ONE Intel build host for the whole fat build and claim it up front.
-# This MUST be a single host for the entire run: the four slices accumulate in
+# This MUST be a single host for the entire run: the five mini-built slices accumulate in
 # that host's quakespasm/Quake/ tree and the final lipo happens there, so letting
 # individual sub-builds drift onto different minis would lipo an incomplete set.
 # Claiming once also stops another repo/agent taking the box between sub-builds.
@@ -57,24 +57,25 @@ if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
 	export BUILD_HOST
 	# Absolute path: the trap must still resolve if anything ever cd's away.
 	trap '"$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
-	echo "[build-fat] claimed build host: $BUILD_HOST (held for all four slices)"
+	echo "[build-fat] claimed build host: $BUILD_HOST (held for all five mini-built slices)"
 else
 	export BUILD_HOST="${BUILD_HOST:-$LION}"
 	echo "[build-fat] using caller-supplied build host: $BUILD_HOST"
 fi
 
-echo "[build-fat] sub-build 1/4: g3"
+echo "[build-fat] sub-build 1/5: g3"
 scripts/build.sh g3
 
-echo "[build-fat] sub-build 2/4: g4"
+echo "[build-fat] sub-build 2/5: g4"
 scripts/build.sh g4
 
-echo "[build-fat] sub-build 3/4: g5"
+echo "[build-fat] sub-build 3/5: g5"
 scripts/build.sh g5
 
-echo "[build-fat] sub-build 4/4: lion"
+echo "[build-fat] sub-build 4/5: lion"
 scripts/build.sh lion
 
+echo "[build-fat] sub-build 5/5: i386"
 scripts/build.sh i386
 
 # All five mini-buildable slices present?
@@ -140,7 +141,7 @@ else
 fi
 
 # lipo lives on Lion's build host, not necessarily on the orchestration
-# host. Send the four slices over, lipo there, scp the fat back. (lipo
+# host. Send the slices over, lipo there, scp the fat back. (lipo
 # is also in /usr/bin/ on macOS only — a Linux orchestrator would not ship it by
 # default. Doing the merge on Lion keeps the toolchain assumption
 # uniform with build.sh.)

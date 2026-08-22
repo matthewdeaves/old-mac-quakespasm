@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # the duration so nobody grabs it mid-build. The claim is a lock ON the mini, so
 # it is visible to the other quake repos and to other workstations — the flock
 # below only serialises builds from THIS checkout.
-# build-fat.sh pins BUILD_HOST for all four slices, so this only fires for a
+# build-fat.sh pins BUILD_HOST for all five mini-built slices, so this only fires for a
 # standalone build.sh run. LION is still accepted for backward compat.
 BUILD_HOST_CLAIMED=0
 if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
@@ -58,7 +58,7 @@ trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" -
 # git metadata). `git describe` yields the release tag exactly on a tagged build
 # (e.g. "v1.9"), or a descriptive "v1.9-3-gabc123" / "-dirty" off-tag so dev
 # builds self-identify. Makefile.darwin turns QS_PORT_VERSION into
-# -DQUAKESPASM_VER_SUFFIX. Overridable via env so build-fat.sh stamps all four
+# -DQUAKESPASM_VER_SUFFIX. Overridable via env so build-fat.sh stamps all five
 # slices with one identical value.
 QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
 

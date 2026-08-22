@@ -3,7 +3,7 @@
 #
 # This one runs HERE, on the orchestration Mac, not on an Intel Lion mini.
 # Lion's Xcode 4.6 toolchain predates arm64 by seven years and cannot target
-# it at all, so unlike the other four slices this cannot be a `build.sh`
+# it at all, so unlike the other five slices this cannot be a `build.sh`
 # target: build.sh rsyncs to the mini and compiles there. Same split the
 # sister Half-Life port uses (its docs/adr/0001 amendment).
 #
