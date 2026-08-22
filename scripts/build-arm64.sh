@@ -18,6 +18,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$REPO_ROOT/scripts/source-stamp.sh"
 cd "$REPO_ROOT"
 
 if [ "$(uname -m)" != "arm64" ]; then
@@ -73,3 +74,21 @@ GOT=$(lipo -archs build/quakespasm-arm64)
 
 echo "[build-arm64] OK: build/quakespasm-arm64 ($GOT, signed)"
 file build/quakespasm-arm64
+
+# --- source stamp ------------------------------------------------------------
+# This is the stamp that actually matters. arm64 is the only slice build-fat.sh
+# never rebuilds, so it is the only one that can be older than the source the
+# other five came from. That is issue #16.
+#
+# This driver compiles IN PLACE and rsyncs nothing, so there is no transferred
+# file set to fingerprint. The stamp is therefore defined over the source tree,
+# which is the same tree build.sh sends to the mini for the other five slices.
+# A transfer-based stamp would have had no definition for the one slice the
+# whole check exists for.
+#
+# Written last, after the codesign and lipo assertions, so a slice that failed
+# either leaves no stamp.
+STAMP_DIR="$REPO_ROOT/build/stamps/arm64"
+mkdir -p "$STAMP_DIR"
+source_stamp_write "$STAMP_DIR" "$(source_stamp_compute "$REPO_ROOT")"
+echo "[build-arm64] source stamp $(source_stamp_read "$STAMP_DIR" | cut -c1-12) → build/stamps/arm64"

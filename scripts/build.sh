@@ -26,6 +26,9 @@ set -euo pipefail
 
 TARGET="${1:?usage: $0 <g3|g4|g5|lion|i386> (arm64: scripts/build-arm64.sh)}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The one definition of what a build is built FROM. The rsync exclude list below
+# and the stamp written at the end both come from here, so they cannot drift.
+. "$REPO_ROOT/scripts/source-stamp.sh"
 
 # The cross-build host is an Intel Mac mini — there are now TWO interchangeable
 # ones (mini-intel, mini-intel2: same Macmini2,1 / 10.7.5 / same toolchain). When
@@ -238,9 +241,7 @@ echo "[build] sync sources orchestrator → $LION"
 # exclude prereqs/ (5 GB of installer DMGs; only used locally for setup)
 # and benchmarks/raw/ + build/ (output dirs that shouldn't bounce through Lion)
 rsync -av --partial --inplace --delete \
-  --exclude='.git' --exclude='*.o' --exclude='*.d' \
-  --exclude='build/' --exclude='benchmarks/' --exclude='prereqs/' \
-  --exclude='quakespasm' --exclude='quakespasm-g3' --exclude='quakespasm-g4' --exclude='quakespasm-g5' --exclude='quakespasm-lion' --exclude='quakespasm-i386' --exclude='quakespasm-arm64' \
+  $(source_stamp_rsync_excludes) \
   -e 'ssh -o ServerAliveInterval=15' \
   "$REPO_ROOT/" "$LION:quakespasm/" | tail -3
 
@@ -297,3 +298,18 @@ if [ -n "$WANT_SUBTYPE" ]; then
   fi
   echo "[build] cpusubtype OK: $GOT"
 fi
+
+# --- source stamp ------------------------------------------------------------
+# Record WHAT THIS SLICE WAS BUILT FROM, so build-fat.sh can refuse to fuse a
+# slice built from different source than the others. Written only now, after
+# the cpusubtype assertion above, so a slice that failed any check leaves no
+# stamp and reads as un-built rather than as current.
+#
+# The stamp goes in build/, which the hash excludes, so writing it cannot change
+# the hash it records. Its own directory per target because the slices are bare
+# files, not directories: source_stamp_write takes a directory and knows nothing
+# about our layout, which is what lets old-mac-build-host replace it later.
+STAMP_DIR="$REPO_ROOT/build/stamps/$TARGET"
+mkdir -p "$STAMP_DIR"
+source_stamp_write "$STAMP_DIR" "$(source_stamp_compute "$REPO_ROOT")"
+echo "[build] source stamp $(source_stamp_read "$STAMP_DIR" | cut -c1-12) → build/stamps/$TARGET"

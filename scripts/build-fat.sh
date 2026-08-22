@@ -31,6 +31,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$REPO_ROOT/scripts/source-stamp.sh"
 cd "$REPO_ROOT"
 
 # Resolve the port release label ONCE here and export it so all four sub-builds
@@ -91,9 +92,47 @@ done
 # Apple Silicon, not a fault, and the fuse says which way it went either way
 # rather than leaving it to be discovered from a lipo -archs later.
 SLICES="g3 g4 g5 lion i386"
+
+# What the source looks like RIGHT NOW. Every slice we fuse must have been built
+# from exactly this. Computed once; the five slices above were just rebuilt from
+# it, so this is also what their own stamps must say.
+WANT_STAMP="$(source_stamp_compute "$REPO_ROOT")"
+echo "[build-fat] source stamp $(printf %s "$WANT_STAMP" | cut -c1-12)"
+
+# The five mini-built slices are rebuilt by this script every run, so a mismatch
+# here means something is wrong with the build itself, not with staleness.
+# Check them anyway: the check is worthless if it only runs on the slice we
+# already suspect.
+for arch in g3 g4 g5 lion i386; do
+  got="$(source_stamp_read "$REPO_ROOT/build/stamps/$arch")"
+  if [ "$got" != "$WANT_STAMP" ]; then
+    echo "[build-fat] $arch was built from different source than this tree" >&2
+    echo "[build-fat]   want $WANT_STAMP" >&2
+    echo "[build-fat]   got  ${got:-<no stamp>}" >&2
+    exit 1
+  fi
+done
+echo "[build-fat] five mini-built slices match the source"
+
+# arm64 is the slice this check exists for. It is built separately by
+# scripts/build-arm64.sh on an Apple Silicon Mac and is the ONE slice this
+# script never rebuilds, so it is the only one that can be older than the
+# source. Absence is still allowed -- that is a Rosetta 2 downgrade, not a
+# fault. Being present but STALE is a hard failure, because it silently ships
+# Apple Silicon a different game from every other machine (issue #16).
 if [ -x "build/quakespasm-arm64" ]; then
+  got="$(source_stamp_read "$REPO_ROOT/build/stamps/arm64")"
+  if [ "$got" != "$WANT_STAMP" ]; then
+    echo "[build-fat] arm64 slice is STALE: built from different source than the other five." >&2
+    echo "[build-fat]   want $WANT_STAMP" >&2
+    echo "[build-fat]   got  ${got:-<no stamp>}" >&2
+    echo "[build-fat]   Rebuild it: scripts/build-arm64.sh   (run on an Apple Silicon Mac)" >&2
+    echo "[build-fat]   Refusing to fuse. A stale slice passes lipo -archs and the" >&2
+    echo "[build-fat]   slice count, which is exactly why this check is a hash." >&2
+    exit 1
+  fi
   SLICES="$SLICES arm64"
-  echo "[build-fat] arm64 slice present, it WILL be included"
+  echo "[build-fat] arm64 slice present and built from this source, it WILL be included"
 else
   echo "[build-fat] arm64 slice absent, fusing without it."
   echo "[build-fat]   Apple Silicon will run the x86_64 slice under Rosetta 2."
