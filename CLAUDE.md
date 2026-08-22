@@ -141,9 +141,10 @@ legs. Both run `ppc750` and both read `hw.model = PowerMac1,1`, so both get the
 
 ## Working alongside the other repos
 
-Five repos are worked on together: the four game ports and the private
-`retro-server-infra`, which runs the servers those ports build. A session may be
-open in each at once. Three rules keep them out of each other's way.
+Seven repos share one board: the four game ports, `old-mac-build-host`,
+`retro-agents`, and the private `retro-server-infra`, which runs the servers
+those ports build. A session may be open in each at once. Three rules keep them
+out of each other's way.
 
 **Hardware is claimed, never assumed free.** Every script that deploys to,
 benches on, or otherwise drives a fleet machine re-execs itself under
@@ -153,33 +154,31 @@ with the build lock and visible to every repo, agent and workstation. Check
 `scripts/pick-bench-host.sh --status` before assuming a box is idle, and never
 work around a busy one. `BENCH_NO_LOCK=1` exists only for debugging the picker.
 
-**Cross-repo work goes through GitHub, not chat.** One board covers all five
-repos: <https://github.com/users/matthewdeaves/projects/8>. Columns are
-`Triage / Measuring / Ready / In progress / Blocked / Done`, with `Source` and
-`Evidence` fields. File cross-repo work as an issue and put it on the board:
+A split acquire/release pair must also export `BENCH_LOCK_CLAIM`. Without it the
+picker can only match `user@host:repo`, which every session in this repo shares,
+so a sibling session's `--release` silently drops your lock. `--run` handles this
+itself. `build-fat.sh` and `build.sh` export it; measured 2026-08-22.
+
+**Cross-repo work goes through GitHub, not chat.** One board covers all seven:
+<https://github.com/users/matthewdeaves/projects/8>. Columns are
+`Triage / Measuring / Ready / In progress / Blocked / Review / Done`.
+
+Three scripts, all REST, all zero GraphQL. Use them rather than `gh project`,
+which is GraphQL on a 5000/hour budget the whole fleet shares and has hit zero:
 
 ```sh
-gh issue create -R matthewdeaves/<repo> --project Retro \
-  --label from:port,needs-measurement --title "..." --body "..."
+../retro-agents/bin/board.sh --diff                          # read
+../retro-agents/bin/board-add.sh <repo>#<n>                  # add + set Triage
+../retro-agents/bin/board-move.sh <repo>#<n> "In progress"   # move one ticket
 ```
 
-**Board mechanics.** Projects v2 has a REST route, and it costs ZERO GraphQL:
-`gh api "/users/matthewdeaves/projectsV2/8/items?per_page=100&fields=402964249"`
-to read, `gh api -X PATCH /users/matthewdeaves/projectsV2/8/items/<NUMERIC_ID> -F
-"fields[][id]=402964249" -F "fields[][value]=<OPTION_ID>"` to move. Measured
-2026-08-22. The `fields=` parameter is not optional: without it every item comes
-back with no Status and the board reads as entirely statusless. Field *names*
-are rejected with HTTP 400, and the REST item id is numeric, not the `PVTI_` one
-GraphQL uses. The `gh project` subcommands are GraphQL and the whole fleet
-shares one 5000/hour budget, which hit zero on 2026-08-22. Status option ids:
-Triage `e1711c02`, Measuring `396fc342`, Ready `11c7386e`, In progress
-`f3375bca`, Blocked `5dd19fe6`, Done `e0b04066`.
+Do NOT file with `gh issue create --project Retro`: measured 2026-08-22, it does
+not reliably land in `Triage`. Nothing on this board sets a status on a new item,
+so an issue added any other way arrives with no status at all and is invisible on
+a gated board. File the issue, then `board-add.sh` it.
 
-**After filing, read back which column the issue landed in.** Do not assume it
-is `Triage`. Half-Life measured `--project` putting a new issue straight into
-`Measuring`, which reads as approved; Quake III checked and it did not reproduce
-there. It is per-repo and per-ticket, so check rather than sweep, and never move
-a column on a rule measured in someone else's repo.
+**Your own work stops at `Review`, never `Done`.** Review is where you hand it to
+the user. Done is theirs to set.
 
 Labels, the same four in every repo: **`from:infra`** raised by the server side
 for a port to act on, **`from:port`** raised by a port for another repo,
