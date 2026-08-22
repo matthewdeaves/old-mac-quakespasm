@@ -747,3 +747,5 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps
 2026-08-21T10:30:02Z,56ec7952,quad-leopard,demo1,1152x864,87.8,NA,NA,87.8
 2026-08-21T10:30:20Z,56ec7952,quad-leopard,demo1,1024x600,88.1,NA,NA,88.1
 2026-08-21T10:30:39Z,56ec7952,quad-leopard,demo1,1280x800,88.3,NA,NA,88.3
+2026-08-22T20:26:08Z,36b40a9d,mini-g4,demo1,1024x768,50.3,53.2,50.1,51.65
+2026-08-22T20:28:54Z,181346cc,mini-g4,demo1,1024x768,49.9,52.9,49.9,51.40
