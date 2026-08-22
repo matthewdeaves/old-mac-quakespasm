@@ -79,7 +79,15 @@ case "${1:-start}" in
 start)
   stage_map
   echo "[selfhost] launching dedicated server on $HOST ..."
-  ssh "$HOST" "killall -KILL quakespasm 2>/dev/null || true
+  # TERM, grace, then KILL -- never straight to KILL. ADR 0007:120: a hard KILL
+  # of a fullscreen engine wedges the Rage 128 and hangs the R300, and recovery
+  # is a kernel reboot via ~/bin/qsreboot.sh, i.e. a machine off the fleet. This
+  # line went straight to KILL. $HOST defaults to mini-intel, where the target
+  # is a headless dedicated server with no GL context, but SELFHOST_HOST takes
+  # any alias including imac-g5, and this kills whatever quakespasm it finds,
+  # not just ours. The stop path at the bottom already did it correctly.
+  ssh "$HOST" "if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
+    killall -KILL quakespasm 2>/dev/null || true
     sleep 1
     cd $QDIR
     rm -f qconsole.log
