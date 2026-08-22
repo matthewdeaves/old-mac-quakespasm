@@ -751,3 +751,5 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-08-22T20:28:54Z,181346cc,mini-g4,demo1,1024x768,49.9,52.9,49.9,51.40
 2026-08-22T20:43:40Z,6b2de320,mini-g4,demo1,640x480,50.1,53.1,50.4,51.75,"+r_decals 0"
 2026-08-22T20:45:30Z,6b2de320,mini-g4,demo1,640x480,50.3,50.5,50.4,50.45,""
+2026-08-22T21:12:22Z,9f699824,mini-g4,demo1,1024x768,52.7,52.7,49.9,51.30,"+r_decals 1 +r_decal_stats 1"
+2026-08-22T21:14:05Z,9f699824,mini-g4,demo1,1024x768,50.2,53.1,50.1,51.60,"+r_decals 0 +r_decal_stats 1"
