@@ -430,6 +430,13 @@ static const qssection_t qs_sections[] = {
     }
 }
 
+// Must stay in step with the engine's own per-arch dispatch at host.c:1017.
+// Two parallel ladders over the same six slices: this one seeds the launcher
+// panel, that one execs the cfg for real. They drifted once already — the
+// arm64 and i386 arms were added to host.c and not here, so on those two
+// slices archCfg fell to nil, sgCfgDefaults came up empty, and every checkbox
+// drew off and every slider drew at its minimum regardless of what the cfg
+// said (issue #14). Adding a slice means editing both.
 - (void)loadConfigDefaults {
 #if defined(QS_ARCH_PPC970)
     NSString *archCfg = @"autoexec-ppc970";
@@ -439,6 +446,10 @@ static const qssection_t qs_sections[] = {
     NSString *archCfg = @"autoexec-ppc750";
 #elif defined(__x86_64__) || defined(__amd64__)
     NSString *archCfg = @"autoexec-x86_64";
+#elif defined(__aarch64__) || defined(__arm64__)
+    NSString *archCfg = @"autoexec-arm64";
+#elif defined(__i386__)
+    NSString *archCfg = @"autoexec-i386";
 #else
     NSString *archCfg = nil;
 #endif
