@@ -1,0 +1,69 @@
+LOG started on: 08/23/2026 22:13:29 
+Playing registered version.
+Console initialized.
+UDP_Init: skipping gethostbyname for Hayleys-MacBook-Air.local
+UDP Initialized
+Exe: 22:13:06 Aug 23 2026
+256.0 megabyte heap
+Video mode 1920x1080x32 60Hz (32-bit z-buffer, 0x FSAA) initialized
+GL_VENDOR: Apple
+GL_RENDERER: Apple M5
+GL_VERSION: 2.1 Metal - 90.5
+FOUND: ARB_vertex_buffer_object
+APPLE_client_storage present but unused on this arch (issue #30; -client-storage forces)
+FOUND: APPLE_texture_range
+FOUND: ARB_multitexture
+GL_MAX_TEXTURE_UNITS: 8
+FOUND: ARB_texture_env_combine
+FOUND: ARB_texture_env_add
+FOUND: SDL_GL_SetSwapInterval
+FOUND: EXT_texture_filter_anisotropic
+FOUND: EXT_texture_lod_bias
+FOUND: ARB_texture_non_power_of_two
+FOUND: GLSL
+Enabled: GLSL gamma
+Enabled: GLSL alias model rendering
+Enabled: EXT_packed_pixels
+FOUND: glGenerateMipmap
+CDAudio disabled at compile time
+
+Language initialization
+Couldn't load 'localization/loc_english.txt'
+from '/Users/matt/Desktop/qs-arm64-bench'
+
+========= Quake Initialized =========
+
+execing quake.rc
+execing default.cfg
+execing config.cfg
+execing autoexec.cfg
+Playing demo from demo1.dem.
+3 demo(s) in loop
+
+
+
+the Necropolis
+Using protocol 15
+Warning: Mod_DecompressVis: output overrun on model "maps/e1m3.bsp"
+R_BuildEmissiveLights: 1 seeds for maps/e1m3.bsp
+You got the shells
+You got the Grenade Launcher
+You receive 25 health
+You get 2 rockets  
+You got the rockets
+You got the nailgun
+You got the nails
+You got the nails
+You receive 15 health
+You receive 15 health
+You got the rockets
+You get 2 rockets  
+You got the nails
+You got the nails
+You receive 25 health
+
+         You need the gold key
+
+You got the gold key
+969 frames   1.2 seconds 829.6 fps
+watchlink: browsing for companion (_q2watch._udp)...
