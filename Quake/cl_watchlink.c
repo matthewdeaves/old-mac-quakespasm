@@ -397,7 +397,11 @@ WatchLink_StartDiscovery (void)
 	}
 
 	watch_discovering = true;
-	watch_disc_until = realtime + WATCHLINK_DISCOVERY_SECS;
+	/* Deadline is stamped lazily at the FIRST per-frame pump, not here:
+	   discovery is often armed right before a map load, and on a slow
+	   machine (G3 loads exceed the window) an arm-time deadline could
+	   expire before browsing ever got a frame to run in. 0 = unstamped. */
+	watch_disc_until = 0.0;
 	Con_SafePrintf ("watchlink: browsing for companion (_q2watch._udp)...\n");
 }
 
@@ -469,6 +473,12 @@ WatchLink_Sync (void)
 #ifdef WATCHLINK_BONJOUR
 	if (watch_discovering)
 	{
+		/* First pump since arming: start the give-up clock now, so the
+		   window measures actual browsing frames rather than including
+		   a map load that ran between arm and first pump. */
+		if (watch_disc_until == 0.0)
+			watch_disc_until = realtime + WATCHLINK_DISCOVERY_SECS;
+
 		WatchLink_PumpDiscovery ();
 
 		/* Stop browsing once we have a destination, or after the window

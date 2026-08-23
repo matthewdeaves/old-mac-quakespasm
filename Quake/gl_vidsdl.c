@@ -1850,10 +1850,28 @@ static void GL_Init (void)
 		Con_Warning ("Multi-threaded OpenGL disabled on GeForce 9400 "
 			"(driver crash -- -forcemtgl overrides)\n");
 	}
-	else if (host_parms->numcpus > 1 &&
-	    kCGLNoError != CGLEnable(CGLGetCurrentContext(), kCGLCEMPEngine))
+	else if (host_parms->numcpus > 1)
 	{
-		Con_Warning ("Couldn't enable multi-threaded OpenGL");
+		if (kCGLNoError != CGLEnable(CGLGetCurrentContext(), kCGLCEMPEngine))
+		{
+			Con_Warning ("Couldn't enable multi-threaded OpenGL");
+		}
+		else if (gl_apple_client_storage_able)
+		{
+			// PPC port (issue #30) -- MTGL and client storage are
+			// mutually exclusive. MTGL makes the driver consume texture
+			// uploads asynchronously, which voids the synchronous-driver
+			// assumption client storage's zero-copy contract rests on:
+			// R_BuildLightMap rewrites lm->data in place while queued
+			// draws still read it. That race is what SIGSEGV'd the
+			// GeForce 9400. The compile-time arch gate above cannot see
+			// this (a dual G4/G5 compiles the ppc slice; a Rosetta run
+			// of the ppc slice lands on a modern async driver), so the
+			// interlock is at runtime: MTGL won, client storage yields.
+			gl_apple_client_storage_able = false;
+			Con_Printf ("APPLE_client_storage disabled: multi-threaded GL "
+				"is active (issue #30)\n");
+		}
 	}
 #endif
 #endif

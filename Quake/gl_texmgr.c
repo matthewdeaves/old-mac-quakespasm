@@ -83,9 +83,7 @@ static int numgltextures;
 static gltexture_t	*active_gltextures, *free_gltextures;
 gltexture_t		*notexture, *nulltexture;
 
-/* forward declaration: full definition + initializer is further down this
-   file, but TexMgr_FreeTexturesForOwner (below) needs it earlier. */
-static GLuint	currenttexture[3];
+static GLuint	currenttexture[3] = {GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE}; // to avoid unnecessary texture sets
 
 unsigned int d_8to24table[256];
 unsigned int d_8to24table_fbright[256];
@@ -479,6 +477,73 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 
 /*
 ================
+TexMgr_FreeTexturesMatching
+
+Shared mass-free core for the two bulk entry points below. PPC port,
+issue #30: TexMgr_FreeTexture (via GL_DeleteTexture) issues one
+glDeleteTextures(1, &texnum) call per texture, and on mini-sl
+(Macmini3,1, GeForce 9400, Snow Leopard 10.6.8) that rapid-fire pattern
+during a map unload hung indefinitely inside the driver's
+texture-reclaim path (gldReclaimTexture -> IOConnectCallMethod ->
+mach_msg_trap never returning; `sample` caught the main thread stuck
+there for a full 3 s window, same GPU as issue #30's SIGSEGV). One
+glDeleteTextures(n, array) call for the whole batch is the standard fix
+for this class of old-driver bulk-deletion race and cheaper regardless
+of platform, so it isn't gated -- every machine benefits, and both bulk
+paths (map unload AND game/gamedir switch) go through it.
+
+Single forward walk with a prev pointer (no head re-scan per match),
+and the same per-node bookkeeping GL_DeleteTexture does: per-TMU bind
+cache invalidated, texnum zeroed so a stale gltexture_t pointer can
+never alias a recycled GL name.
+
+by_owner true: match glt->owner == owner.
+by_owner false: compare each bit in "flags" to the one in glt->flags
+only if that bit is active in "mask" (TexMgr_FreeTextures semantics).
+================
+*/
+static void TexMgr_FreeTexturesMatching (qboolean by_owner, qmodel_t *owner, unsigned int flags, unsigned int mask)
+{
+	gltexture_t *glt, *prev, *next;
+	GLuint texnums[MAX_GLTEXTURES];
+	int count = 0;
+
+	if (in_reload_images)
+		return;
+
+	prev = NULL;
+	for (glt = active_gltextures; glt; glt = next)
+	{
+		next = glt->next;
+		if (by_owner ? (glt->owner != owner)
+		             : ((glt->flags & mask) != (flags & mask)))
+		{
+			prev = glt;
+			continue;
+		}
+
+		if (prev)
+			prev->next = next;
+		else
+			active_gltextures = next;
+
+		if (glt->texnum == currenttexture[0]) currenttexture[0] = GL_UNUSED_TEXTURE;
+		if (glt->texnum == currenttexture[1]) currenttexture[1] = GL_UNUSED_TEXTURE;
+		if (glt->texnum == currenttexture[2]) currenttexture[2] = GL_UNUSED_TEXTURE;
+
+		texnums[count++] = glt->texnum;
+		glt->texnum = 0;
+		glt->next = free_gltextures;
+		free_gltextures = glt;
+		numgltextures--;
+	}
+
+	if (count > 0)
+		glDeleteTextures (count, texnums);
+}
+
+/*
+================
 TexMgr_FreeTextures
 
 compares each bit in "flags" to the one in glt->flags only if that bit is active in "mask"
@@ -486,73 +551,17 @@ compares each bit in "flags" to the one in glt->flags only if that bit is active
 */
 void TexMgr_FreeTextures (unsigned int flags, unsigned int mask)
 {
-	gltexture_t *glt, *next;
-
-	for (glt = active_gltextures; glt; glt = next)
-	{
-		next = glt->next;
-		if ((glt->flags & mask) == (flags & mask))
-			TexMgr_FreeTexture (glt);
-	}
+	TexMgr_FreeTexturesMatching (false, NULL, flags, mask);
 }
 
 /*
 ================
 TexMgr_FreeTexturesForOwner
-
-PPC port -- batches the driver call. A map unload can free hundreds of
-textures, and TexMgr_FreeTexture (via GL_DeleteTexture) used to issue one
-glDeleteTextures(1, &texnum) call per texture in this loop. On mini-sl
-(Macmini3,1, GeForce 9400, Snow Leopard 10.6.8) that rapid-fire pattern
-hung indefinitely inside the driver's texture-reclaim path (gldReclaimTexture
--> IOConnectCallMethod -> mach_msg_trap never returning; `sample` caught the
-main thread stuck there for a full 3 s window, same GPU as issue #30's
-SIGSEGV). One glDeleteTextures(n, array) call for the whole batch is both
-the standard fix for this class of old-driver bulk-deletion race and cheaper
-regardless of platform, so this isn't gated -- every machine benefits.
 ================
 */
 void TexMgr_FreeTexturesForOwner (qmodel_t *owner)
 {
-	gltexture_t *glt, *next;
-	GLuint texnums[MAX_GLTEXTURES];
-	int count = 0;
-
-	for (glt = active_gltextures; glt; glt = next)
-	{
-		next = glt->next;
-		if (glt && glt->owner == owner)
-		{
-			if (in_reload_images)
-				continue;
-
-			/* unlink glt from active_gltextures onto free_gltextures,
-			   same bookkeeping TexMgr_FreeTexture does, but defer the
-			   actual glDeleteTextures call to the batch below. */
-			if (active_gltextures == glt)
-				active_gltextures = glt->next;
-			else
-			{
-				gltexture_t *p;
-				for (p = active_gltextures; p && p->next != glt; p = p->next)
-					;
-				if (p)
-					p->next = glt->next;
-			}
-			glt->next = free_gltextures;
-			free_gltextures = glt;
-
-			if (glt->texnum == currenttexture[0]) currenttexture[0] = GL_UNUSED_TEXTURE;
-			if (glt->texnum == currenttexture[1]) currenttexture[1] = GL_UNUSED_TEXTURE;
-			if (glt->texnum == currenttexture[2]) currenttexture[2] = GL_UNUSED_TEXTURE;
-
-			texnums[count++] = glt->texnum;
-			numgltextures--;
-		}
-	}
-
-	if (count > 0)
-		glDeleteTextures (count, texnums);
+	TexMgr_FreeTexturesMatching (true, owner, 0, 0);
 }
 
 /*
@@ -1895,7 +1904,8 @@ void TexMgr_ReloadNobrightImages (void)
 ================================================================================
 */
 
-static GLuint	currenttexture[3] = {GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE}; // to avoid unnecessary texture sets
+/* currenttexture[3] (the per-TMU bind cache) is defined near the top of
+   the file -- the bulk-free path needs it there. */
 static GLenum	currenttarget = GL_TEXTURE0_ARB;
 qboolean	mtexenabled = false;
 
