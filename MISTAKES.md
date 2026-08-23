@@ -13,6 +13,43 @@ live in the ADR named at the end of the entry and are not repeated here.
 
 ---
 
+## 2026-08-23: benching an archived cvar silently re-configures the machine
+
+An A/B on decals pinned `+r_decals 0` on yosemite and mini-g4.
+`Host_WriteConfiguration` (`host.c:386`) writes `id1/config.cfg` on every clean
+exit, so the engine archived `r_decals "0"` on both. No per-machine bundle
+config sets `r_decals` (zero hits across `scripts/bundle/*.cfg`, against 13
+files that set `r_shadows`), so nothing corrected it at launch. Decals were
+silently OFF on those two machines for hours, on a build that ships them ON,
+and only those two — the other four read `"1"`. Repaired by hand.
+
+`-noarchautoexec` stops the autoexec being READ. It does not stop `config.cfg`
+being WRITTEN, and there is no flag that does.
+
+**Lesson: a bench does not just measure a machine, it CONFIGURES it. Any
+CVAR_ARCHIVE cvar you pin persists on that box until someone notices, and it
+poisons the next A/B that relies on the default as well as ordinary play.
+After benching a `CVAR_ARCHIVE` cvar, check `id1/config.cfg` on that machine.**
+Open as #28. Make an instrumentation-only cvar `CVAR_NONE` so it leaves no
+residue, as `r_decal_stats` does.
+
+## 2026-08-23: a failed log fetch reported the PREVIOUS run's fps as a result
+
+`bench.sh` did `scp ... || true` and then grepped a fixed path. When the copy
+failed the grep read whatever file was already there and recorded ITS number.
+Not a gap, and not an error: a complete, plausible row. It corrupted one G3
+A/B before it was caught — a decals-OFF leg recorded 34.6 fps that was the
+decals-ON leg's run 3, proved by the stale file's mtime and its `gated=0`
+counters. Both legs also shared one log filename, so the second leg overwrote
+the first leg's raw evidence.
+
+**Lesson: the contamination is DIRECTIONAL. The stale number comes from the
+other leg of the same A/B, so a fabricated result is biased toward "no
+difference" — the answer that stops anyone looking. A harness that fails
+toward "nothing to see here" is not self-correcting.** Fixed in `f3c8a490`:
+delete first, treat a failed fetch as a failed run and record NA loudly, and
+put the cvars in the log name. It caught a real 3/3 G3 failure within the hour.
+
 ## 2026-08-20: "this port uses SDL2" was wrong; every shipped slice is SDL 1.2
 
 Commit `fd507839` asserted that QuakeSpasm "is on SDL2 and its bundled framework
