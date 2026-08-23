@@ -215,9 +215,17 @@ for i in $(seq 1 $RUNS); do
   # Tag the log with the cvars when this is an A/B leg. Without it both legs
   # write ${COMMIT}_${TARGET}_${DEMO}_${RES}_runN.log and the second leg
   # silently overwrites the first leg's raw evidence.
+  # Long sweeps blow past the filesystem's 255-byte name limit, so cap the
+  # readable part and append a hash of the FULL cvar string for uniqueness.
+  # Short A/B legs keep their fully readable names.
   CVAR_TAG=""
   if [ -n "${EXTRA_CVARS:-}" ]; then
-    CVAR_TAG="_$(printf '%s' "$EXTRA_CVARS" | tr -cs 'A-Za-z0-9' '_' | sed 's/^_//; s/_$//')"
+    CVAR_SLUG="$(printf '%s' "$EXTRA_CVARS" | tr -cs 'A-Za-z0-9' '_' | sed 's/^_//; s/_$//')"
+    if [ "${#CVAR_SLUG}" -gt 60 ]; then
+      CVAR_HASH="$(printf '%s' "$EXTRA_CVARS" | shasum -a 256 | cut -c1-8)"
+      CVAR_SLUG="$(printf '%s' "$CVAR_SLUG" | cut -c1-60)_$CVAR_HASH"
+    fi
+    CVAR_TAG="_$CVAR_SLUG"
   fi
   LOG_NAME="${COMMIT}_${TARGET}_${DEMO}_${RES}${CVAR_TAG}_run${i}.log"
 
