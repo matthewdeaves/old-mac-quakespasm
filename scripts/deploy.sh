@@ -2,7 +2,7 @@
 # Assemble a self-contained Quakespasm.app bundle and deploy it to the
 # target machine. Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5>
+# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5>
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
@@ -20,7 +20,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5>}"
+TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5>}"
 
 # Claim this machine for the whole run. See scripts/pick-bench-host.sh.
 #
@@ -55,7 +55,7 @@ case "$TARGET" in
     HOST="yosemite"
     RSYNC_EXTRA="--protocol=29"
     ;;
-  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5)
+  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5)
     # imac-g5: PowerMac8,2 iMac G5 on Leopard 10.5.8. Leopard ships
     # rsync 2.6.9 (protocol 29), same as the Tiger boxes — no
     # --protocol downgrade needed (only Panther's 2.5.x needs that).
@@ -66,6 +66,15 @@ case "$TARGET" in
     # is a Panther-only workaround. The ppc750 slice is min-10.3 so it loads on
     # Tiger unchanged, and hw.model still reads PowerMac1,1, so the same
     # per-machine overlay applies.
+    #
+    # mini-sl: Macmini3,1, Snow Leopard 10.6.8, GeForce 9400. Never deployed
+    # to before 2026-08-23 (no display until then). Confirmed on the machine:
+    # rsync 2.6.9 protocol 29, same generation as the rest of this branch —
+    # no downgrade needed. hw.model has no per-machine overlay entry in
+    # host.c's qs_machine_map yet, so it runs the autoexec-x86_64 baseline
+    # only; QS_ExecConfigFromBundle returns false on a missing resource
+    # (host.c:64), no crash. That is the correct first-exercise state — a
+    # tuned overlay needs real fps data from this machine first.
     HOST="$TARGET"
     RSYNC_EXTRA=""
     ;;
