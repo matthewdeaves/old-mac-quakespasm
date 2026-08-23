@@ -755,3 +755,6 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-08-22T21:14:05Z,9f699824,mini-g4,demo1,1024x768,50.2,53.1,50.1,51.60,"+r_decals 0 +r_decal_stats 1"
 2026-08-22T22:18:13Z,914d1dce,yosemite,demo1,640x480,NA,NA,NA,NA,"+r_decals 1 +r_decal_stats 1"
 2026-08-23T04:58:38Z,82156eee,mini-intel,demo1,1024x768,NA,NA,NA,NA,"+r_decals 1 +r_oldwater 0 +gl_texture_anisotropy 1 +r_shadows 0 +gl_texturemode GL_LINEAR_MIPMAP_NEAREST +r_lavaalpha 0 +r_telealpha 0 +r_slimealpha 0 +r_wateralpha 1 +r_shadow_distance 0 +gl_clear 1 +gl_zfix 0 +r_emissive_lights 0 +r_emissive_lights_radius 1.0 +r_emissive_lights_max 16 +gl_fullbright_zbias 0"
+2026-08-23T05:16:42Z,cb501e48,yosemite,demo1,640x480,29.6,23.3,33.6,28.45,"+r_decals 1 +r_decal_stats 1"
+2026-08-23T05:19:27Z,cb501e48,yosemite,demo1,640x480,31.8,30.1,27.1,28.60,"+r_decals 0 +r_decal_stats 1"
+2026-08-23T05:22:13Z,cb501e48,yosemite,demo1,640x480,26.2,30.9,34.3,32.60,"+r_decals 1 +r_decal_stats 1 +r_decal_max 128 +r_decal_life 999"

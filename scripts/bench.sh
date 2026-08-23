@@ -191,7 +191,7 @@ for i in $(seq 1 $RUNS); do
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
       -fullscreen \\
       -noarchautoexec \\
-      +vid_width $W +vid_height $H +vid_wait 0 \\
+      +vid_width $W +vid_height $H +vid_vsync 0 \\
       ${EXTRA_CVARS:+$EXTRA_CVARS }+timedemo $DEMO > /dev/null 2>&1 &
     PID=\$!
     j=0
