@@ -760,3 +760,4 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-08-23T05:22:13Z,cb501e48,yosemite,demo1,640x480,26.2,30.9,34.3,32.60,"+r_decals 1 +r_decal_stats 1 +r_decal_max 128 +r_decal_life 999"
 2026-08-23T06:01:45Z,fa30a425,mini-g4,demo1,1024x768,49.9,52.5,50.1,51.30,"+gl_fog 0"
 2026-08-23T06:03:21Z,fa30a425,mini-g4,demo1,1024x768,49.9,52.2,49.6,50.90,"+gl_fog 1"
+2026-08-23T09:33:24Z,43c6bad0,mini-intel,demo1,640x480,161.2,47.9,47.8,47.85,""
