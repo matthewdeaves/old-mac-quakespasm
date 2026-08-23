@@ -761,3 +761,4 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-08-23T06:01:45Z,fa30a425,mini-g4,demo1,1024x768,49.9,52.5,50.1,51.30,"+gl_fog 0"
 2026-08-23T06:03:21Z,fa30a425,mini-g4,demo1,1024x768,49.9,52.2,49.6,50.90,"+gl_fog 1"
 2026-08-23T09:33:24Z,43c6bad0,mini-intel,demo1,640x480,161.2,47.9,47.8,47.85,""
+2026-08-23T09:54:47Z,0911a4a1,mini-sl,demo1,1024x768,NA,NA,NA,NA,""

@@ -2,7 +2,7 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|imac-g5> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
@@ -100,6 +100,7 @@ case "$TARGET" in
   quicksilver) HOST="quicksilver"; TIMEOUT=120; ARCH_CFG="ppc7400"; COOLDOWN=2 ;;
   mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400"; COOLDOWN=2 ;;
   mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;
+  mini-sl)     HOST="mini-sl";     TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # Macmini3,1, GeForce 9400, Snow Leopard — first bench, timeout matches smoke-dmg.sh's precedent, unproven
   imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # i5-9600K + Radeon Pro 580X — fastest
   imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
   quad-leopard)
