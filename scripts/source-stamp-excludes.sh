@@ -28,6 +28,18 @@
 # build host reads it -- the remote only ever runs make in quakespasm/Quake --
 # so it is inert, but it does not self-clean.
 #
+# .claude/ is Claude Code session state, not source: commands and skills under
+# it ARE git-tracked, but scheduled_tasks.lock and settings.local.json are
+# gitignored (.gitignore:39-40) and live inside $REPO_ROOT, so
+# source_stamp_compute walks the real filesystem and hashes them regardless of
+# .gitignore -- that list is separate from this one and this check does not
+# consult it. Measured 2026-08-23: a build-fat.sh run refused a same-commit,
+# clean-git-status arm64 slice as stale. Cause: scheduled_tasks.lock's mtime
+# moved between the arm64 build and the fat build, from this session calling
+# ScheduleWakeup in between -- nothing to do with engine source. Same failure
+# mode as dist/ below (build output inside the tree moving the hash), just
+# triggered by session bookkeeping instead of a build script.
+#
 # The one definition of "what a build is built from". build.sh's rsync reads
 # this too (source_stamp_rsync_excludes), so the two cannot drift apart. A file
 # outside this set cannot affect a build; a file inside it must change the hash.
@@ -43,6 +55,7 @@ build/
 benchmarks/
 prereqs/
 dist/
+.claude/
 quakespasm
 quakespasm-g3
 quakespasm-g4
