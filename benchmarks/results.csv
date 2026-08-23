@@ -770,3 +770,5 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-08-23T19:53:03Z,aadfacfe,mini-intel,demo1,640x480,170.8,48.8,48.8,48.80,""
 2026-08-23T21:13:08Z,a751e782,arm64-local,demo1,1920x1080,824.7,761.8,988.8,875.30,"+vid_vsync 0"
 2026-08-23T21:13:26Z,a751e782,arm64-local,demo1,1920x1080,781.5,829.6,1005.2,917.40,""
+2026-08-23T21:16:19Z,75d0c581,g5-desktop,demo1,1024x768,83.8,83.8,83.8,83.80,""
+2026-08-23T21:17:20Z,75d0c581,mini-intel2,demo1,640x480,6.4,6.5,6.5,6.50,""

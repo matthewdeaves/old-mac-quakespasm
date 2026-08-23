@@ -2,7 +2,7 @@
 # Assemble a self-contained Quakespasm.app bundle and deploy it to the
 # target machine. Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5>
+# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop>
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
@@ -20,7 +20,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5>}"
+TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop>}"
 
 # Claim this machine for the whole run. See scripts/pick-bench-host.sh.
 #
@@ -55,7 +55,15 @@ case "$TARGET" in
     HOST="yosemite"
     RSYNC_EXTRA="--protocol=29"
     ;;
-  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5)
+  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop)
+    # mini-intel2: second Macmini2,1, same model as mini-intel. hw.model
+    # matching in host.c's qs_machine_map hands it the autoexec-mini-intel
+    # overlay automatically -- no per-machine file needed (issue #32).
+    #
+    # g5-desktop: PowerMac7,3, 2.7 GHz G5, ATY RV351, Leopard 10.5.8.
+    # No qs_machine_map entry, so it runs the ppc970 baseline. Whether it
+    # should get the imac-g5-style native-res overlay is deliberately open
+    # (issue #32) pending its first bench data.
     # imac-g5: PowerMac8,2 iMac G5 on Leopard 10.5.8. Leopard ships
     # rsync 2.6.9 (protocol 29), same as the Tiger boxes — no
     # --protocol downgrade needed (only Panther's 2.5.x needs that).

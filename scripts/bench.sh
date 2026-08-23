@@ -2,7 +2,7 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-sl|imac-2019|imac-g5> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
@@ -109,9 +109,13 @@ case "$TARGET" in
   quicksilver) HOST="quicksilver"; TIMEOUT=120; ARCH_CFG="ppc7400"; COOLDOWN=2 ;;
   mini-g4)     HOST="mini-g4";     TIMEOUT=120; ARCH_CFG="ppc7400"; COOLDOWN=2 ;;
   mini-intel)  HOST="mini-intel";  TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;
+  mini-intel2)
+               HOST="mini-intel2"; TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1
+               MACHINE_CFG="mini-intel" ;;  # same Macmini2,1 model; runtime hw.model hands it the mini-intel overlay, so bench stages the same (issue #32)
   mini-sl)     HOST="mini-sl";     TIMEOUT=60;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # Macmini3,1, GeForce 9400, Snow Leopard — first bench, timeout matches smoke-dmg.sh's precedent, unproven
   imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # i5-9600K + Radeon Pro 580X — fastest
   imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
+  g5-desktop)  HOST="g5-desktop";  TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # PowerMac7,3 2.7 GHz + RV351, Leopard — ppc970 baseline, no overlay yet (issue #32)
   quad-leopard)
                HOST="quad-leopard"; TIMEOUT=110; ARCH_CFG="ppc970"; COOLDOWN=2 ;;  # PowerMac11,2 quad 2.5 GHz + GeForce 6600, Leopard
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
