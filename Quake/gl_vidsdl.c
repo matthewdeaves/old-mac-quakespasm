@@ -1302,8 +1302,34 @@ static void GL_CheckExtensions (void)
 	//
 	// Both R128 (Panther 10.3) and Radeon 9000 (Tiger 10.4) advertise
 	// the extension in our captured glGetString dumps.
+	//
+	// PPC-ONLY BY DEFAULT (issue #30). The no-copy contract is only safe
+	// when the driver consumes the pointer synchronously, which the PPC-era
+	// single-threaded GL drivers this was measured on do. On mini-sl
+	// (GeForce 9400, Snow Leopard 10.6.8) the driver DMA-references
+	// lm->data asynchronously, and two engine patterns that are fine on
+	// PPC became memory corruption there, confirmed by kernel log:
+	//   1. R_BuildLightMap rewrites lm->data in place while queued draws
+	//      still read it (worker-thread SIGSEGV, the original #30 crash);
+	//   2. GL_BuildLightmaps frees the previous map's lm->data right after
+	//      Mod_ClearAll deletes the textures, before an async driver has
+	//      actually released its reference (glDeleteTextures ->
+	//      gldReclaimTexture kernel hang, then a flood of
+	//      "NVDA(OpenGL): Channel exception! Fifo: Parse Error" -- the GPU
+	//      FIFO parsing freed memory -- wedging the display until a hard
+	//      power reset).
+	// The copy this skips only ever mattered on PPC-class memory buses, so
+	// Intel/ARM take the safe default copy path. -client-storage forces it
+	// back on for A/B on a specific machine.
 	if (COM_CheckParm("-noclient-storage"))
 		Con_Warning ("APPLE_client_storage disabled at command line\n");
+#if !defined(__ppc__) && !defined(__ppc64__)
+	else if (!COM_CheckParm("-client-storage"))
+	{
+		if (GL_ParseExtensionList(gl_extensions, "GL_APPLE_client_storage"))
+			Con_Printf ("APPLE_client_storage present but unused on this arch (issue #30; -client-storage forces)\n");
+	}
+#endif
 	else if (GL_ParseExtensionList(gl_extensions, "GL_APPLE_client_storage"))
 	{
 		Con_Printf("FOUND: APPLE_client_storage\n");
@@ -1800,9 +1826,29 @@ static void GL_Init (void)
 	// https://developer.apple.com/library/mac/technotes/tn2085/
 	// kCGLCEMPEngine is 10.4.8+; gate so 10.3 builds still compile.
 	// Single-core G3s are no-op anyway (numcpus check fails first).
+	//
+	// PPC port -- GeForce 9400 (Macmini3,1, Snow Leopard) MT-GL crash gate.
+	// mini-sl's first-ever run SIGSEGV'd inside the multi-threaded GL
+	// engine's own command-processing threads (GeForceGLDriver /
+	// gleCmdProcessorPTHREAD / glDrawElements_UnpackThread), not inside
+	// application code -- see benchmarks/crashlogs/mini-sl_2026-08-23-105451.crash.
+	// A later hard reboot was needed after a normal Finder double-click
+	// launch, so this is a real driver-level fault, not a benign hang.
+	// Scoped to the exact renderer string actually observed crashing, not
+	// "NVIDIA" broadly -- this file's own NVIDIA/GLSL gate above already
+	// notes an unmeasured "should be safe" assumption about a specific
+	// NVIDIA card turned out wrong. -forcemtgl re-enables for A/B retest.
+	qboolean gl_nvidia_9400_no_mtgl = gl_renderer &&
+	    strstr(gl_renderer, "GeForce 9400") && !COM_CheckParm("-forcemtgl");
+
 	if (COM_CheckParm("-nomtgl"))
 	{
 		Con_Printf ("Multi-threaded OpenGL disabled by -nomtgl\n");
+	}
+	else if (gl_nvidia_9400_no_mtgl)
+	{
+		Con_Warning ("Multi-threaded OpenGL disabled on GeForce 9400 "
+			"(driver crash -- -forcemtgl overrides)\n");
 	}
 	else if (host_parms->numcpus > 1 &&
 	    kCGLNoError != CGLEnable(CGLGetCurrentContext(), kCGLCEMPEngine))

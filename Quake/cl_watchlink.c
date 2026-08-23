@@ -142,7 +142,14 @@ static DNSServiceRef	watch_resolve_ref;
 static qboolean		watch_discovering;
 static uint16_t		watch_disc_port;	/* service port (network byte order) */
 static double		watch_disc_until;	/* realtime deadline to give up a fruitless browse */
-#define WATCHLINK_DISCOVERY_SECS 30.0
+/* The companion (Apple Watch) app has never been released, so every "auto"
+   discovery on every fleet machine is guaranteed to find nothing until it
+   is. Fail fast rather than keep Bonjour browsing alive per-frame for a
+   companion that cannot exist yet -- a real companion resolves in well
+   under a second once it does exist, so this window only ever matters for
+   the give-up case. Was 30.0; raise it back once the app ships if a slower
+   real-world join time turns up. */
+#define WATCHLINK_DISCOVERY_SECS 3.0
 #ifdef WATCHLINK_HAVE_ADDRINFO
 static DNSServiceRef	watch_addr_ref;
 #endif

@@ -13,6 +13,36 @@ live in the ADR named at the end of the entry and are not repeated here.
 
 ---
 
+## 2026-08-23: APPLE_client_storage on an async driver corrupted a GPU until power reset
+
+Phase 2.2 enabled `APPLE_client_storage` for lightmap uploads: the driver keeps
+referencing `lm->data` instead of copying it. Safe on the synchronous PPC-era
+drivers it was measured on; on mini-sl (GeForce 9400, 10.6.8, asynchronous
+driver) it broke two ways. (1) `R_BuildLightMap` rewrites `lm->data` in place
+while queued draws still DMA-read it — under multi-threaded GL that was the
+issue #30 SIGSEGV inside the driver's worker thread. (2) `GL_BuildLightmaps`
+frees the previous map's `lm->data` right after `Mod_ClearAll` deletes the
+textures, before an async driver has actually dropped its DMA reference — that
+was a main-thread hang inside `glDeleteTextures → gldReclaimTexture →
+mach_msg_trap`, followed by a kernel-log flood of `NVDA(OpenGL): Channel
+exception! Fifo: Parse Error` (the GPU FIFO parsing freed memory), a corrupted
+display, and a machine that a graceful reboot could not recover: `/sbin/reboot`
+waits to kill processes, WindowServer was wedged unkillably inside the GPU
+kernel driver, and the shutdown hung mid-way for ~2.5 h until a power reset.
+
+Fixed: client storage defaults OFF on non-PowerPC (`-client-storage` forces it
+for A/B), `GL_BuildLightmaps` drains the queue with `glFinish` before freeing
+where it is on, and `qsreboot.sh --force` (`/sbin/reboot -q`) exists for the
+next GPU-wedged machine.
+
+**Lesson: a zero-copy extension is a LIFETIME CONTRACT with the driver, and
+"the texture was deleted" is not "the driver is done with the memory" once the
+driver is asynchronous. An optimization measured safe on the hardware it was
+built for is not safe on a newer driver by default — gate pointer-handoff
+paths to the platforms they were proven on. And a graceful reboot can HANG,
+not just fail, when the wedged process sits in a kernel GPU fault — recovery
+tooling needs a forceful tier.** Issue #30.
+
 ## 2026-08-23: benching an archived cvar silently re-configures the machine
 
 An A/B on decals pinned `+r_decals 0` on yosemite and mini-g4.

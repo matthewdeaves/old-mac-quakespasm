@@ -762,6 +762,16 @@ void GL_BuildLightmaps (void)
 	r_framecount = 1; // no dlightcache
 
 	//Spike -- wipe out all the lightmap data (johnfitz -- the gltexture objects were already freed by Mod_ClearAll)
+	//
+	// PPC port (issue #30) -- when client storage handed the driver these
+	// lm->data pointers, "the gltexture objects were already freed" is not
+	// enough: an asynchronous driver may still hold DMA references until
+	// the queued deletes actually execute. Freeing under a live reference
+	// is what corrupted the GeForce 9400's command FIFO (kernel "Fifo:
+	// Parse Error" flood, display wedged until power reset). Drain the
+	// queue first; one glFinish per map load is free at this call rate.
+	if (gl_apple_client_storage_able && lightmap_count > 0)
+		glFinish ();
 	for (i=0; i < lightmap_count; i++)
 		free(lightmaps[i].data);
 	free(lightmaps);

@@ -83,6 +83,10 @@ static int numgltextures;
 static gltexture_t	*active_gltextures, *free_gltextures;
 gltexture_t		*notexture, *nulltexture;
 
+/* forward declaration: full definition + initializer is further down this
+   file, but TexMgr_FreeTexturesForOwner (below) needs it earlier. */
+static GLuint	currenttexture[3];
+
 unsigned int d_8to24table[256];
 unsigned int d_8to24table_fbright[256];
 unsigned int d_8to24table_fbright_fence[256];
@@ -495,18 +499,60 @@ void TexMgr_FreeTextures (unsigned int flags, unsigned int mask)
 /*
 ================
 TexMgr_FreeTexturesForOwner
+
+PPC port -- batches the driver call. A map unload can free hundreds of
+textures, and TexMgr_FreeTexture (via GL_DeleteTexture) used to issue one
+glDeleteTextures(1, &texnum) call per texture in this loop. On mini-sl
+(Macmini3,1, GeForce 9400, Snow Leopard 10.6.8) that rapid-fire pattern
+hung indefinitely inside the driver's texture-reclaim path (gldReclaimTexture
+-> IOConnectCallMethod -> mach_msg_trap never returning; `sample` caught the
+main thread stuck there for a full 3 s window, same GPU as issue #30's
+SIGSEGV). One glDeleteTextures(n, array) call for the whole batch is both
+the standard fix for this class of old-driver bulk-deletion race and cheaper
+regardless of platform, so this isn't gated -- every machine benefits.
 ================
 */
 void TexMgr_FreeTexturesForOwner (qmodel_t *owner)
 {
 	gltexture_t *glt, *next;
+	GLuint texnums[MAX_GLTEXTURES];
+	int count = 0;
 
 	for (glt = active_gltextures; glt; glt = next)
 	{
 		next = glt->next;
 		if (glt && glt->owner == owner)
-			TexMgr_FreeTexture (glt);
+		{
+			if (in_reload_images)
+				continue;
+
+			/* unlink glt from active_gltextures onto free_gltextures,
+			   same bookkeeping TexMgr_FreeTexture does, but defer the
+			   actual glDeleteTextures call to the batch below. */
+			if (active_gltextures == glt)
+				active_gltextures = glt->next;
+			else
+			{
+				gltexture_t *p;
+				for (p = active_gltextures; p && p->next != glt; p = p->next)
+					;
+				if (p)
+					p->next = glt->next;
+			}
+			glt->next = free_gltextures;
+			free_gltextures = glt;
+
+			if (glt->texnum == currenttexture[0]) currenttexture[0] = GL_UNUSED_TEXTURE;
+			if (glt->texnum == currenttexture[1]) currenttexture[1] = GL_UNUSED_TEXTURE;
+			if (glt->texnum == currenttexture[2]) currenttexture[2] = GL_UNUSED_TEXTURE;
+
+			texnums[count++] = glt->texnum;
+			numgltextures--;
+		}
 	}
+
+	if (count > 0)
+		glDeleteTextures (count, texnums);
 }
 
 /*
