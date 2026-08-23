@@ -274,12 +274,55 @@ SHOT_COUNT=\$(ls -1 "\$DEST"/spasm*.tga "\$DEST"/spasm*.png 2>/dev/null | wc -l 
 echo "[screenshot-remote] wrote \$SHOT_COUNT shots into \$DEST"
 EOF
 
+FRAME_CHECK_RC=0
+
 if [ "$DO_FETCH" -eq 1 ]; then
   mkdir -p "$LOCAL_FETCH_DIR"
   echo "[screenshot] fetch copies → $LOCAL_FETCH_DIR/"
+
+  # Hoisted out of the rsync line. It used to be an inline $(ssh ...): if that
+  # ssh failed the substitution went empty and rsync fetched from
+  # "quakespasm-screens-/", a wrong path rather than a visible error.
+  REMOTE_HN="$(ssh "$HOST" 'hostname -s')"
+
+  # rsync's status is captured, not piped. It used to end in
+  # `| tail -8 || true`, which discarded it twice over, so a failed fetch was
+  # indistinguishable from a good one -- and the frames from the PREVIOUS run
+  # stay in $LOCAL_FETCH_DIR, so the check below would have scored those and
+  # reported a pass for a run that fetched nothing.
+  RSYNC_LOG="$(mktemp -t qs-screenshot-rsync)"
+  RSYNC_RC=0
   rsync -av --partial -e ssh \
-    "$HOST:Desktop/quakespasm-screens-$(ssh "$HOST" 'hostname -s')/" \
-    "$LOCAL_FETCH_DIR/" 2>/dev/null | tail -8 || true
+    "$HOST:Desktop/quakespasm-screens-$REMOTE_HN/" \
+    "$LOCAL_FETCH_DIR/" > "$RSYNC_LOG" 2>&1 || RSYNC_RC=$?
+  tail -8 "$RSYNC_LOG"
+
+  # grep -c exits 1 when the count is zero, which under `set -e` would kill
+  # the script on exactly the case this line exists to detect.
+  FETCHED="$(grep -cE '^spasm[0-9]+\.(tga|png)$' "$RSYNC_LOG" || true)"
+  rm -f "$RSYNC_LOG"
+
+  if [ "$RSYNC_RC" -ne 0 ]; then
+    echo "[screenshot] FETCH FAILED (rsync rc=$RSYNC_RC) — not running the frame check."
+    echo "[screenshot] any frames in $LOCAL_FETCH_DIR are from an earlier run."
+    exit 1
+  fi
+
+  if [ "$FETCHED" -eq 0 ]; then
+    echo "[screenshot] rsync transferred no frames — not running the frame check."
+    echo "[screenshot] any frames in $LOCAL_FETCH_DIR are from an earlier run."
+    exit 1
+  fi
+
+  # The picture check. Everything else this repo runs measures frame rate or
+  # liveness; this is the only thing that looks at what was drawn. Issue #26.
+  echo "[screenshot] frame check on $FETCHED fetched frame(s)"
+  "$REPO_ROOT/tests/frame-check.py" "$LOCAL_FETCH_DIR" || FRAME_CHECK_RC=$?
 fi
 
 echo "[screenshot] done — host folder: ~/Desktop/quakespasm-screens-<hostname>/"
+
+if [ "$FRAME_CHECK_RC" -ne 0 ]; then
+  echo "[screenshot] FRAME CHECK FAILED (rc=$FRAME_CHECK_RC) — the frames are kept above for a human to look at." >&2
+  exit "$FRAME_CHECK_RC"
+fi

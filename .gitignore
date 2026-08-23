@@ -45,3 +45,6 @@ Quake/quakespasm.ppc
 # live in ~/Desktop/quakespasm-screens-<hostname>/ on each machine,
 # which is the canonical store. Local copies are for review only.
 /benchmarks/screenshots/
+
+# Python bytecode from tests/
+__pycache__/
