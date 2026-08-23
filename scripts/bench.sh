@@ -35,6 +35,15 @@
 # exec autoexec.cfg. -noarchautoexec is kept so the CFBundle layer doesn't
 # double-apply on top of the staged file. Cleanup removes the temp on exit.
 #
+# id1/config.cfg restore: Host_WriteConfiguration (Quake/host.c) writes every
+# CVAR_ARCHIVE cvar's CURRENT value to id1/config.cfg on clean exit, with no
+# flag to suppress it. A EXTRA_CVARS A/B (e.g. `+r_decals 0`) therefore
+# doesn't just affect this run's fps -- it gets written back to config.cfg
+# and stays there for real play and for the NEXT bench, on any machine we
+# benched, indefinitely (issue #28). Backed up before the run loop and
+# restored by the same EXIT trap that cleans up autoexec.cfg, so this
+# applies regardless of EXTRA_CVARS, not just when it's set.
+#
 # output: appends row to benchmarks/results.csv,
 #         saves raw qconsole.log to benchmarks/raw/
 
@@ -152,6 +161,21 @@ fi
 scp -q "$TMP_AE" "$HOST:Desktop/quake/id1/autoexec.cfg" || \
   echo "[bench] WARN: failed to stage autoexec.cfg on $HOST — bench will run vanilla" >&2
 rm -f "$TMP_AE"
+
+# Snapshot id1/config.cfg BEFORE any run so the EXIT trap can put back
+# whatever was there — whether that's the shipped default or a previous
+# session's state, this run's archived-cvar writes are not it. If no
+# config.cfg exists yet (fresh deploy), record that too, so a config.cfg
+# this run creates gets removed rather than left behind as bench-only state.
+ssh -o ConnectTimeout=10 "$HOST" \
+  'if [ -f ~/Desktop/quake/id1/config.cfg ]; then
+     cp -f ~/Desktop/quake/id1/config.cfg ~/Desktop/quake/id1/config.cfg.qsbench-orig
+   else
+     rm -f ~/Desktop/quake/id1/config.cfg.qsbench-orig
+     touch ~/Desktop/quake/id1/.qsbench-no-config
+   fi' 2>/dev/null || \
+  echo "[bench] WARN: failed to snapshot config.cfg on $HOST — archived cvars from this run may stick (issue #28)" >&2
+
 cleanup_autoexec () {
   # Also stop an engine left running. The per-run teardown covers the normal
   # path; this only matters when the SCRIPT dies (Ctrl-C, parent shell gone,
@@ -159,9 +183,18 @@ cleanup_autoexec () {
   # keeps the display captured and the next thing to launch goes fullscreen on
   # top of it — the Rage 128 / R300 wedge. Same TERM-grace-KILL policy as the
   # run loop. Costs nothing normally: there is no engine left to find.
+  #
+  # config.cfg restore happens here too, same trap, so it fires whether the
+  # script ends normally, gets Ctrl-C'd, or dies mid-run (issue #28).
   ssh -o ConnectTimeout=10 "$HOST" 'if killall -TERM quakespasm 2>/dev/null; then sleep 3; fi
     killall -KILL quakespasm 2>/dev/null
     rm -f ~/Desktop/quake/id1/autoexec.cfg
+    if [ -f ~/Desktop/quake/id1/config.cfg.qsbench-orig ]; then
+      mv -f ~/Desktop/quake/id1/config.cfg.qsbench-orig ~/Desktop/quake/id1/config.cfg
+    elif [ -f ~/Desktop/quake/id1/.qsbench-no-config ]; then
+      rm -f ~/Desktop/quake/id1/config.cfg
+    fi
+    rm -f ~/Desktop/quake/id1/.qsbench-no-config
     true' 2>/dev/null || true
 }
 trap cleanup_autoexec EXIT INT TERM
