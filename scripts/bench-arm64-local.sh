@@ -104,12 +104,13 @@ TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 RAW_DIR="$REPO_ROOT/benchmarks/raw"
 CSV="$REPO_ROOT/benchmarks/results.csv"
 mkdir -p "$RAW_DIR"
-( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars" > "$CSV" ) 2>/dev/null || true
+( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res" > "$CSV" ) 2>/dev/null || true
 
 FS_ARGS="+vid_fullscreen 0"
 [ "${FULLSCREEN:-0}" = "1" ] && FS_ARGS="+vid_fullscreen 1"
 
 declare -a FPS
+RENDERED_RES="$RES"
 for i in $(seq 1 "$RUNS"); do
   echo "[bench-arm64 $DEMO $RES] run $i/$RUNS"
   rm -f "$BASE/qconsole.log"
@@ -143,6 +144,8 @@ for i in $(seq 1 "$RUNS"); do
   if [ -f "$BASE/qconsole.log" ]; then
     cp "$BASE/qconsole.log" "$RAW_DIR/$LOG_NAME"
     FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | awk '{print $5}' || true)
+    MODE_VAL=$(grep -E 'Video mode [0-9]+x[0-9]+' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | sed -E 's/.*Video mode ([0-9]+x[0-9]+).*/\1/' || true)
+    [ -n "$MODE_VAL" ] && RENDERED_RES="$MODE_VAL"
   else
     FPS_VAL=""
     echo "[bench-arm64] WARNING: no qconsole.log for run $i -- recording NA" >&2
@@ -164,5 +167,6 @@ else
 fi
 
 EXTRA_CSV=$(printf '%s' "${EXTRA_CVARS:-}" | tr -d '"')
-echo "$TS,$COMMIT,arm64-local,$DEMO,$RES,$R1,$R2,$R3,$MEDIAN,\"$EXTRA_CSV\"" >> "$CSV"
+echo "$TS,$COMMIT,arm64-local,$DEMO,$RES,$R1,$R2,$R3,$MEDIAN,\"$EXTRA_CSV\",$RENDERED_RES" >> "$CSV"
+[ "$RENDERED_RES" != "$RES" ] && echo "[bench-arm64] NOTE: requested $RES but engine rendered at desktop res $RENDERED_RES"
 echo "[bench-arm64] median = $MEDIAN fps  →  $CSV"

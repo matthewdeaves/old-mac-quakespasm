@@ -15,6 +15,7 @@ import sys
 
 
 FPS_RE = re.compile(r"^\s*(\d+)\s+frames\s+([\d.]+)\s+seconds\s+([\d.]+)\s+fps\s*$")
+VIDEO_MODE_RE = re.compile(r"^Video mode\s+(\d+x\d+)")
 GL_RE = re.compile(r"^GL_(VENDOR|RENDERER|VERSION|MAX_TEXTURE_UNITS):\s*(.+)$")
 DEMO_RE = re.compile(r"^Playing demo from (\S+)\.dem")
 HEAP_RE = re.compile(r"([\d.]+)\s+megabyte heap")
@@ -24,6 +25,7 @@ def parse(path: str) -> dict:
     out: dict = {
         "frames": None, "seconds": None, "fps": None,
         "demo": None,
+        "video_mode": None,
         "gl_vendor": None, "gl_renderer": None, "gl_version": None,
         "gl_max_texture_units": None,
         "heap_mb": None,
@@ -37,6 +39,10 @@ def parse(path: str) -> dict:
                 out["frames"] = int(m.group(1))
                 out["seconds"] = float(m.group(2))
                 out["fps"] = float(m.group(3))
+                continue
+            m = VIDEO_MODE_RE.search(line)
+            if m:
+                out["video_mode"] = m.group(1)
                 continue
             m = GL_RE.match(line)
             if m:

@@ -3,6 +3,15 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-08-25 — `results.csv` recorded requested mode rather than rendered mode (#34).**
+  Machines with `vid_desktopfullscreen 1` (e.g. `imac-g5`, `mini-intel2`) capture
+  the desktop mode (e.g. 1440x900, 1280x1024), ignoring requested `+vid_width` /
+  `+vid_height`, so nominal 640x480 / 1024x768 cells actually rendered at desktop
+  res. Fix: parse initialized mode from `qconsole.log`, record `rendered_res` in
+  `results.csv` (11-column schema, preserving both requested and rendered resolution),
+  and backfill historical rows. `scripts/bench.sh`, `scripts/bench-arm64-local.sh`,
+  `scripts/parallel-bench.sh`, `scripts/parse_qconsole.py`, `Quake/cl_demo.c`.
+
 - **2026-08-23 — GeForce 9400 GPU corruption from client-storage lightmaps
   (#30).** `APPLE_client_storage` handed the driver long-lived pointers into
   `lm->data`; in-place rewrites raced queued draws (worker SIGSEGV) and the

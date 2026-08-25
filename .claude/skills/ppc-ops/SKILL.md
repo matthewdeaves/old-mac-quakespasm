@@ -46,7 +46,7 @@ the gotchas.
 - Build artifacts: `build/quakespasm-{g3,g4,g5,lion,fat}`, gitignored.
 - Deploy targets: `<machine>:~/Desktop/quake/Quakespasm.app`
 - Bench rows: `benchmarks/results.csv`, schema
-  `timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps`.
+  `timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res`.
   Median is over runs 2 and 3; run 1 includes texture-upload warmup.
 - Raw logs: `benchmarks/raw/<commit>_<machine>_<demo>_<res>_run<N>.log`.
   `scripts/parse_qconsole.py <path>` extracts fps and GL info (`--json`).

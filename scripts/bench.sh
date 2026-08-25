@@ -142,7 +142,7 @@ mkdir -p "$RAW_DIR"
 # CSV header (initialize once). Atomic via bash noclobber (`set -C` →
 # O_CREAT|O_EXCL), so two parallel bench.sh procs racing on a missing
 # CSV will result in exactly one header row.
-( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars" > "$CSV" ) 2>/dev/null || true
+( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res" > "$CSV" ) 2>/dev/null || true
 
 # Stage temp id1/autoexec.cfg on the target = per-arch baseline + per-machine
 # overlay concatenated. quake.rc's `exec autoexec.cfg` runs it BEFORE
@@ -204,7 +204,8 @@ cleanup_autoexec () {
 trap cleanup_autoexec EXIT INT TERM
 
 declare -a FPS
-for i in $(seq 1 $RUNS); do
+RENDERED_RES="$RES"
+for i in $(seq 1 "$RUNS"); do
   echo "[bench $TARGET $DEMO $RES] run $i/$RUNS"
   # Belt-and-suspenders: kill any stale quakespasm before each run.
   # Poll: integer `sleep 1` because Panther's /bin/sleep is integer-only
@@ -279,6 +280,8 @@ for i in $(seq 1 $RUNS); do
   rm -f "$RAW_DIR/$LOG_NAME"
   if scp -q "$HOST:Desktop/quake/qconsole.log" "$RAW_DIR/$LOG_NAME" 2>/dev/null; then
     FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | awk '{print $5}' || true)
+    MODE_VAL=$(grep -E 'Video mode [0-9]+x[0-9]+' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | sed -E 's/.*Video mode ([0-9]+x[0-9]+).*/\1/' || true)
+    [ -n "$MODE_VAL" ] && RENDERED_RES="$MODE_VAL"
   else
     FPS_VAL=""
     echo "[bench] WARNING: could not fetch qconsole.log for run $i -- recording NA" >&2
@@ -303,16 +306,14 @@ else
   MEDIAN_LABEL="run${RUNS}"
 fi
 
-# extra_cvars is the LAST column on purpose: the 750 rows written before it
-# existed have nine fields and stay parseable, and anything reading by index
-# is unaffected. Without it the two arms of a cvar A/B are byte-identical in
-# metadata and differ only in fps, which is indistinguishable from a noisy
-# repeat -- and ADR 0009 requires that A/B as the evidence for a regression
-# verdict. Measured 2026-08-22 on a decal A/B whose two rows could not be told
-# apart afterwards. Quoted, and any embedded quote stripped, so a value
-# containing a comma cannot shift the columns.
+# rendered_res records the ACTUAL resolution the display initialized (issue #34).
+# On machines with vid_desktopfullscreen 1 (e.g. imac-g5, mini-intel2), SDL captures
+# the desktop mode regardless of requested res, so res and rendered_res diverge.
+# extra_cvars and rendered_res are the trailing columns so historical rows remain
+# parseable by index.
 EXTRA_CSV=$(printf '%s' "${EXTRA_CVARS:-}" | tr -d '"')
-echo "$TS,$COMMIT,$TARGET,$DEMO,$RES,${FPS[0]:-NA},${FPS[1]:-NA},${FPS[2]:-NA},$MEDIAN,\"$EXTRA_CSV\"" >> "$CSV"
+echo "$TS,$COMMIT,$TARGET,$DEMO,$RES,${FPS[0]:-NA},${FPS[1]:-NA},${FPS[2]:-NA},$MEDIAN,\"$EXTRA_CSV\",$RENDERED_RES" >> "$CSV"
+[ "$RENDERED_RES" != "$RES" ] && echo "[bench] NOTE: requested $RES but engine rendered at desktop res $RENDERED_RES (vid_desktopfullscreen 1)"
 echo "[bench] $MEDIAN_LABEL = $MEDIAN fps  →  $CSV"
 
 # Surface NA runs so the orchestrator (parallel-bench.sh) exits non-zero

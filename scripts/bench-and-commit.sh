@@ -93,7 +93,7 @@ if git diff --cached --quiet; then
 fi
 
 # Build a summary of medians by (machine, demo, res) for the commit message.
-SUMMARY=$(grep ",$COMMIT," "$CSV" | awk -F, '{printf "  %s %-5s %-10s  %s fps\n", $3, $4, $5, $9}' | sort)
+SUMMARY=$(grep ",$COMMIT," "$CSV" | awk -F, '{if ($11 != "" && $11 != $5) printf "  %s %-5s %-10s (rendered %s)  %s fps\n", $3, $4, $5, $11, $9; else printf "  %s %-5s %-10s  %s fps\n", $3, $4, $5, $9}' | sort)
 
 git commit -m "$(cat <<EOF
 bench: ${DESC} (HEAD ${COMMIT})

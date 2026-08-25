@@ -987,7 +987,7 @@ static void CL_SysReport_Write (void)
 	// results.csv-compatible block (matches benchmarks/results.csv schema) so
 	// the rows paste straight into the analysis pipeline. machine = hw.model.
 	fprintf (f, "\nCSV (paste into benchmarks/results.csv)\n");
-	fprintf (f, "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps\n");
+	fprintf (f, "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res\n");
 	for (i = 0; i < sysreport_ndemos; i++)
 	{
 		int r;
@@ -1003,7 +1003,7 @@ static void CL_SysReport_Write (void)
 			else
 				fprintf (f, "NA,");
 		}
-		fprintf (f, "%.2f\n", med);
+		fprintf (f, "%.2f,\"\",%s\n", med, res);
 	}
 
 	fclose (f);

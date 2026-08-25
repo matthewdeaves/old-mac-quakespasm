@@ -99,11 +99,11 @@ if [ "$RESET" -eq 1 ]; then
   fi
   rm -rf "$RAW"
   mkdir -p "$RAW"
-  echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV"
+  echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res" > "$CSV"
   echo "[parallel-bench] --reset: wiped raw/ and results.csv (fresh epoch)"
 else
   mkdir -p "$RAW"
-  ( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps" > "$CSV" ) 2>/dev/null || true
+  ( set -C; echo "timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res" > "$CSV" ) 2>/dev/null || true
   EXISTING_ROWS=$(($(wc -l < "$CSV") - 1))
   echo "[parallel-bench] appending to rolling results.csv ($EXISTING_ROWS existing rows)"
 fi
