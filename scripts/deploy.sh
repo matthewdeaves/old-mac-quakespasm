@@ -128,11 +128,39 @@ echo "[deploy] bundle version: 0.97.0-oldmac-$QS_PORT_VERSION"
 cp "$REPO_ROOT/MacOSX/QuakeSpasm.icns"    "$RESOURCES/"
 cp -r "$REPO_ROOT/MacOSX/English.lproj"   "$RESOURCES/"
 cp "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$STAGE/Quakespasm.app/Contents/MacOS/"
-cp -r "$REPO_ROOT/MacOSX/SDL.framework"   "$STAGE/Quakespasm.app/Contents/MacOS/"
+# -a, not -r: BSD cp -r FOLLOWS symlinks it meets while recursing (only the
+# top-level argument itself is preserved as a link), which flattens
+# SDL.framework's Versions/Current -> Versions/A symlink and everything
+# under it into real files/dirs -- one of the three stacked causes of the
+# "damaged or incomplete" Finder-launch failure on mini-sl (MISTAKES.md,
+# 2026-08-23), still unfixed on this side until now (#30, #35). -a (= -pPR)
+# never follows a symlink, matching make-dmg.sh's own `cp -a` for the same
+# framework.
+cp -a "$REPO_ROOT/MacOSX/SDL.framework"   "$STAGE/Quakespasm.app/Contents/MacOS/"
 
 cp "$BIN" "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 chmod +x "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
+
+# Per-arch baselines + per-machine overlays. host.c picks the right
+# baseline at compile time and the right overlay at runtime via sysctl
+# hw.model. All ship inside the .app so the bundle is self-contained.
+# Comment-stripped, for the same reason make-dmg.sh strips them: Cbuf_Execute
+# splits on ';' before it decides a line is a '//' comment, so a semicolon
+# inside a comment ends the comment and the rest of the sentence is executed.
+#
+# Staged BEFORE signing below, not after: codesign seals Contents/Resources
+# at sign time, and these cfgs land in Resources/ too. Signing first and
+# adding these after (the first cut of this fix did exactly that) leaves the
+# codesign block's own "signed" report true while `codesign -v` on the
+# result fails with "a sealed resource is missing or invalid" -- caught
+# deploying to imac-2019 today.
+for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
+  sed -e 's,//.*,,' -e 's/[[:space:]]*$//' \
+      "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" \
+    | grep -v '^[[:space:]]*$' \
+    > "$RESOURCES/autoexec-$cfg.cfg"
+done
 
 # Ad-hoc code-sign the staged bundle, same recipe and same reasons as
 # make-dmg.sh (issue #35): REQUIRED for Apple Silicon, where macOS refuses to
@@ -154,27 +182,38 @@ if command -v codesign >/dev/null 2>&1; then
       done
   for fw in "$SAPP"/Contents/MacOS/*.framework "$SAPP"/Contents/Frameworks/*.framework; do
     [ -d "$fw" ] || continue
+    # A versioned framework may only have symlinks and Versions/ at its root.
+    # SDL.framework ships License.rtf, ReadMe.txt and UniversalBinaryNotes.rtf
+    # there, and codesign refuses the lot with "unsealed contents present in
+    # the root directory of an embedded framework" -- missed on the first cut
+    # of this block, silently downgraded to a WARN and left the whole bundle
+    # unsigned (verified on imac-2019: "code object is not signed at all").
+    # Same fix as make-dmg.sh: move them under Versions/A/Resources rather
+    # than delete, they're the upstream licence and notes and should ship.
+    for stray in "$fw"/*; do
+      [ -L "$stray" ] && continue
+      [ "$(basename "$stray")" = "Versions" ] && continue
+      mkdir -p "$fw/Versions/A/Resources"
+      mv "$stray" "$fw/Versions/A/Resources/" 2>/dev/null || true
+    done
     codesign --force --sign - "$fw" >/dev/null 2>&1 \
       || echo "[deploy] WARN: could not sign $(basename "$fw")" >&2
   done
   codesign --force --sign - "$SAPP" >/dev/null 2>&1 \
     || echo "[deploy] WARN: could not sign the .app bundle" >&2
+  codesign -v "$SAPP" >/dev/null 2>&1 \
+    || echo "[deploy] WARN: signature still does not validate after signing" >&2
 fi
 
-# Per-arch baselines + per-machine overlays. host.c picks the right
-# baseline at compile time and the right overlay at runtime via sysctl
-# hw.model. All ship inside the .app so the bundle is self-contained.
-# Comment-stripped, for the same reason make-dmg.sh strips them: Cbuf_Execute
-# splits on ';' before it decides a line is a '//' comment, so a semicolon
-# inside a comment ends the comment and the rest of the sentence is executed.
-for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
-  sed -e 's,//.*,,' -e 's/[[:space:]]*$//' \
-      "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" \
-    | grep -v '^[[:space:]]*$' \
-    > "$RESOURCES/autoexec-$cfg.cfg"
-done
-
 echo "[deploy] ship to $HOST:~/Desktop/quake/"
+# Remove any previously-installed Quakespasm.app wholesale before rsync, same
+# reasoning as deploy-dmg.sh. rsync updates a symlink target fine but refuses
+# to REPLACE an existing real file/directory with a symlink ("could not make
+# way for new symlink") -- exactly what happens upgrading a target that still
+# has an old cp -r-flattened SDL.framework (every target deployed before this
+# fix) to today's cp -a one. Best-effort: nothing to remove on a fresh target.
+ssh "$HOST" 'rm -rf ~/Desktop/quake/Quakespasm.app' 2>/dev/null || true
+
 # Migration: pre-v1.4 builds shipped autoexec cfgs to id1/. Remove any
 # stragglers on the target so user-visible id1/ stays clean (engine
 # now loads from Resources/ via CFBundle). Best effort — failure on a
@@ -201,10 +240,21 @@ ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg \
 rsync -av --partial --checksum $RSYNC_EXTRA -e 'ssh -o ServerAliveInterval=15' \
   "$STAGE/" "$HOST:Desktop/quake/" | tail -8
 
+# Shared primitive (issue #35), scp'd over for the remote block below to run
+# and then delete. Best-effort — an old checkout without it just skips the
+# quarantine-clear/lsregister step, same as command -v codesign above.
+if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
+  scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
+fi
+
 # Post-deploy verification: md5 the binary and the icon on the target
 # and compare to the local source. Catches silent rsync-skipped files
 # (we saw this with --partial leaving a 298 KB stale icns on sawtooth).
-LOCAL_BIN_MD5=$(md5sum "$BIN" | awk '{print $1}')
+# From the STAGED copy, not $BIN: ad-hoc signing (above) rewrites the
+# binary's Mach-O signature in place, so $BIN and the shipped copy diverge
+# by design once signing is on -- comparing against $BIN here always
+# false-positives the WARN below. The staged copy is what was actually sent.
+LOCAL_BIN_MD5=$(md5sum "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm" | awk '{print $1}')
 LOCAL_ICN_MD5=$(md5sum "$REPO_ROOT/MacOSX/QuakeSpasm.icns" | awk '{print $1}')
 REMOTE_VERIFY=$(ssh "$HOST" '
   if command -v md5 >/dev/null 2>&1; then
@@ -244,10 +294,18 @@ elif [ -x /Developer/Tools/SetFile ]; then
   /Developer/Tools/SetFile -a c "$APP" 2>/dev/null || true
 fi
 
-# Defensive quarantine clear (issue #35). rsync never sets
-# com.apple.quarantine, so this is normally a no-op — belt and suspenders
-# against anything upstream of this step (Time Machine metadata, a future
-# transport that does set it) leaving the fleet copy quarantined.
-xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+# Defensive quarantine clear + LaunchServices re-register (issue #35, shared
+# primitive from old-mac-build-host#34, copied over by scp above since this
+# whole block runs ON THE TARGET over ssh and the script itself is not part
+# of the shipped bundle). rsync never sets com.apple.quarantine, so the clear is
+# normally a no-op — belt and suspenders against anything upstream of this
+# step (Time Machine metadata, a future transport that does set it) leaving
+# the fleet copy quarantined. lsregister -f matters independently of
+# quarantine: a stale LaunchServices registration for a rebuilt app at this
+# same path can make Finder open the wrong old copy.
+if [ -x ~/.qs-clear-launch-quarantine.sh ]; then
+  ~/.qs-clear-launch-quarantine.sh "$APP" 2>&1 | sed "s/^/[deploy] /"
+  rm -f ~/.qs-clear-launch-quarantine.sh
+fi
 
 echo "[deploy] OK on $(hostname -s)"'

@@ -105,7 +105,7 @@ ssh "$HOST" "
   while [ \$j -lt $TIMEOUT ]; do
     if [ -f qconsole.log ] && \\
        grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
-    # bail early if `open` itself returned (app quit or LaunchServices refused it)
+    # bail early if open itself returned (app quit or LaunchServices refused it)
     if ! kill -0 \$PID 2>/dev/null; then break; fi
     sleep 1; j=\$((j+1))
   done

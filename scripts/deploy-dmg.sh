@@ -77,6 +77,13 @@ RMT_MD5=$(ssh "$HOST" "md5 'Desktop/$DMG_BASE' | awk '{print \$NF}'")
 [ "$LCL_MD5" = "$RMT_MD5" ] || { echo "[deploy-dmg $HOST] FATAL: scp corrupted the DMG ($LCL_MD5 != $RMT_MD5)" >&2; exit 1; }
 echo "[deploy-dmg $HOST] DMG on Desktop verified intact ($RMT_MD5)"
 
+# Shared primitive (issue #35), scp'd over for the remote block below to run
+# and then delete. Best-effort — an old checkout without it just skips the
+# quarantine-clear/lsregister step.
+if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
+  scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
+fi
+
 echo "[deploy-dmg $HOST] mount + install into ~/Desktop/quake/ (preserving id1/ game data)"
 ssh "$HOST" bash -s "$DMG_BASE" <<'REMOTE_EOF'
 set -e
@@ -99,12 +106,18 @@ ditto "$MNT/Quakespasm.app" "$DEST/Quakespasm.app"
 # The engine's own pak (menu/UI assets) lives in the gamedir root beside id1/.
 cp -p "$MNT/quakespasm.pak" "$DEST/quakespasm.pak"
 
-# Defensive quarantine clear (issue #35). The DMG reaches this machine by scp,
+# Defensive quarantine clear + LaunchServices re-register (issue #35, shared
+# primitive from old-mac-build-host#34). The DMG reaches this machine by scp,
 # which never sets com.apple.quarantine, and ditto doesn't add it either, so
-# this is normally a no-op here too — this script's install path was never
-# the one that reproduced the launch bug. It stays as belt and suspenders,
-# and so this script keeps matching deploy.sh's install guarantee exactly.
-xattr -dr com.apple.quarantine "$DEST/Quakespasm.app" 2>/dev/null || true
+# the clear is normally a no-op here too — this script's install path was
+# never the one that reproduced the launch bug. Stays as belt and suspenders,
+# matching deploy.sh's install guarantee exactly. lsregister -f is the part
+# that matters regardless of quarantine: a stale LaunchServices registration
+# for a rebuilt app at this same path can make Finder open the wrong old copy.
+if [ -x "$HOME/.qs-clear-launch-quarantine.sh" ]; then
+  "$HOME/.qs-clear-launch-quarantine.sh" "$DEST/Quakespasm.app"
+  rm -f "$HOME/.qs-clear-launch-quarantine.sh"
+fi
 
 # detach — retry until the slow-disk flush completes; only THEN rmdir the now-
 # empty mountpoint (rmdir can't touch mounted contents, so it's safe).

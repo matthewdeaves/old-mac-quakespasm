@@ -401,6 +401,26 @@ else
 	echo "[make-dmg] WARN: no codesign here; the bundle will NOT run on Apple Silicon" >&2
 fi
 
+# Quarantine clear + LaunchServices re-register on the STAGED bundle, before
+# hdiutil packages it (issue #35, shared primitive from
+# old-mac-build-host#34). This is the fix for the actual reported symptom: a
+# real published DMG downloaded via a browser measured
+# `com.apple.quarantine` on 2026-08-28, and an ad-hoc-signed (not
+# Developer-ID) app under quarantine gets killed by macOS's AppleSystemPolicy
+# a few seconds into an apparently-normal launch — confirmed on imac-2019
+# (Sequoia) by log: "ASP: Security policy would not allow process", ~18s
+# after launch, no crash report. Clearing it here does not stop the
+# quarantine flag being set again on THIS Mac's own download of the DMG we
+# ship (that's the browser/Finder's doing, out of our control, and needs the
+# one-time right-click-Open a real Developer ID + notarization would remove
+# entirely) -- it stops it being set on files nested one level down that
+# would otherwise inherit it independently, and it means an install that
+# reaches a machine any other way than a fresh browser download (rsync,
+# scp+ditto, a file share) is never quarantined via this DMG's own contents.
+if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
+  "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$IMG/Quakespasm.app"
+fi
+
 SRC_SUMS=$(cd "$IMG" && for f in $VERIFY_FILES; do \
              printf '%s  %s\n' "$(md5sum "$f" | cut -d' ' -f1)" "$f"; done)
 
