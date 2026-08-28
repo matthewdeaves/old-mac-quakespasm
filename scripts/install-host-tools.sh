@@ -14,7 +14,7 @@
 # usage: scripts/install-host-tools.sh [host [host...]]
 #   default hosts: yosemite yosemite-tiger sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5
 # env:
-#   HOSTS=...   override host list
+#   HOSTS_ENV=...   override host list (line 45 reads HOSTS_ENV, not HOSTS)
 
 set -euo pipefail
 
