@@ -121,7 +121,7 @@ if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
 killall -KILL quakespasm 2>/dev/null || true
 sleep 1
 cd ~/Desktop/quake || { echo 'NO_INSTALL'; exit 9; }
-rm -f qconsole.log
+[ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
 
 if [ "$LAUNCH_MODE" = open ]; then
   open -W -a "$PWD/Quakespasm.app" --args -nolauncher -basedir . -nosound -condebug \

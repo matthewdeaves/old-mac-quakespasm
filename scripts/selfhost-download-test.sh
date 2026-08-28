@@ -90,7 +90,7 @@ start)
     killall -KILL quakespasm 2>/dev/null || true
     sleep 1
     cd $QDIR
-    rm -f qconsole.log
+    [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
     nohup $BIN -dedicated 4 -nolauncher -basedir . -nosound -condebug \
       +allow_download 1 +sv_public 0 +map $MAP >/dev/null 2>&1 &
     sleep 4

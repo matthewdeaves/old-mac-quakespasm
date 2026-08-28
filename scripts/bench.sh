@@ -226,7 +226,7 @@ for i in $(seq 1 "$RUNS"); do
     killall -KILL quakespasm 2>/dev/null || true
     sleep 1
     cd ~/Desktop/quake
-    rm -f qconsole.log
+    [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
       -fullscreen \\
       -noarchautoexec \\

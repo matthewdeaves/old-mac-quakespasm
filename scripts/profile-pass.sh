@@ -117,7 +117,8 @@ if [ "$SKIP_YOSEMITE" = "0" ]; then
     # timeout in case timedemo hangs (paranoia).
     _claim yosemite ssh yosemite "
       cd ~/Desktop/quake
-      rm -f gmon.out qconsole.log
+      rm -f gmon.out
+      [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
       ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
         -fullscreen -width $W -height $H \
         -noarchautoexec \
@@ -185,7 +186,7 @@ for HOST in sawtooth quicksilver mini-g4; do
   # for SAMPLE_SECS seconds. Kill quakespasm cleanly after sample finishes.
   _claim "$HOST" ssh "$HOST" "
     cd ~/Desktop/quake
-    rm -f qconsole.log
+    [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
       -fullscreen -width $W -height $H \
       -noarchautoexec \

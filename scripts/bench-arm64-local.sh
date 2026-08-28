@@ -113,7 +113,7 @@ declare -a FPS
 RENDERED_RES="$RES"
 for i in $(seq 1 "$RUNS"); do
   echo "[bench-arm64 $DEMO $RES] run $i/$RUNS"
-  rm -f "$BASE/qconsole.log"
+  [ -f "$BASE/qconsole.log" ] && mv -f "$BASE/qconsole.log" "$BASE/qconsole.prev.log"
   # shellcheck disable=SC2086
   "$BIN" -nolauncher -basedir "$BASE" -nosound -condebug -noarchautoexec \
     +vid_width "$W" +vid_height "$H" $FS_ARGS \
