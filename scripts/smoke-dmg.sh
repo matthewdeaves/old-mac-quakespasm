@@ -73,11 +73,22 @@ esac
 TIMEOUT="${SMOKE_TIMEOUT:-$TIMEOUT}"
 COOLDOWN="${SMOKE_COOLDOWN:-$COOLDOWN}"
 
-echo "[smoke $HOST] launching DMG-installed Quakespasm.app with PRODUCTION config (as a human would), demo=$DEMO"
-# Production launch: -basedir . (so id1/ + quakespasm.pak resolve) + -condebug
-# (qconsole.log) + a single +timedemo so it self-terminates. NO -noarchautoexec
-# and NO vid/res override — the CFBundle per-arch + per-machine autoexec drives
-# the renderer. -nosound matches bench.sh: it keeps SIGTERM clean (CoreAudio
+echo "[smoke $HOST] launching DMG-installed Quakespasm.app via LaunchServices (as a human's double-click would), demo=$DEMO"
+# Production launch, via `open`, not a direct binary exec — issue #35. A
+# direct exec (the old form of this script) never goes through LaunchServices,
+# so it never exercised code-signature validation, Gatekeeper quarantine, or
+# App Translocation, and none of those passed a real double-click reliably
+# even when this script did. `open -W -a APP --args ...` is the CLI
+# equivalent of a Finder double-click: same LaunchServices call
+# (LSOpenApplication), same code-signature check, same translocation if the
+# bundle is quarantined. -W waits for it to quit, matching the old script's
+# own wait loop below (belt and suspenders — the loop still bounds it).
+#
+# -basedir . (so id1/ + quakespasm.pak resolve) + -condebug (qconsole.log) +
+# a single +timedemo so it self-terminates, forwarded through --args exactly
+# as they'd reach argv from a direct exec. NO -noarchautoexec and NO vid/res
+# override — the CFBundle per-arch + per-machine autoexec drives the
+# renderer. -nosound matches bench.sh: it keeps SIGTERM clean (CoreAudio
 # threads can ignore TERM) and is orthogonal to the config/render path the
 # corrupt-binary crash lived on. TERM-before-KILL always: a hard KILL leaves the
 # Rage 128 (G3) display LUT wedged and hard-hangs the R300 (Leopard G5).
@@ -87,14 +98,14 @@ ssh "$HOST" "
   sleep 1
   cd ~/Desktop/quake || { echo 'NO_INSTALL'; exit 9; }
   rm -f qconsole.log
-  ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
+  open -W -a \"\$PWD/Quakespasm.app\" --args -nolauncher -basedir . -nosound -condebug \\
     +timedemo $DEMO > /dev/null 2>&1 &
   PID=\$!
   j=0
   while [ \$j -lt $TIMEOUT ]; do
     if [ -f qconsole.log ] && \\
        grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
-    # bail early if the process died without producing an fps line (a crash)
+    # bail early if `open` itself returned (app quit or LaunchServices refused it)
     if ! kill -0 \$PID 2>/dev/null; then break; fi
     sleep 1; j=\$((j+1))
   done

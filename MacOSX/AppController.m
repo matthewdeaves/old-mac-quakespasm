@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #import "ScreenInfo.h"
 #include <sys/sysctl.h>	// hw.model for the settings GUI header + machine map
 #include <math.h>	// fabs (slider change detection)
+#include <dlfcn.h>	// SecTranslocate lookup in -launchCore, issue #35
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
 #if defined(USE_SDL2)
 #import <SDL2/SDL.h>
@@ -336,6 +337,50 @@ static const qssection_t qs_sections[] = {
 #else
     NSString *path = [NSString stringWithCString:gArgv[0] encoding:NSASCIIStringEncoding];
 #endif
+
+    // Issue #35: under Gatekeeper App Translocation (10.12+), a quarantined
+    // .app that a human copied out of the release DMG via Finder is silently
+    // re-executed from a random read-only
+    // /private/var/folders/.../AppTranslocation/<uuid>/d/ container instead
+    // of where it was actually installed. gArgv[0] then points INTO that
+    // container, so the chdir below lands there too, id1/ isn't beside it,
+    // and the engine Sys_Errors out within seconds of an entirely ordinary
+    // double-click. Reproduced on imac-2019 (Sequoia): a Finder-duplicated,
+    // quarantined copy of the app launched from
+    // /private/var/folders/.../AppTranslocation/... and the process was gone
+    // inside 3s; the identical copy with quarantine cleared launched and ran.
+    //
+    // SecTranslocateCreateOriginalPathForURL (Security.framework, 10.12+)
+    // recovers the real pre-translocation path. Looked up with dlsym rather
+    // than declared/linked: the G3/G4 slices build against the 10.3.9 SDK,
+    // the G5 slice against 10.5, and Lion/i386 against a pre-10.12 SDK too —
+    // none of those SDKs know this symbol, and translocation cannot happen
+    // on any OS that old anyway (it postdates all of them). On every one of
+    // those slices dlsym just returns NULL and this block is a no-op; only
+    // the Intel/arm64 slices running on 10.12+ ever take it. The function
+    // pointer's second parameter is declared `void *`, not `CFErrorRef *`,
+    // so the typedef itself doesn't need a CFErrorRef declaration either —
+    // CFErrorRef postdates the 10.3.9 SDK.
+    if ([path rangeOfString:@"/AppTranslocation/"].location != NSNotFound) {
+        void *sec = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY);
+        if (sec) {
+            typedef CFURLRef (*SecTranslocateCreateOriginalPathForURL_t)(CFURLRef, void *);
+            SecTranslocateCreateOriginalPathForURL_t fn = (SecTranslocateCreateOriginalPathForURL_t)
+                dlsym(sec, "SecTranslocateCreateOriginalPathForURL");
+            if (fn) {
+                CFURLRef translocated = (CFURLRef)[NSURL fileURLWithPath:path];
+                CFURLRef original = fn(translocated, NULL);
+                if (original) {
+                    NSString *origPath = [(NSURL *)original path];
+                    if (origPath != nil)
+                        path = origPath;
+                    CFRelease(original);
+                }
+            }
+            dlclose(sec);
+        }
+    }
+
     int i;
     for (i = 0; i < 4; i++)
         path = [path stringByDeletingLastPathComponent];

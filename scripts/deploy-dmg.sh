@@ -99,6 +99,13 @@ ditto "$MNT/Quakespasm.app" "$DEST/Quakespasm.app"
 # The engine's own pak (menu/UI assets) lives in the gamedir root beside id1/.
 cp -p "$MNT/quakespasm.pak" "$DEST/quakespasm.pak"
 
+# Defensive quarantine clear (issue #35). The DMG reaches this machine by scp,
+# which never sets com.apple.quarantine, and ditto doesn't add it either, so
+# this is normally a no-op here too — this script's install path was never
+# the one that reproduced the launch bug. It stays as belt and suspenders,
+# and so this script keeps matching deploy.sh's install guarantee exactly.
+xattr -dr com.apple.quarantine "$DEST/Quakespasm.app" 2>/dev/null || true
+
 # detach — retry until the slow-disk flush completes; only THEN rmdir the now-
 # empty mountpoint (rmdir can't touch mounted contents, so it's safe).
 detached=no

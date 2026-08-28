@@ -134,6 +134,33 @@ cp "$BIN" "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 chmod +x "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
 cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 
+# Ad-hoc code-sign the staged bundle, same recipe and same reasons as
+# make-dmg.sh (issue #35): REQUIRED for Apple Silicon, where macOS refuses to
+# map a page whose code signature does not validate (EXC_BAD_ACCESS, "Code
+# Signature Invalid") — deploy.sh ships the same fat binary make-dmg.sh does,
+# arm64 slice included, so it needs the same signature. It also stabilises the
+# app's code identity so macOS's per-app privacy grants (Desktop folder
+# access) don't re-prompt on every deploy. codesign only exists on the
+# workstation running this script (Lion/PPC hosts never run it locally); a
+# fresh build host without codesign silently skips, same fallback as
+# make-dmg.sh.
+if command -v codesign >/dev/null 2>&1; then
+  echo "[deploy] ad-hoc code-signing the staged bundle"
+  SAPP="$STAGE/Quakespasm.app"
+  find "$SAPP" -type f -name '*.dylib' -not -path '*.framework/*' -print0 \
+    | while IFS= read -r -d '' f; do
+        codesign --force --sign - "$f" >/dev/null 2>&1 \
+          || echo "[deploy] WARN: could not sign ${f#$SAPP/}" >&2
+      done
+  for fw in "$SAPP"/Contents/MacOS/*.framework "$SAPP"/Contents/Frameworks/*.framework; do
+    [ -d "$fw" ] || continue
+    codesign --force --sign - "$fw" >/dev/null 2>&1 \
+      || echo "[deploy] WARN: could not sign $(basename "$fw")" >&2
+  done
+  codesign --force --sign - "$SAPP" >/dev/null 2>&1 \
+    || echo "[deploy] WARN: could not sign the .app bundle" >&2
+fi
+
 # Per-arch baselines + per-machine overlays. host.c picks the right
 # baseline at compile time and the right overlay at runtime via sysctl
 # hw.model. All ship inside the .app so the bundle is self-contained.
@@ -216,5 +243,11 @@ if command -v SetFile >/dev/null 2>&1; then
 elif [ -x /Developer/Tools/SetFile ]; then
   /Developer/Tools/SetFile -a c "$APP" 2>/dev/null || true
 fi
+
+# Defensive quarantine clear (issue #35). rsync never sets
+# com.apple.quarantine, so this is normally a no-op — belt and suspenders
+# against anything upstream of this step (Time Machine metadata, a future
+# transport that does set it) leaving the fleet copy quarantined.
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 
 echo "[deploy] OK on $(hostname -s)"'

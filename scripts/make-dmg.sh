@@ -266,10 +266,10 @@ The final layout:
 
 MODERN macOS (Gatekeeper)
 -------------------------
-The bundle is unsigned, so recent macOS will quarantine it. Either
-right-click Quakespasm.app and choose Open the first time, or run:
-   xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app
-(Not needed on Panther / Tiger / Lion.)
+The bundle is unsigned, so recent macOS quarantines it once it is downloaded.
+The first time, right-click Quakespasm.app and choose Open instead of
+double-clicking -- one click, no Terminal needed. (Not needed on Panther /
+Tiger / Lion, which predate Gatekeeper.)
 
 PER-MACHINE CONFIG
 ------------------
