@@ -62,24 +62,51 @@ clear_one() {
 		status=1
 		return
 	fi
-	# Check presence FIRST, for honest reporting: measured 2026-08-28, `xattr
-	# -dr` (recursive) exits 0 whether or not the attribute was ever present,
-	# unlike plain non-recursive `xattr -d`. Trusting -dr's own exit code
-	# would make every run claim "cleared", including the common case where
-	# there was nothing to clear. -r still runs unconditionally below (cheap,
-	# idempotent, and catches quarantine set on files NESTED inside a bundle
-	# even when the top-level path itself does not carry it).
+	# Presence check: NOT via -p's or -d's or -dr's exit code. Measured
+	# 2026-08-28, two different lies on two different xattr builds -- modern
+	# xattr's `-dr` exits 0 whether or not the attribute was ever present, and
+	# Leopard/PPC's `-p` exits 0 for an attribute that does NOT exist (checked
+	# directly: prints nothing, no error, rc 0). The one thing that actually
+	# reflects reality on both is `-l`'s printed output, so that is the only
+	# thing this script trusts for presence, before OR after removal.
+	has_quarantine() { xattr -l "$1" 2>/dev/null | grep -q '^com\.apple\.quarantine:'; }
+	# Recursive version, for the post-removal check: a top-level-only check
+	# would miss a flag that survived on a file NESTED inside $p, which is
+	# exactly the case the manual walk above exists to fix -- checking only
+	# as deep as the fix claims to reach would let that bug hide.
+	any_quarantine() {
+		find "$1" 2>/dev/null | while IFS= read -r f; do
+			has_quarantine "$f" && echo found
+		done | grep -q found
+	}
+
 	had_flag=0
-	xattr -p com.apple.quarantine "$p" >/dev/null 2>&1 && had_flag=1
-	if out=$(xattr -dr com.apple.quarantine "$p" 2>&1); then
-		if [ "$had_flag" = 1 ]; then
-			echo "clear-launch-quarantine: cleared quarantine on $p"
-		else
-			echo "clear-launch-quarantine: $p carried no quarantine flag"
-		fi
-	else
-		echo "clear-launch-quarantine: xattr failed on $p: $out" >&2
+	has_quarantine "$p" && had_flag=1
+
+	# `-r` itself is not universal: measured live 2026-08-28 on g5-desktop
+	# (Leopard/PPC), `xattr -dr` prints usage and exits 64, leaving the flag
+	# in place -- that xattr predates the -r flag entirely. There is no
+	# Gatekeeper on PPC to need this in the first place, but a generic deploy
+	# step must not blow up there either. Try the fast recursive form first;
+	# fall back to a manual walk (POSIX `find`, no GNU-only flags) applying
+	# non-recursive `-d` per file, which has existed since Panther. Both are
+	# `|| true`d: under `set -e`, an unguarded failing command here would
+	# abort the whole script rather than fall through to the walk.
+	xattr -dr com.apple.quarantine "$p" >/dev/null 2>&1 || true
+	find "$p" 2>/dev/null | while IFS= read -r f; do
+		xattr -d com.apple.quarantine "$f" >/dev/null 2>&1 || true
+	done
+
+	# Verify rather than trust either removal path's exit code -- only the
+	# actual post-state, read the same way as the presence check above,
+	# decides success.
+	if has_quarantine "$p"; then
+		echo "clear-launch-quarantine: quarantine flag survived on $p" >&2
 		status=1
+	elif [ "$had_flag" = 1 ]; then
+		echo "clear-launch-quarantine: cleared quarantine on $p"
+	else
+		echo "clear-launch-quarantine: $p carried no quarantine flag"
 	fi
 
 	# Re-register every .app under $p (or $p itself, if it is one). `-f`
@@ -89,11 +116,17 @@ clear_one() {
 	# so far) but is reported, not swallowed.
 	if [ -x "$LSREGISTER" ]; then
 		if [ "${p##*.}" = "app" ]; then
-			apps="$p"
+			printf '%s\n' "$p"
 		else
-			apps=$(find "$p" -maxdepth 4 -iname "*.app" -print 2>/dev/null || true)
-		fi
-		for a in $apps; do
+			find "$p" -maxdepth 4 -iname "*.app" -print 2>/dev/null
+		fi | while IFS= read -r a; do
+			# NOT `for a in $apps`: this fleet ships bundle names with spaces
+			# ("Marathon 2.app", "Marathon Infinity.app" -- alephone#<TBD>,
+			# measured live 2026-08-28). Word-splitting broke one path into
+			# two nonsense ones and lsregister silently scanned neither. A
+			# `find | while read` loop treats each line as one path
+			# regardless of spaces inside it, same idiom the -r fallback walk
+			# above already uses for the same reason.
 			[ -n "$a" ] || continue
 			"$LSREGISTER" -f "$a" 2>&1 | grep -v '^$' >&2 || true
 			echo "clear-launch-quarantine: re-registered $a"
