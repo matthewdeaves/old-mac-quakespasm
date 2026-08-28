@@ -150,9 +150,8 @@ the `.app` inside is a fat binary that runs natively on each.
 
 Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder
 (e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak`
-(shareware) or `pak0.pak` + `pak1.pak` (registered, buy on
-[Steam](https://store.steampowered.com/app/2310/QUAKE/) /
-[GOG](https://www.gog.com/en/game/quake_the_offering)). On modern macOS, a
+(shareware) or `pak0.pak` + `pak1.pak` (registered, from your own copy of the
+game). On modern macOS, a
 plain double-click on a freshly-downloaded copy can be killed by Gatekeeper a
 few seconds in with no error dialog (this app isn't Developer ID signed) --
 **right-click `Quakespasm.app` and choose Open** instead, once, the same
