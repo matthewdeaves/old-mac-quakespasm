@@ -3,6 +3,15 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-08-28 — bench/smoke/profile scripts deleted qconsole.log as a "clean
+  slate" before every run, destroying the previous run's evidence right when
+  something crashed (cross-port finding, halflife ADR 0018).** The engine's
+  own `LOG_Init` (`Quake/console.c:1332`) opens the log with `O_TRUNC`, so it
+  already truncates on its own next launch -- the `rm -f` bought nothing.
+  Fixed: rotate to `qconsole.prev.log` instead of deleting, across
+  `bench.sh`, `bench-arm64-local.sh`, `profile-pass.sh`,
+  `selfhost-download-test.sh`, `smoke-dmg.sh`. Verified live on mini-intel2.
+
 - **2026-08-28 — quarantined ad-hoc-signed launches killed by Gatekeeper ~18s
   in, no crash report (#35).** `AppleSystemPolicy` terminates an ad-hoc-signed
   (not Developer-ID) app under `com.apple.quarantine` a few seconds into an
