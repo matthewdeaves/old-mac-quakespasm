@@ -1,11 +1,36 @@
 # Rebuilding the fat SDL.framework
 
 Once-per-version-bump procedure; not needed for normal work. Why the framework
-looks like this (two hand-built PowerPC slices, the `install_name_tool -id`
+looks like this (hand-built PowerPC slice, the `install_name_tool -id`
 re-id, and why SDL 1.2 rather than SDL2) is ADR 0003.
 
 The shipped `SDL.framework/Versions/A/SDL` is fat:
-**`x86_64 i386 ppc ppc970`**.
+**`x86_64 i386 ppc`**.
+
+## 2026-08-29: the dedicated ppc970 slice was removed
+
+Cross-port finding from quake2 (lowering their own G5 floor to 10.3): the
+ppc970 slice (added 154aacb0, 2026-05-31) links a Leopard-only Carbon symbol
+(`_kTISPropertyUnicodeKeyLayoutData`, Text Input Sources API, 10.5+) and
+crashes at dyld load on a G5 below Leopard. A generic 10.3.9-SDK PPC slice
+predates that API and works on any PowerPC OS floor this port ships.
+
+ADR 0003 built the dedicated slice specifically because "the Panther build's
+fullscreen path is suspect on Leopard" -- real-hardware-verified this doesn't
+actually regress: dropped the ppc970 slice entirely (G5 now falls back to the
+same generic `ppc` slice G3/G4 already use, same mechanism dyld already uses
+for a G4 host falling back from a missing ppc970 slice), deployed to real
+imac-g5 (ATI Radeon 9600, Leopard 10.5.8), ran a full native-resolution
+(1440x900) FULLSCREEN timedemo: clean completion, 102.5 fps, no visual
+corruption, no crash -- matching (not regressing) the prior ppc970-slice
+result (102.3 fps) on the same hardware. The separate GL-1.x GPU-hang gate for
+the ATI R300 (same 154aacb0 commit, but in the engine's own renderer-string
+gating, not SDL) is unaffected -- confirmed still active in the console log
+regardless of which SDL slice is loaded.
+
+The "Add the ppc970 Leopard slice" recipe below is kept for history/reference
+only; do not re-add that slice without a fresh reason and a fresh real-Leopard
+fullscreen verification pass, not just a build-correctness check.
 
 ## Build the Panther `ppc` slice (`SDL-panther.dylib`)
 

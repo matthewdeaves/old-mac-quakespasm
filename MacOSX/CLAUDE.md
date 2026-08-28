@@ -13,7 +13,9 @@ decisions behind it are ADR 0001 (slices and floors), ADR 0003 (SDL), ADR 0004
 /usr/bin/gcc-4.2                llvm-gcc-4.2.1, Intel fallback, unused
 /Developer/SDKs/MacOSX10.3.9.sdk    G3 and G4 targets
 /Developer/SDKs/MacOSX10.4u.sdk     present, no longer used by a shipped slice
-/Developer/SDKs/MacOSX10.5.sdk      G5 target, and the ppc970 SDL slice
+/Developer/SDKs/MacOSX10.5.sdk      G5 target only (2026-08-29: the SDL
+                                     framework's own dedicated ppc970 slice
+                                     was removed, #39; see SDL-rebuild.md)
 ```
 
 Read-only and shared with the Q2 port. **Never modify.**
