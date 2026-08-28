@@ -88,10 +88,29 @@ fi
 case "$TARGET" in
   g3)
     MACH_TYPE=ppc
-    CC=/usr/bin/gcc-4.0
-    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
     VMIN=10.3
     CPUFLAGS='-mcpu=750 -O3'
+    if [ "$LION" = "imac-2019" ]; then
+      # GCC14 cross-compiler path (#37/#39, build-host). Apple's own
+      # gcc-4.0 doesn't exist on Sequoia at all; this is a genuinely
+      # different toolchain, not just a different SDK path. -nostdinc +
+      # explicit -isystem order is REQUIRED here -- without it GCC14's own
+      # fixincludes pulls a mismatched machine/ansi.h regardless of the
+      # target SDK (measured 2026-08-28/29, build-host root-caused it).
+      # Hardcoded /Users/mini, NOT $HOME: this string is expanded HERE on
+      # the orchestration host (this workstation's $HOME, not imac-2019's)
+      # before being embedded in the remote ssh/make command below -- hit
+      # this exact bug once already today on the i386 path, repeating it
+      # here would be the same mistake twice.
+      CC14BASE="/Users/mini/gcc14-ppc"
+      GCCINCBASE="$CC14BASE/lib/gcc/powerpc-apple-darwin8/14.2.0"
+      SDK="/Users/mini/SDKs/MacOSX10.3.9.sdk"
+      CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc-14.2.0"
+      CPUFLAGS="$CPUFLAGS -nostdinc -isystem $GCCINCBASE/include -isystem $GCCINCBASE/../../../../powerpc-apple-darwin8/include -isystem $SDK/usr/include -iframework $SDK/System/Library/Frameworks"
+    else
+      CC=/usr/bin/gcc-4.0
+      SDK=/Developer/SDKs/MacOSX10.3.9.sdk
+    fi
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
     # `-Wl,-w` silences the cosmetic `-mlong-branch which is no longer
     # needed` linker warnings emitted by Apple's own crt1.o/crt2.o on
