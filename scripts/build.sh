@@ -106,7 +106,15 @@ case "$TARGET" in
       GCCINCBASE="$CC14BASE/lib/gcc/powerpc-apple-darwin8/14.2.0"
       SDK="/Users/mini/SDKs/MacOSX10.3.9.sdk"
       CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc-14.2.0"
-      CPUFLAGS="$CPUFLAGS -nostdinc -isystem $GCCINCBASE/include -isystem $GCCINCBASE/../../../../powerpc-apple-darwin8/include -isystem $SDK/usr/include -iframework $SDK/System/Library/Frameworks"
+      # -include the ptrdiff_t compat shim (build-host, root-caused): Panther's
+      # own ppc/ansi.h sets the _BSD_PTRDIFF_T_ guard macro GCC14's stddef.h
+      # also checks, without emitting a typedef, so stddef.h thinks
+      # ptrdiff_t is already provided and skips its own definition. A
+      # re-include of <stddef.h> from our own source can't fix it (standard
+      # include guard, no-op on the second pass) -- this shim forces the
+      # typedef directly via -include, ahead of any source file's own
+      # includes. See scripts/gcc14-ptrdiff-compat.h.
+      CPUFLAGS="$CPUFLAGS -nostdinc -isystem $GCCINCBASE/include -isystem $GCCINCBASE/../../../../powerpc-apple-darwin8/include -isystem $SDK/usr/include -iframework $SDK/System/Library/Frameworks -include ../scripts/gcc14-ptrdiff-compat.h"
     else
       CC=/usr/bin/gcc-4.0
       SDK=/Developer/SDKs/MacOSX10.3.9.sdk
@@ -138,24 +146,37 @@ case "$TARGET" in
     # slice), so nothing is given up on the Tiger G4s — verified by bench.
     # Same fix as the sister Half-Life port's v1.1.0.
     MACH_TYPE=ppc
-    CC=/usr/bin/gcc-4.0
-    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
     VMIN=10.3
-    #
-    # -isystem <gcc-4.0 include>: gl_texmgr.c's AltiVec mip path includes
-    # <altivec.h>, which is a COMPILER header, not an SDK one. The 10.4u SDK
-    # happened to satisfy it; the 10.3.9 SDK does not, and -isysroot confines
-    # the search to the sysroot, so point at gcc-4.0's own include dir
-    # explicitly. Same workaround the Half-Life port needed for its min-10.3
-    # G4 slice. (The path is on the cross-build host, mini-intel.)
-    #
     # -faltivec: enables Apple's context-sensitive `vector` keyword. REQUIRED
     # here and not under 10.4u, because the 10.3.9 SDK's Carbon
     # MachineExceptions.h declares an AltiVec `vector` field (pulled in via
     # AppController.m / pl_osx.m) and won't parse without it. -maltivec alone is
     # codegen only. Same requirement the Half-Life port hit on its min-10.3 G4
     # slice.
-    CPUFLAGS='-mcpu=7400 -faltivec -maltivec -mabi=altivec -O3 -mtune=7450 -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include'
+    CPUFLAGS='-mcpu=7400 -faltivec -maltivec -mabi=altivec -O3 -mtune=7450'
+    if [ "$LION" = "imac-2019" ]; then
+      # GCC14 cross-compiler path (#37/#39, build-host) -- see the g3 case
+      # above for the ansi.h/ptrdiff_t rationale, identical here since this
+      # is the same 10.3.9 SDK. GCC14 bundles its own altivec.h in
+      # $GCCINCBASE/include (already on the -isystem list below), so the
+      # gcc-4.0-specific "-isystem .../powerpc-apple-darwin10/4.0.1/include"
+      # workaround for that header doesn't apply to this toolchain.
+      CC14BASE="/Users/mini/gcc14-ppc"
+      GCCINCBASE="$CC14BASE/lib/gcc/powerpc-apple-darwin8/14.2.0"
+      SDK="/Users/mini/SDKs/MacOSX10.3.9.sdk"
+      CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc-14.2.0"
+      CPUFLAGS="$CPUFLAGS -nostdinc -isystem $GCCINCBASE/include -isystem $GCCINCBASE/../../../../powerpc-apple-darwin8/include -isystem $SDK/usr/include -iframework $SDK/System/Library/Frameworks -include ../scripts/gcc14-ptrdiff-compat.h"
+    else
+      # -isystem <gcc-4.0 include>: gl_texmgr.c's AltiVec mip path includes
+      # <altivec.h>, which is a COMPILER header, not an SDK one. The 10.4u SDK
+      # happened to satisfy it; the 10.3.9 SDK does not, and -isysroot confines
+      # the search to the sysroot, so point at gcc-4.0's own include dir
+      # explicitly. Same workaround the Half-Life port needed for its min-10.3
+      # G4 slice. (The path is on the cross-build host, mini-intel.)
+      CC=/usr/bin/gcc-4.0
+      SDK=/Developer/SDKs/MacOSX10.3.9.sdk
+      CPUFLAGS="$CPUFLAGS -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include"
+    fi
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
     ;;
