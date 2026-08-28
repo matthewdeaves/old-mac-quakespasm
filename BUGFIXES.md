@@ -3,6 +3,29 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-08-28 — i386 slice moved to imac-2019 (user directive, speed).**
+  Not a straight host swap: unlike the Lion minis (where "no isysroot"
+  naturally resolves to a compatible OS since the compiler runs ON a
+  Lion-class machine), imac-2019's default clang SDK is Sequoia's, a dozen
+  releases newer than the 10.4 deployment target. Pinned an explicit
+  `-isysroot` at the `MacOSX10.4u.sdk` already staged there (for #37's PPC
+  work) when `LION=imac-2019`; unchanged (`SDK=""`) on the Lion minis.
+  Verified via `otool -l`/`lipo -detailed_info`: correct `i386` architecture,
+  correct `LC_VERSION_MIN_MACOSX` 10.4, real quakespasm source (not a toy
+  test) built and linked clean. `build-fat.sh` claims imac-2019 for this one
+  sub-build, falls back to the main build host if it's unavailable. The
+  sibling `lion`/x86_64 slice was deliberately NOT moved -- no portable SDK
+  exists to pin it against elsewhere. `scripts/build.sh`, `scripts/build-fat.sh`,
+  ADR 0005.
+
+- **2026-08-28 — `qsreboot-setup.sh` printed the wrong host name in its own
+  "test this" suggestion.** `$(hostname -s)` is the target Mac's own
+  OS-reported name, not the ssh alias the orchestration host uses to reach
+  it -- that mapping only exists in the orchestration host's own
+  `~/.ssh/config` and isn't knowable from the target side. Printed a garbled
+  name on quad-tiger. Fixed: generic placeholder instead of a guess that can
+  be wrong. `scripts/host-bin/qsreboot-setup.sh`.
+
 - **2026-08-28 — bench/smoke/profile scripts deleted qconsole.log as a "clean
   slate" before every run, destroying the previous run's evidence right when
   something crashed (cross-port finding, halflife ADR 0018).** The engine's

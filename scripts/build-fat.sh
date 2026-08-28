@@ -83,7 +83,27 @@ echo "[build-fat] sub-build 4/5: lion"
 scripts/build.sh lion
 
 echo "[build-fat] sub-build 5/5: i386"
-scripts/build.sh i386
+# User directive 2026-08-28: move this slice to imac-2019 (6-core 3.7GHz i5,
+# faster than the aging Lion minis) -- unlike lion/x86_64, i386 has a real
+# staged SDK there already (build.sh's i386 case pins it explicitly when
+# LION=imac-2019), so this is a verified, not assumed, host move. Falls back
+# to the same host as everything else if imac-2019 is unavailable, rather
+# than failing the whole fat build over a speed optimization.
+I386_HOST=""
+I386_HOST_CLAIMED=0
+if BUILD_HOSTS=imac-2019 "$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build-fat i386" \
+     > /tmp/qs-i386-host.$$ 2>/dev/null; then
+  I386_HOST="$(cat /tmp/qs-i386-host.$$)"
+  I386_HOST_CLAIMED=1
+  echo "[build-fat] i386 sub-build routed to $I386_HOST"
+else
+  I386_HOST="$BUILD_HOST"
+  echo "[build-fat] imac-2019 unavailable for i386; falling back to $BUILD_HOST"
+fi
+rm -f /tmp/qs-i386-host.$$
+BUILD_HOST="$I386_HOST" scripts/build.sh i386
+[ "$I386_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" --release "$I386_HOST" >/dev/null 2>&1
+true
 
 # All five mini-buildable slices present?
 for arch in g3 g4 g5 lion i386; do

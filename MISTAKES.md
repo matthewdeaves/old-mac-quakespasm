@@ -13,6 +13,48 @@ live in the ADR named at the end of the entry and are not repeated here.
 
 ---
 
+## 2026-08-28: a modern tool's default silently assumes a modern Mac -- check every one against the actual old-Mac target, never infer from "it compiled"
+
+Same shape hit three times in one session, none landed broken (caught before
+shipping each time), but the pattern is worth naming so it isn't rediscovered
+the hard way:
+
+1. **G5 slice on Panther/Tiger**: `build.sh`'s g5 case is deliberately
+   `-mmacosx-version-min=10.5` (Leopard-only, matches this repo's stated
+   floor). dyld picks that slice on ANY G5 CPU regardless of the booted OS
+   (fat-binary selection is CPU-subtype based, not OS-aware), so it loads on
+   g5-panther/g5-tiger/quad-tiger and crashes: `dyld: Symbol not found:
+   ___stderrp`/`_kTISPropertyUnicodeKeyLayoutData`, missing on the older
+   libSystem/Carbon. Not a bug -- confirmed 3 for 3, always the same cause.
+2. **create-dmg's DMG layout** (issue #38): tested before wiring into
+   `make-dmg.sh`, not after. `create-dmg`'s own verbose output showed a GPT
+   (GUID Partition Table) image -- our existing DMGs are Apple Partition Map,
+   which is what PowerPC Mac OS X needs; GPT support in Apple's own tooling is
+   Intel-era. Adopting it as-is would have made every release DMG unmountable
+   on the fleet's oldest, most floor-critical machines. Not wired in until
+   this is resolved.
+3. **imac-2019 as an Intel build host** (issue #37): moving the `i386` slice
+   there looked like a free win ("no cross-compiler needed"), but its default
+   clang SDK is Sequoia's, a dozen OS releases newer than the 10.4 deployment
+   target -- nothing like the Lion minis, where "no isysroot" naturally
+   resolves to a compatible OS because the compiler runs ON a Lion-class
+   machine. Fixed by pinning an explicit `-isysroot` at an old SDK already
+   staged there, verified via `otool -l`/`lipo` before trusting it, not
+   assumed. The sibling `lion`/x86_64 slice has no such SDK available to pin
+   at all and was deliberately left on the Lion minis rather than guessed at.
+
+**The lesson**: a modern host running a modern tool with an old
+`-mmacosx-version-min`/deployment-target flag is not the same as building on
+(or for) the actual old OS. Weak-linking and deployment-target flags paper
+over API surface, not partition schemes, ABI-era startup objects, or which
+SDK's headers actually got compiled against. "It compiled" and "the flag
+looks right" are not verification -- check the actual output (`lipo
+-detailed_info`, `otool -l` for `LC_VERSION_MIN_MACOSX`, or the packaging
+tool's own verbose output) every time a build or packaging step moves to
+newer hardware, before trusting it near a release.
+
+---
+
 ## 2026-08-23: APPLE_client_storage on an async driver corrupted a GPU until power reset
 
 Phase 2.2 enabled `APPLE_client_storage` for lightmap uploads: the driver keeps

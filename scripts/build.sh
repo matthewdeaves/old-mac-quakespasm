@@ -223,13 +223,38 @@ case "$TARGET" in
     #
     # NOT TESTED ON HARDWARE: there is no 32-bit-only Intel Mac in the fleet.
     # This is build-correct only. The README says so.
+    #
+    # Host-dependent SDK (2026-08-28, user directive to move this slice to
+    # imac-2019 for speed): on a Lion mini, "no isysroot" naturally resolves
+    # to a compatible OS (the compiler's default SDK IS Lion's own, weak-
+    # linking down to 10.4 from a close relative). imac-2019 is Sequoia --
+    # its own default SDK is a dozen OS releases newer, not something to
+    # weak-link an ancient target against untested (same shape as the G5/
+    # VMIN mismatch, issue #35's launch matrix). It DOES have a genuine
+    # 10.4u SDK already staged (for the PPC cross-compiler, #37) -- pin an
+    # explicit isysroot there instead of trusting a default. Verified
+    # 2026-08-28: clean compile+link, correct i386 architecture, correct
+    # LC_VERSION_MIN_MACOSX 10.4 (two deprecation warnings only, cosmetic --
+    # modern ld complaining about an old target, same category already
+    # silenced elsewhere in this file with -Wl,-w). The Lion minis are
+    # UNCHANGED: still SDK="", still their own proven default.
     MACH_TYPE=x86
     CC=/usr/bin/clang
-    SDK=""
     VMIN=10.4
+    if [ "$LION" = "imac-2019" ]; then
+      # Hardcoded, not $HOME: this string is expanded HERE, on the
+      # orchestration host, before being embedded in the remote ssh/make
+      # command below -- $HOME at this point is this workstation's home,
+      # not imac-2019's ("mini"). Every ssh target in this fleet's config
+      # is the "mini" user (see ~/.ssh/config), so this path is stable.
+      SDK="/Users/mini/SDKs/MacOSX10.4u.sdk"
+      SYSROOT="-isysroot $SDK"
+    else
+      SDK=""
+      SYSROOT=""
+    fi
     CPUFLAGS='-arch i386 -mmacosx-version-min=10.4 -O3 -Qunused-arguments'
     EXTRA_LDFLAGS=''
-    SYSROOT=""
     ;;
   arm64)
     echo "build.sh: arm64 cannot be built here. Lion's Xcode 4.6 toolchain" >&2

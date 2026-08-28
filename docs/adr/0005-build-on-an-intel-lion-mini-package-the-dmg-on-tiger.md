@@ -104,6 +104,23 @@ clang.** Reopen only if the Lion box is ever replaced by one with LLVM 3.4+ (for
 IR-PGO) or LLVM 7+ (for worthwhile LTO). Intel gains have to come from
 source-level changes.
 
+## Amendment, 2026-08-28: i386 may also build on imac-2019
+
+User directive: use imac-2019 (6-core i5, faster than the aging Lion minis)
+for build work where it's actually safe. The `i386` slice qualifies: unlike
+`lion`/x86_64 (which relies on running natively on a Lion-class OS, no
+portable SDK exists to pin elsewhere and none was tried), `i386` already had
+a real `MacOSX10.4u.sdk` staged on imac-2019 for the PPC cross-compiler
+effort (#37). `build.sh`'s i386 case now pins `-isysroot` at it explicitly
+when `LION=imac-2019`, verified via `otool -l`/`lipo -detailed_info` before
+trusting it (correct `i386` architecture, `LC_VERSION_MIN_MACOSX` 10.4) --
+not assumed from "no cross-compiler needed" (see MISTAKES.md, 2026-08-28,
+for why that assumption isn't automatically safe). `build-fat.sh` claims
+imac-2019 for this one sub-build only, falling back to the same host as
+everything else if it's unavailable. The other three PowerPC slices and
+`lion` are unchanged: still one claimed Lion mini, still the SDKs this ADR
+already names.
+
 ## Consequences
 
 - One toolchain, one set of SDKs, either mini able to build any slice, and this
