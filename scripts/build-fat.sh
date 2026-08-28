@@ -89,20 +89,25 @@ echo "[build-fat] sub-build 5/5: i386"
 # LION=imac-2019), so this is a verified, not assumed, host move. Falls back
 # to the same host as everything else if imac-2019 is unavailable, rather
 # than failing the whole fat build over a speed optimization.
+# NOT pick-build-host.sh: it hardcodes an expected OS of "10.7*" for
+# anything in its pool (mini-sl's wrong-os check, scripts/pick-build-host.sh)
+# -- imac-2019 (15.7.9) fails that unconditionally, regardless of
+# BUILD_HOSTS override, so acquiring it that way silently always fails and
+# always falls back (measured 2026-08-28: every single build-fat.sh run
+# fell back, even with imac-2019 genuinely idle -- this was the real cause,
+# not fleet contention as first assumed). pick-bench-host.sh already knows
+# imac-2019's real OS correctly; use that instead.
 I386_HOST=""
 I386_HOST_CLAIMED=0
-if BUILD_HOSTS=imac-2019 "$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build-fat i386" \
-     > /tmp/qs-i386-host.$$ 2>/dev/null; then
-  I386_HOST="$(cat /tmp/qs-i386-host.$$)"
+if I386_HOST="$("$REPO_ROOT/scripts/pick-bench-host.sh" --acquire imac-2019 "quakespasm build-fat i386" 2>/dev/null)"; then
   I386_HOST_CLAIMED=1
   echo "[build-fat] i386 sub-build routed to $I386_HOST"
 else
   I386_HOST="$BUILD_HOST"
   echo "[build-fat] imac-2019 unavailable for i386; falling back to $BUILD_HOST"
 fi
-rm -f /tmp/qs-i386-host.$$
 BUILD_HOST="$I386_HOST" scripts/build.sh i386
-[ "$I386_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" --release "$I386_HOST" >/dev/null 2>&1
+[ "$I386_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-bench-host.sh" --release "$I386_HOST" >/dev/null 2>&1
 true
 
 # All five mini-buildable slices present?
