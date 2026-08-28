@@ -29,4 +29,13 @@ This is a lightweight router. For specific scenarios, consult the following isol
 - `docs/README.md` - Index of features, research, archive.
 
 ## Continuous Integration
-- All builds and CI are centrally managed by **`old-mac-build-host`**, which acts as the single source of truth. There are no local GitHub Actions or Jenkins pipelines in this repository.
+- `.github/workflows/build-mac.yml` (arm64 via `Makefile.darwin`) and
+  `build-linux.yml` (clang+gcc via `Makefile`) are this repo's own CI: do the
+  current sources still compile on a stock toolchain, on every push and PR.
+  Fat-binary fusing, PowerPC, and fleet deploy/smoke are a different concern,
+  owned by **`old-mac-build-host`**'s Jenkins jobs (manually/API-triggered,
+  not push-triggered) — that is deploy-time verification, not commit-level
+  CI, and does not substitute for the workflow files. Public-repo rule: keep
+  these green on `master` (2026-08-28, after a Gemini-authored commit
+  deleted both files on the unverified claim that build-host covered CI —
+  it does not; restored in the commit that added this line).
