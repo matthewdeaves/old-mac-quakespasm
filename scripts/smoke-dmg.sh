@@ -48,20 +48,33 @@ if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [
 fi
 DEMO="${2:-demo1}"
 
+# LAUNCH_MODE picks how this host gets tested. "open" uses
+# `open -W -a APP --args ...`, the real LaunchServices path (LSOpenApplication)
+# -- same call a Finder double-click makes, so it exercises code-signature
+# validation, Gatekeeper quarantine and App Translocation, none of which a
+# direct exec ever touched (issue #35). "exec" falls back to the old direct
+# binary exec. Not a downgrade for every PowerPC/pre-Gatekeeper target: `open`
+# itself didn't grow -W until Leopard and didn't grow --args until Snow
+# Leopard -- measured directly on this fleet, Panther's and Tiger's `open`
+# treat `-W` as a FILENAME ("No such file: .../-W"), Leopard's has -W but no
+# --args. None of Panther/Tiger/Leopard have Gatekeeper at all (it postdates
+# all three), so a direct exec already exercises everything that OS can do to
+# a launch; "open" mode here would just be a syntax error, not a stronger
+# test.
 case "$HOST" in
-  yosemite)    TIMEOUT=240; COOLDOWN=5 ;;
+  yosemite)    TIMEOUT=240; COOLDOWN=5; LAUNCH_MODE=exec ;;
   # Same PowerMac1,1 as yosemite, booted from its Tiger partition.
-  yosemite-tiger) TIMEOUT=240; COOLDOWN=5 ;;
-  sawtooth)    TIMEOUT=180; COOLDOWN=3 ;;
-  quicksilver) TIMEOUT=120; COOLDOWN=2 ;;
-  mini-g4)     TIMEOUT=120; COOLDOWN=2 ;;
-  imac-g5)     TIMEOUT=110; COOLDOWN=2 ;;
-  mini-intel)  TIMEOUT=60;  COOLDOWN=1 ;;
-  imac-2019)   TIMEOUT=45;  COOLDOWN=1 ;;
+  yosemite-tiger) TIMEOUT=240; COOLDOWN=5; LAUNCH_MODE=exec ;;
+  sawtooth)    TIMEOUT=180; COOLDOWN=3; LAUNCH_MODE=exec ;;
+  quicksilver) TIMEOUT=120; COOLDOWN=2; LAUNCH_MODE=exec ;;
+  mini-g4)     TIMEOUT=120; COOLDOWN=2; LAUNCH_MODE=exec ;;
+  imac-g5)     TIMEOUT=110; COOLDOWN=2; LAUNCH_MODE=exec ;;
+  mini-intel)  TIMEOUT=60;  COOLDOWN=1; LAUNCH_MODE=open ;;
+  imac-2019)   TIMEOUT=45;  COOLDOWN=1; LAUNCH_MODE=open ;;
   g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger)
-               TIMEOUT=120; COOLDOWN=2 ;;
-  mini-intel2) TIMEOUT=60;  COOLDOWN=1 ;;
-  mini-sl)     TIMEOUT=60;  COOLDOWN=1 ;;
+               TIMEOUT=120; COOLDOWN=2; LAUNCH_MODE=exec ;;
+  mini-intel2) TIMEOUT=60;  COOLDOWN=1; LAUNCH_MODE=open ;;
+  mini-sl)     TIMEOUT=60;  COOLDOWN=1; LAUNCH_MODE=open ;;
   *) echo "unknown machine: $HOST" >&2; exit 2 ;;
 esac
 
@@ -92,29 +105,51 @@ echo "[smoke $HOST] launching DMG-installed Quakespasm.app via LaunchServices (a
 # threads can ignore TERM) and is orthogonal to the config/render path the
 # corrupt-binary crash lived on. TERM-before-KILL always: a hard KILL leaves the
 # Rage 128 (G3) display LUT wedged and hard-hangs the R300 (Leopard G5).
-ssh "$HOST" "
-  if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
-  killall -KILL quakespasm 2>/dev/null || true
-  sleep 1
-  cd ~/Desktop/quake || { echo 'NO_INSTALL'; exit 9; }
-  rm -f qconsole.log
-  open -W -a \"\$PWD/Quakespasm.app\" --args -nolauncher -basedir . -nosound -condebug \\
-    +timedemo $DEMO > /dev/null 2>&1 &
-  PID=\$!
-  j=0
-  while [ \$j -lt $TIMEOUT ]; do
-    if [ -f qconsole.log ] && \\
-       grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
-    # bail early if open itself returned (app quit or LaunchServices refused it)
-    if ! kill -0 \$PID 2>/dev/null; then break; fi
-    sleep 1; j=\$((j+1))
-  done
-  killall -TERM quakespasm 2>/dev/null
-  sleep 2
-  killall -KILL quakespasm 2>/dev/null || true
-  wait \$PID 2>/dev/null
-  sleep $COOLDOWN
-  true"
+# Built as a heredoc with a QUOTED delimiter ('REMOTE_EOF'), not the
+# double-quoted-string-with-backslash-escapes form this script used to use --
+# that form needs every remote-side $var and every literal backslash escaped
+# an extra time for each layer, and got it wrong twice already today (a
+# stray backtick, then this same LAUNCH_MODE branch). A quoted heredoc sends
+# its body byte-for-byte with NO local expansion at all, so remote-side `$`
+# and `\` are written exactly as they should run; only DEMO/TIMEOUT/
+# LAUNCH_MODE cross the local/remote boundary, as explicit positional args.
+ssh "$HOST" bash -s "$DEMO" "$TIMEOUT" "$COOLDOWN" "$LAUNCH_MODE" <<'REMOTE_EOF'
+set -u
+DEMO="$1"; TIMEOUT="$2"; COOLDOWN="$3"; LAUNCH_MODE="$4"
+
+if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
+killall -KILL quakespasm 2>/dev/null || true
+sleep 1
+cd ~/Desktop/quake || { echo 'NO_INSTALL'; exit 9; }
+rm -f qconsole.log
+
+if [ "$LAUNCH_MODE" = open ]; then
+  open -W -a "$PWD/Quakespasm.app" --args -nolauncher -basedir . -nosound -condebug \
+    +timedemo "$DEMO" > /dev/null 2>&1 &
+else
+  # Pre-Snow-Leopard `open` has neither -W nor --args (measured on this fleet:
+  # Panther and Tiger take -W as a literal filename, Leopard has -W but not
+  # --args) and none of the three have Gatekeeper to exercise anyway, so a
+  # direct exec is not a weaker test here, just the only one `open` supports.
+  ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
+    +timedemo "$DEMO" > /dev/null 2>&1 &
+fi
+PID=$!
+j=0
+while [ "$j" -lt "$TIMEOUT" ]; do
+  if [ -f qconsole.log ] && \
+     grep -q 'frames.*seconds.*fps\|Quake Error' qconsole.log 2>/dev/null; then break; fi
+  # bail early if open/the binary itself returned (app quit or refused)
+  if ! kill -0 "$PID" 2>/dev/null; then break; fi
+  sleep 1; j=$((j+1))
+done
+killall -TERM quakespasm 2>/dev/null
+sleep 2
+killall -KILL quakespasm 2>/dev/null || true
+wait "$PID" 2>/dev/null
+sleep "$COOLDOWN"
+true
+REMOTE_EOF
 
 # Pull the log and report.
 TMP=$(mktemp)

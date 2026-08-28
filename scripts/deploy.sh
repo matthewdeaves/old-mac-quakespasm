@@ -2,7 +2,7 @@
 # Assemble a self-contained Quakespasm.app bundle and deploy it to the
 # target machine. Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop>
+# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger>
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
@@ -20,7 +20,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop>}"
+TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger>}"
 
 # Claim this machine for the whole run. See scripts/pick-bench-host.sh.
 #
@@ -55,7 +55,7 @@ case "$TARGET" in
     HOST="yosemite"
     RSYNC_EXTRA="--protocol=29"
     ;;
-  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop)
+  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger)
     # mini-intel2: second Macmini2,1, same model as mini-intel. hw.model
     # matching in host.c's qs_machine_map hands it the autoexec-mini-intel
     # overlay automatically -- no per-machine file needed (issue #32).
@@ -83,6 +83,21 @@ case "$TARGET" in
     # only; QS_ExecConfigFromBundle returns false on a missing resource
     # (host.c:64), no crash. That is the correct first-exercise state — a
     # tuned overlay needs real fps data from this machine first.
+    #
+    # g5-tiger / g5-panther: the SAME PowerMac7,3 as g5-desktop, booted from
+    # its Tiger or Panther partition (triple-boot; same IP, one OS at a
+    # time). Belong here rather than getting their own --protocol=29 case:
+    # Tiger and Leopard both ship rsync 2.6.x, only Panther's 2.5.x needs the
+    # downgrade, and g5-panther boots this same PowerMac7,3 into Panther --
+    # confirm on the machine before relying on that; the g3 slice min-10.3
+    # loads regardless. hw.model still reads PowerMac7,3 either way.
+    #
+    # quad-leopard / quad-tiger: PowerMac11,2 G5 Quad, dual-boot (same IP,
+    # one OS at a time). No qs_machine_map entry, runs the ppc970 baseline,
+    # same open per-machine-overlay question as g5-desktop (issue #32). Was
+    # missing from this case entirely until #35's launch-QA sweep found it --
+    # smoke-dmg.sh already recognized both aliases and so kept "passing"
+    # against whatever was last deployed by hand, not by this script.
     HOST="$TARGET"
     RSYNC_EXTRA=""
     ;;
