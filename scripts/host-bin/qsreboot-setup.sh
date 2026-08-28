@@ -41,4 +41,9 @@ fi
 
 echo "[qsreboot-setup] OK -- written and validated."
 echo "[qsreboot-setup] test from your orchestration host:"
-echo "    ssh \"$(hostname -s)\" \"~/bin/qsreboot.sh\""
+# $(hostname -s) is this Mac's OWN OS-reported name, not the ssh alias the
+# orchestration host uses to reach it (that mapping only exists in the
+# orchestration host's own ~/.ssh/config) -- printing it produced a garbled,
+# wrong suggestion on at least one machine. Generic placeholder instead of a
+# guess that can be wrong.
+echo "    ssh <this-host's-alias> '~/bin/qsreboot.sh'"
