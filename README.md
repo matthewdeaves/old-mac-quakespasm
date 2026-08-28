@@ -37,8 +37,14 @@ that hardware.
 | **Quicksilver** (PowerMac3,5, 2001) | 733 MHz PPC 7450 | ATI Radeon 9000 Pro 64 MB | 10.4.11 Tiger | 1024×768 |
 | **Mac mini G4** (PowerMac10,1, 2005) | 1.25 GHz PPC 7447A | ATI Radeon 9200 32 MB | 10.4.11 Tiger | 1024×768 |
 | **iMac G5** (PowerMac8,2, 2005) | 2.0 GHz PPC 970 | ATI Radeon 9600 128 MB | 10.5.8 Leopard | 1440×900 (native) |
+| **Mac mini** (Macmini3,1, 2009) | 2.26 GHz Core 2 Duo | NVIDIA GeForce 9400 256 MB | 10.6.8 Snow Leopard | 1024×768 |
 | **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
 | **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7 Sequoia | 2560×1440 |
+
+The GeForce 9400 Mac mini plays fine and passes normal launch and play testing,
+but its own driver (not this engine) occasionally logs a low-level GPU fault
+under back-to-back relaunches; a real play session (launch, play, quit) is not
+known to trigger it. See `MISTAKES.md` for the full evidence.
 
 ### Which OS each CPU needs
 
@@ -146,10 +152,13 @@ Open the `.dmg`, then drag `Quakespasm.app` and `quakespasm.pak` into a folder
 (e.g. `~/Desktop/quake/`) next to your own `id1/` containing `pak0.pak`
 (shareware) or `pak0.pak` + `pak1.pak` (registered, buy on
 [Steam](https://store.steampowered.com/app/2310/QUAKE/) /
-[GOG](https://www.gog.com/en/game/quake_the_offering)). Double-click
-`Quakespasm.app`. On modern macOS, clear Gatekeeper with
-`xattr -dr com.apple.quarantine ~/Desktop/quake/Quakespasm.app` (not needed on
-Panther/Tiger/Leopard/Lion). An Apple Silicon Mac now runs a **native `arm64`
+[GOG](https://www.gog.com/en/game/quake_the_offering)). On modern macOS, a
+plain double-click on a freshly-downloaded copy can be killed by Gatekeeper a
+few seconds in with no error dialog (this app isn't Developer ID signed) --
+**right-click `Quakespasm.app` and choose Open** instead, once, the same
+one-click bypass Apple provides for any unsigned app; every launch after that
+is a normal double-click. Not needed on Panther/Tiger/Leopard/Lion, which
+predate Gatekeeper entirely. An Apple Silicon Mac now runs a **native `arm64`
 slice** rather than the `x86_64` one under Rosetta 2, and the 2006 Core Duo /
 Core Solo machines have their own `i386` slice, so there is no longer any Mac
 this binary cannot run on natively.
