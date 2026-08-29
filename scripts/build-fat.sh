@@ -69,6 +69,12 @@ else
 	export BUILD_HOST="${BUILD_HOST:-$LION}"
 	echo "[build-fat] using caller-supplied build host: $BUILD_HOST"
 fi
+# Tell every per-slice scripts/build.sh call below that BUILD_HOST is already
+# spoken for (claimed above, or trusted from the caller) for this whole run --
+# otherwise build.sh's own explicit-host claim (added #37, 2026-08-29) would
+# try to re-claim the same host per slice, which is redundant at best and a
+# self-contended lock at worst.
+export QS_BUILD_HOST_PRECLAIMED=1
 
 echo "[build-fat] sub-build 1/5: g3"
 scripts/build.sh g3

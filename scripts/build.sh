@@ -55,6 +55,28 @@ if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
 	}
 	BUILD_HOST_CLAIMED=1
 	echo "[build] claimed build host: $BUILD_HOST"
+elif [ -z "${QS_BUILD_HOST_PRECLAIMED:-}" ]; then
+	# Caller pinned BUILD_HOST/LION directly with no upstream claim signal.
+	# This is currently the ONLY way to target imac-2019 (pick-build-host.sh's
+	# auto-pick pool is still just the two Lion minis), so it is not a rare
+	# edge case -- it's the normal way to run the g3/g4 GCC14 path today.
+	# Measured 2026-08-29: a standalone `LION=imac-2019 scripts/build.sh g3`
+	# compiled on imac-2019 with NO lock held at all -- another repo's session
+	# found live cc1/make on the host and had to back off on judgment alone,
+	# nothing stopped it from grabbing the box mid-compile.
+	# build-fat.sh exports QS_BUILD_HOST_PRECLAIMED before its own per-slice
+	# calls because IT already claimed (or is trusting the caller for)
+	# BUILD_HOST for the whole run up front; this branch is only for a bare
+	# standalone invocation, which has no such outer claim.
+	export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
+	BUILD_HOST="${BUILD_HOST:-$LION}"
+	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
+		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire-host "$BUILD_HOST" "quakespasm build.sh $TARGET")" || {
+		echo "build.sh: could not claim $BUILD_HOST; see scripts/pick-build-host.sh --status" >&2
+		exit 1
+	}
+	BUILD_HOST_CLAIMED=1
+	echo "[build] claimed build host: $BUILD_HOST (explicit target)"
 fi
 BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
 LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines below
