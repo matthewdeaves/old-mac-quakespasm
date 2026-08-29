@@ -85,6 +85,21 @@ if ! flock -w 600 9; then
   exit 1
 fi
 
+# .m-only compile flags (Makefile.darwin's OBJCFLAGS). Empty except on the
+# imac-2019 GCC14 g3/g4 path (#37), which needs -fnext-runtime; declared here,
+# ahead of the case, so every other target has it defined under set -u.
+OBJCFLAGS=""
+# Final-link strip command (Makefile.darwin's STRIP, default "strip -S").
+# Overridden only on the imac-2019 GCC14 g3/g4 path: modern Sequoia's
+# Xcode strip doesn't know PowerPC at all ("reloc_has_pair() called with
+# unknown cputype (18)", measured 2026-08-29 -- same "modern tool assumes a
+# modern Mac" pattern as MISTAKES.md's other entries), and there's no
+# PowerPC-aware strip bundled with the GCC14 cross-toolchain or available as
+# llvm-strip on this host. `true` (no-op) leaves the binary unstripped --
+# correct and launchable, just bigger and with symbols; the Lion-mini path
+# (real strip -S, real gcc-4.0) is unaffected and still strips normally.
+STRIP="strip -S"
+
 case "$TARGET" in
   g3)
     MACH_TYPE=ppc
@@ -102,10 +117,17 @@ case "$TARGET" in
       # before being embedded in the remote ssh/make command below -- hit
       # this exact bug once already today on the i386 path, repeating it
       # here would be the same mistake twice.
-      CC14BASE="/Users/mini/gcc14-ppc"
+      #
+      # gcc14-ppc-objc, NOT gcc14-ppc: the plain toolchain was built C-only
+      # (no cc1obj), so pl_osx.m / SDLMain.m can't compile on it at all,
+      # flags or no flags -- this is a separate build-host toolchain install
+      # with Objective-C language support enabled. Verified 2026-08-29 it
+      # also compiles plain .c identically to the C-only install, so one
+      # toolchain now covers the whole g3/g4 imac-2019 build.
+      CC14BASE="/Users/mini/gcc14-ppc-objc"
       GCCINCBASE="$CC14BASE/lib/gcc/powerpc-apple-darwin8/14.2.0"
       SDK="/Users/mini/SDKs/MacOSX10.3.9.sdk"
-      CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc-14.2.0"
+      CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc"
       # -include the ptrdiff_t compat shim (build-host, root-caused): Panther's
       # own ppc/ansi.h sets the _BSD_PTRDIFF_T_ guard macro GCC14's stddef.h
       # also checks, without emitting a typedef, so stddef.h thinks
@@ -113,8 +135,22 @@ case "$TARGET" in
       # re-include of <stddef.h> from our own source can't fix it (standard
       # include guard, no-op on the second pass) -- this shim forces the
       # typedef directly via -include, ahead of any source file's own
-      # includes. See scripts/gcc14-ptrdiff-compat.h.
+      # includes. See scripts/gcc14-ptrdiff-compat.h. (Our own repo-tracked
+      # shim, not build-host's host-local /Users/mini/ptrdiff-compat-full.h --
+      # verified 2026-08-29 ours is sufficient for every file in this build,
+      # including the .m files, and keeping it repo-tracked means it survives
+      # a toolchain reinstall on the host instead of depending on untracked
+      # host state.)
       CPUFLAGS="$CPUFLAGS -nostdinc -isystem $GCCINCBASE/include -isystem $GCCINCBASE/../../../../powerpc-apple-darwin8/include -isystem $SDK/usr/include -iframework $SDK/System/Library/Frameworks -include ../scripts/gcc14-ptrdiff-compat.h"
+      # .m-only (Makefile.darwin's OBJCFLAGS, kept out of CFLAGS): this GCC
+      # defaults to the GNU Objective-C runtime, which cannot talk to real
+      # Cocoa/Foundation at all. -fnext-runtime switches it to the runtime
+      # Apple's own frameworks expect. Verified 2026-08-29: compiled+linked a
+      # real NSAutoreleasePool/NSString/UTF8String test against genuine
+      # Foundation.framework, and separately pl_osx.m / SDLMain.m themselves,
+      # clean. (build-host, #37.)
+      OBJCFLAGS="-fnext-runtime"
+      STRIP="true"  # see STRIP comment above the case
     else
       CC=/usr/bin/gcc-4.0
       SDK=/Developer/SDKs/MacOSX10.3.9.sdk
@@ -161,11 +197,17 @@ case "$TARGET" in
       # $GCCINCBASE/include (already on the -isystem list below), so the
       # gcc-4.0-specific "-isystem .../powerpc-apple-darwin10/4.0.1/include"
       # workaround for that header doesn't apply to this toolchain.
-      CC14BASE="/Users/mini/gcc14-ppc"
+      #
+      # gcc14-ppc-objc, NOT gcc14-ppc, and OBJCFLAGS -- see the g3 case
+      # above for the rationale (same toolchain, same shim, same
+      # -fnext-runtime need; g4's AppController.m/pl_osx.m hit it too).
+      CC14BASE="/Users/mini/gcc14-ppc-objc"
       GCCINCBASE="$CC14BASE/lib/gcc/powerpc-apple-darwin8/14.2.0"
       SDK="/Users/mini/SDKs/MacOSX10.3.9.sdk"
-      CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc-14.2.0"
+      CC="$CC14BASE/bin/powerpc-apple-darwin8-gcc"
       CPUFLAGS="$CPUFLAGS -nostdinc -isystem $GCCINCBASE/include -isystem $GCCINCBASE/../../../../powerpc-apple-darwin8/include -isystem $SDK/usr/include -iframework $SDK/System/Library/Frameworks -include ../scripts/gcc14-ptrdiff-compat.h"
+      OBJCFLAGS="-fnext-runtime"
+      STRIP="true"  # see STRIP comment above the case
     else
       # -isystem <gcc-4.0 include>: gl_texmgr.c's AltiVec mip path includes
       # <altivec.h>, which is a COMPILER header, not an SDK one. The 10.4u SDK
@@ -324,6 +366,8 @@ ssh "$LION" "cd quakespasm/Quake && \
     CC=$CC \
     QS_PORT_VERSION=$QS_PORT_VERSION \
     CPUFLAGS=\"$SYSROOT $CPUFLAGS\" \
+    OBJCFLAGS=\"$OBJCFLAGS\" \
+    STRIP=\"$STRIP\" \
     LDFLAGS=\"$SYSROOT $CPUFLAGS $EXTRA_LDFLAGS\" \
     > /tmp/qs-build-$TARGET.log 2>&1
   RC=\$?
@@ -332,6 +376,18 @@ ssh "$LION" "cd quakespasm/Quake && \
     @executable_path/../Frameworks/SDL.framework/Versions/A/SDL \
     @executable_path/SDL.framework/Versions/A/SDL \
     quakespasm
+  # Don't trust exit 0 -- or exit nonzero, here. Sequoia's Xcode
+  # install_name_tool cannot write PowerPC Mach-O at all (measured 2026-08-29
+  # on imac-2019: 'internal error: swap_object_headers() failed' on ppc750,
+  # #37) and exits nonzero even when the binary is already correct, because
+  # this toolchain's own linker already emits the right install name and
+  # there was nothing to change. So verify the RESULT instead of the exit
+  # code: fail only if the desired path is genuinely still missing.
+  if ! otool -L quakespasm | grep -q '@executable_path/SDL.framework/Versions/A/SDL'; then
+    echo 'install_name_tool fixup failed AND the SDL path is not already correct -- real problem' >&2
+    otool -L quakespasm >&2
+    exit 1
+  fi
   mv quakespasm quakespasm-$TARGET"
 
 mkdir -p "$REPO_ROOT/build"

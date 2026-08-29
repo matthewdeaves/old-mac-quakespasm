@@ -340,12 +340,20 @@ OBJS = strlcat.o \
 DEFAULT_TARGET = quakespasm
 all: $(DEFAULT_TARGET)
 
+# OBJCFLAGS: .m-only flags, kept OUT of CFLAGS so they never touch a .c
+# compile. Needed for #37's GCC14 cross-compiler (-fnext-runtime: that GCC
+# defaults to the GNU Objective-C runtime, which can't talk to real Cocoa/
+# Foundation; the flag is a cc1-only option and warns "not for C" on every
+# .c file if it leaks into CFLAGS). Empty by default -- Apple's own gcc-4.0
+# already defaults to the NeXT runtime, nothing to add on that path.
+OBJCFLAGS?=
+
 %.o:	%.c
 	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -o $@ $<
 %.o:	%.m
-	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -o $@ $<
+	$(CC) $(DFLAGS) -c $(CFLAGS) $(OBJCFLAGS) $(SDL_CFLAGS) -o $@ $<
 %.o:	../MacOSX/%.m
-	$(CC) $(DFLAGS) -c -I../MacOSX $(CFLAGS) $(SDL_CFLAGS) -o $@ $<
+	$(CC) $(DFLAGS) -c -I../MacOSX $(CFLAGS) $(OBJCFLAGS) $(SDL_CFLAGS) -o $@ $<
 
 quakespasm:	$(OBJS)
 	$(LINKER) $(OBJS) $(LDFLAGS) $(LIBS) $(SDL_LIBS) -o $@
