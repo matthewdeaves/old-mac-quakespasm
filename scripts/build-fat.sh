@@ -77,10 +77,27 @@ fi
 export QS_BUILD_HOST_PRECLAIMED=1
 
 echo "[build-fat] sub-build 1/5: g3"
-scripts/build.sh g3
-
 echo "[build-fat] sub-build 2/5: g4"
-scripts/build.sh g4
+# Route g3+g4 to imac-2019's GCC14 cross-compiler (#37, real-hardware-verified
+# on both yosemite and mini-g4) the same way sub-build 5/5 below already
+# routes i386 -- one claim covering both slices since they always run
+# back-to-back here. Falls back to the general BUILD_HOST (the old gcc-4.0
+# path) if imac-2019 is unavailable, rather than failing the whole fat build
+# over a speed/toolchain preference. Same pick-bench-host.sh choice as i386
+# below, for the identical reason (see that comment).
+G34_HOST=""
+G34_HOST_CLAIMED=0
+if G34_HOST="$("$REPO_ROOT/scripts/pick-bench-host.sh" --acquire imac-2019 "quakespasm build-fat g3/g4" 2>/dev/null)"; then
+  G34_HOST_CLAIMED=1
+  echo "[build-fat] g3/g4 sub-builds routed to $G34_HOST"
+else
+  G34_HOST="$BUILD_HOST"
+  echo "[build-fat] imac-2019 unavailable for g3/g4; falling back to $BUILD_HOST"
+fi
+BUILD_HOST="$G34_HOST" scripts/build.sh g3
+BUILD_HOST="$G34_HOST" scripts/build.sh g4
+[ "$G34_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-bench-host.sh" --release "$G34_HOST" >/dev/null 2>&1
+true
 
 echo "[build-fat] sub-build 3/5: g5"
 scripts/build.sh g5
