@@ -310,6 +310,19 @@ case "$TARGET" in
       EXTRA_LDFLAGS=''
     fi
     SYSROOT=""
+    if [ "$LION" = "imac-2019" ]; then
+      # build-host's candidate recipe for x86_64 on imac-2019 (#40). Measured
+      # 2026-08-30: WITHOUT this flag, a plain -mmacosx-version-min=10.6 clang
+      # build on imac-2019's Sequoia Xcode compiles clean (sane load commands,
+      # correct LC_VERSION_MIN_MACOSX, no chained-fixups load command) but
+      # SEGFAULTS INSTANTLY on real Lion hardware (mini-intel2) before dyld
+      # even reaches DYLD_PRINT_LIBRARIES output -- 3/3 bench runs, no crash
+      # log, no qconsole.log written at all. A same-source build via the
+      # normal mini-intel2/Lion-native clang path launches and runs fine on
+      # the same machine, isolating the crash to the imac-2019 toolchain
+      # specifically, not the source or the bundle.
+      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -Wl,-ld_classic"
+    fi
     ;;
   i386)
     # 32-bit-only Intel: the 2006 Core Solo / Core Duo machines (Mac mini 1,1,
