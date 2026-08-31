@@ -1,6 +1,6 @@
 ## Working alongside the other repos
 
-This repo is one of seven worked on together: four game ports, the private
+This repo is one of seven worked on together: four game ports,
 `retro-server-infra` which runs the servers, the private `old-mac-build-host`
 which owns the machines, and `retro-agents` which runs the sessions. One board
 covers all seven: <https://github.com/users/matthewdeaves/projects/8>.
@@ -65,9 +65,10 @@ backed by a bench run. The same finding does recur across ports (the PowerPC SDL
 is worth using, but file the sibling issues rather than assuming the fix
 transfers.
 
-**This repo is PUBLIC. `retro-server-infra` and `old-mac-build-host` are
-PRIVATE.** They describe the topology, firewall rules and admin surface of a live
-host. Never copy addresses, key material, tunnel tokens or `.env` content out of
-them into this repo, in code, docs or a commit message. Referring to a server
-release tag is fine; describing where it runs is not.
+**This repo is PUBLIC. `old-mac-build-host` is PRIVATE; `retro-server-infra`
+went public 2026-08-31** (was private from 2026-07-28 over an upstream
+dispute, since resolved). Both describe the topology, firewall rules and admin
+surface of a live host. Never copy addresses, key material, tunnel tokens or
+`.env` content out of them into this repo, in code, docs or a commit message.
+Referring to a server release tag is fine; describing where it runs is not.
 
