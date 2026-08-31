@@ -13,6 +13,35 @@ live in the ADR named at the end of the entry and are not repeated here.
 
 ---
 
+## 2026-08-31: imac-2019's DMG-installed launch hung on a live Desktop-folder TCC prompt, not a crash
+
+Cutting the v1.15.7 release DMG, `deploy-dmg.sh` + `smoke-dmg.sh` (the real
+install-and-launch path) hung on imac-2019 with no fps line and no crash
+report. `ps aux` showed the process genuinely alive (S state, near-zero CPU)
+for 2+ minutes -- not dead, blocked. The user was physically at the machine
+and confirmed it directly: a live "Quakespasm.app would like to access files
+in your Desktop folder" TCC dialog was sitting on screen, needing a human
+click. Allowing it unblocked the launch immediately (215.8 fps, clean).
+
+Root cause: every target, imac-2019 included, installs to `~/Desktop/quake/`,
+and Desktop is TCC-protected on modern macOS. This repo's own README already
+documents this exact failure and its fix ("Put the game folder in
+`/Applications`, not on the Desktop") -- just for a human's manual install,
+not the fleet's own deploy path, which still uses `~/Desktop/quake/`
+everywhere including imac-2019. A version bump changes the ad-hoc-signed
+binary's CDHash (Info.plist is inside the sealed resources), so macOS treats
+each new build as unrecognized and re-prompts -- this will recur on every
+future release, and no agent can dismiss it remotely; it needs a human at
+the screen every time. `smoke-dmg.sh`'s 45s timeout reports this as FAIL
+(crash-or-hang) on imac-2019, which is misleading -- it's neither.
+
+**Lesson: a hung process that is genuinely alive (not zombied, not exited,
+low CPU, `ps` shows it running) on a machine with a real display is a
+candidate for a blocked GUI dialog, not a crash — check for one, or ask
+whoever's physically there, before writing it up as a crash/hang bug in the
+engine itself.** Not fixed here (deploy path still targets Desktop); v1.15.7
+shipped with the user manually unblocking the one dialog.
+
 ## 2026-08-28: a modern tool's default silently assumes a modern Mac -- check every one against the actual old-Mac target, never infer from "it compiled"
 
 Same shape hit three times in one session, none landed broken (caught before
