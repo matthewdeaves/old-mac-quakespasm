@@ -140,6 +140,10 @@ Read [`server/README.md`](server/README.md) before putting one on the internet.
 NetQuake has no password and no rcon, so who can reach the port is the only
 access control there is.
 
+The always-on public servers this game's server browser talks to are deployed
+and kept running from a separate private repo (`retro-server-infra`), not
+this one — that repo has no public listing to link to.
+
 ## Get the latest release
 
 Download the latest disk image from
