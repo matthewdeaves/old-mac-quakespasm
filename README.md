@@ -141,8 +141,9 @@ NetQuake has no password and no rcon, so who can reach the port is the only
 access control there is.
 
 The always-on public servers this game's server browser talks to are deployed
-and kept running from a separate private repo (`retro-server-infra`), not
-this one — that repo has no public listing to link to.
+and kept running from a separate repo,
+[**retro-server-infra**](https://github.com/matthewdeaves/retro-server-infra),
+not this one.
 
 ## Get the latest release
 
