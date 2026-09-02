@@ -3,6 +3,14 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-02 — v1.15.8 formally deploy+smoke-tested on imac-2019 (standing
+  rule: every release must be, before it counts as live).** `deploy-dmg.sh
+  imac-2019 v1.15.8` + `smoke-dmg.sh imac-2019 demo1`: PASS, 216.8 fps,
+  2560x1440, world rendered to completion. In addition to the ad-hoc
+  Fix-and-Install.command verification done earlier the same day (see next
+  entry) — this is the standard fleet tooling path, on the exact machine
+  that broke.
+
 - **2026-09-02 — DMG launch failed on imac-2019: App Translocation, not a
   crash.** User downloaded the release DMG via Safari, copied
   `Quakespasm.app` + `quakespasm.pak` + `id1/` to `~/Desktop/quake/` by hand,
