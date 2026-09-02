@@ -3,6 +3,17 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-02 — Fix-and-Install.command now warns if id1/pak0.pak is
+  missing.** Two real users hit "couldn't load gfx.wad" the same night after
+  running the installer without their own Quake data yet, with no way to
+  tell which of several plausible folders the engine actually wanted
+  (flagged by infra, retro-server-infra-43, who ruled out the served game
+  data — verified valid pak0.pak/pak1.pak — before pointing at the
+  installer's silence). The script now checks `$DEST/id1/pak0.pak` (and
+  common case variants) right before the final "Done" message and, if
+  missing, prints exactly where to put it. Pure shell/text change, engine
+  binary untouched.
+
 - **2026-09-02 — v1.15.8 formally deploy+smoke-tested on imac-2019 (standing
   rule: every release must be, before it counts as live).** `deploy-dmg.sh
   imac-2019 v1.15.8` + `smoke-dmg.sh imac-2019 demo1`: PASS, 216.8 fps,

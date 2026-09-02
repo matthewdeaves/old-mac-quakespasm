@@ -62,6 +62,25 @@ fi
 echo
 echo "Done. Quakespasm.app is installed at:"
 echo "  $DEST/Quakespasm.app"
+
+# Case-insensitive-safe check (Quake data is traditionally shipped as
+# uppercase PAK0.PAK). This is deliberately the LAST thing printed before the
+# "double-click" line -- it's the last chance to tell a person where their
+# data goes before they hit W_LoadWadFile with no idea which of several
+# plausible folders was meant (real user hit this, 2026-09-02).
+HAVE_PAK0=0
+for f in "$DEST/id1/pak0.pak" "$DEST/id1/PAK0.PAK" "$DEST/id1/Pak0.pak"; do
+	[ -f "$f" ] && HAVE_PAK0=1 && break
+done
+if [ "$HAVE_PAK0" = 0 ]; then
+	echo
+	echo "*** No pak0.pak yet -- Quakespasm.app will say \"couldn't load gfx.wad\" until you add it. ***"
+	echo "Put your Quake data here:"
+	echo "  $DEST/id1/pak0.pak              (shareware)"
+	echo "  $DEST/id1/pak0.pak + pak1.pak   (registered, from your own copy of the game)"
+fi
+
+echo
 echo "Double-click it from there from now on -- no more prompts."
 echo
 open -R "$DEST/Quakespasm.app" 2>/dev/null || true
