@@ -3,6 +3,25 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-02 — arm64 launched windowed, not fullscreen, on real Apple
+  Silicon hardware (MacBook Air, Apple M5).** `autoexec-arm64.cfg` hardcoded
+  a literal `vid_width 1920 vid_height 1080 vid_fullscreen 1` (exclusive
+  mode). On this Retina/scaled panel that exact mode isn't SDL2-enumerable,
+  so `VID_ValidMode` fails, `VID_Restart` prints "1920x1080x32 60Hz
+  fullscreen is not a valid mode" and aborts without changing anything --
+  the window silently stayed at its small startup default. Reproduced 3x
+  live on the workstation. Fix: `vid_desktopfullscreen 1`, same mechanism
+  already used by every other per-machine cfg in the fleet
+  (`autoexec-imac-2019.cfg`, `autoexec-mini-intel.cfg`) -- arm64 was the one
+  cfg that had never adopted it, because there was no real Apple Silicon
+  hardware to test on until today. Explicit `vid_width`/`vid_height` are
+  dropped: SDL2 overrides them to the desktop's actual resolution once this
+  flag is set (measured: requesting 1920x1080 with the flag on still
+  produced "1710x1073", this laptop's real resolution). Measured working
+  end-to-end: three timedemo runs, 82.6 / 104.9 / 118.5 fps, comfortably
+  clear of any display refresh -- not run through `scripts/bench.sh`, which
+  has no local-workstation target yet (separate tooling gap).
+
 - **2026-09-02 — Reworked the DMG installer: no more copy to
   ~/Applications, fix-in-place instead, matching alephone's convention
   (user directive: "it should just run from same location as the fat
