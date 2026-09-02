@@ -3,6 +3,27 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-02 — Reworked the DMG installer: no more copy to
+  ~/Applications, fix-in-place instead, matching alephone's convention
+  (user directive: "it should just run from same location as the fat
+  binary... make it like how the others work").** `Fix-and-Install.command`
+  (v1.15.8/9, copied Quakespasm.app to ~/Applications/Quakespasm) is gone;
+  replaced by `Fix Launch Problems.command`, which never copies anything --
+  it just clears quarantine and re-registers LaunchServices on whatever
+  folder it's already sitting in (`cd "$(dirname "$0")"`, same as
+  alephone's script). The DMG now ships one self-contained "Quakespasm"
+  folder at its root (`Quakespasm.app` + `quakespasm.pak` + empty `id1/` +
+  the fix script together), not loose files -- so a single Finder drag of
+  that one folder to wherever the player wants always brings the fix script
+  along. Also inlined the quarantine-clear logic instead of depending on a
+  hidden `.fix-support/clear-launch-quarantine.sh` sidecar: alephone hit
+  that exact failure live on imac-2019 the same day (Finder hides dotfiles,
+  so a real drag of only the visible items left the hidden helper behind
+  and the old script failed with "No such file or directory"). Updated
+  `make-dmg.sh` (staging + VERIFY_FILES + README.txt),
+  `scripts/deploy-dmg.sh` (mount source paths), and README.md to match.
+  Kept the id1/pak0.pak-missing warning from the previous entry.
+
 - **2026-09-02 — Fix-and-Install.command now warns if id1/pak0.pak is
   missing.** Two real users hit "couldn't load gfx.wad" the same night after
   running the installer without their own Quake data yet, with no way to

@@ -99,12 +99,14 @@ mkdir -p "$MNT"
 hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/Desktop/$DMG_BASE" >/dev/null
 
 mkdir -p "$DEST"
-# Replace the app wholesale so no stale bundle files survive. ditto keeps the
-# bundle bit, perms (+x on the binary) and resource forks.
+# The DMG root holds one "Quakespasm" folder, not the app loose (2026-09-02:
+# matches alephone's folder-drag convention). Replace the app wholesale so no
+# stale bundle files survive. ditto keeps the bundle bit, perms (+x on the
+# binary) and resource forks.
 rm -rf "$DEST/Quakespasm.app"
-ditto "$MNT/Quakespasm.app" "$DEST/Quakespasm.app"
+ditto "$MNT/Quakespasm/Quakespasm.app" "$DEST/Quakespasm.app"
 # The engine's own pak (menu/UI assets) lives in the gamedir root beside id1/.
-cp -p "$MNT/quakespasm.pak" "$DEST/quakespasm.pak"
+cp -p "$MNT/Quakespasm/quakespasm.pak" "$DEST/quakespasm.pak"
 
 # Defensive quarantine clear + LaunchServices re-register (issue #35, shared
 # primitive from old-mac-build-host#34). The DMG reaches this machine by scp,

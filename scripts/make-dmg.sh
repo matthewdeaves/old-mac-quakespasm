@@ -115,12 +115,19 @@ case " $ARCHS " in
 esac
 
 # ---- stage the disk-image contents (Quakespasm.app + pak + README) -------
+# Everything a player needs lives inside one "Quakespasm" folder at the DMG
+# root (matches alephone's "Aleph One" folder; user, 2026-09-02: "make it
+# like how the others work" -- no copy-to-~/Applications, the fix script
+# just operates on wherever the player drags this one folder). A single
+# folder-drag always brings the .app, the pak, id1/ and the fix script
+# along together; loose DMG-root siblings only travel if dragged separately.
 STAGE=$(mktemp -d -t qs-dmg.XXXXXX)
 trap "rm -rf '$STAGE'" EXIT
 IMG="$STAGE/img"                       # becomes the .dmg root
-APP="$IMG/Quakespasm.app"
+GAMEDIR="$IMG/Quakespasm"              # the one folder a player drags out
+APP="$GAMEDIR/Quakespasm.app"
 RESOURCES="$APP/Contents/Resources"
-mkdir -p "$APP/Contents/MacOS" "$RESOURCES"
+mkdir -p "$APP/Contents/MacOS" "$RESOURCES" "$GAMEDIR/id1"
 
 echo "[make-dmg] stage Quakespasm.app (same layout as deploy.sh)"
 cp    "$REPO_ROOT/scripts/bundle/Info.plist" "$APP/Contents/Info.plist"
@@ -183,18 +190,15 @@ cp -a "$REPO_ROOT/MacOSX/SDL2.framework"     "$APP/Contents/MacOS/"
 cp    "$BIN" "$APP/Contents/MacOS/quakespasm"
 chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
-cp    "$REPO_ROOT/Quake/quakespasm.pak" "$IMG/"
+cp    "$REPO_ROOT/Quake/quakespasm.pak" "$GAMEDIR/"
 
-# One-click installer (issue: imac-2019 DMG launch, 2026-09-02). Copies
-# Quakespasm.app + quakespasm.pak to ~/Applications/Quakespasm and clears the
-# quarantine flag that causes App Translocation ("couldn't load gfx.wad,
-# Basedir is .../AppTranslocation/..."). Bundles its own copy of the
-# clear-launch-quarantine.sh primitive under a hidden dir since it runs
-# standalone off the mounted image, with no repo checkout beside it.
-mkdir -p "$IMG/.fix-support"
-cp "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$IMG/.fix-support/clear-launch-quarantine.sh"
-cp "$REPO_ROOT/scripts/bundle/Fix-and-Install.command" "$IMG/Fix and Install.command"
-chmod +x "$IMG/.fix-support/clear-launch-quarantine.sh" "$IMG/Fix and Install.command"
+# Launch-fix script (issue: imac-2019 DMG launch, 2026-09-02; folder-drag
+# rework same day). Self-contained -- see the script's own header for why it
+# does not depend on a sidecar copy of clear-launch-quarantine.sh. Lives
+# INSIDE $GAMEDIR, next to Quakespasm.app, so it travels with a single
+# folder-drag.
+cp "$REPO_ROOT/scripts/bundle/Fix-Launch-Problems.command" "$GAMEDIR/Fix Launch Problems.command"
+chmod +x "$GAMEDIR/Fix Launch Problems.command"
 # Per-arch baselines + per-machine overlays, picked at boot by host.c.
 #
 # Shipped COMMENT-STRIPPED, and that is not cosmetic. Quake's Cbuf_Execute
@@ -258,52 +262,38 @@ WHAT'S NEW in $VERSION
 * The Intel slice is built for 10.6 instead of 10.7, covering 64-bit Macs left
   on Snow Leopard.
 
-INSTALL (recommended, macOS 10.6+)
------------------------------------
-1. Right-click "Fix and Install.command" on this disk image and choose Open
-   (a plain double-click is blocked the first time -- see GATEKEEPER below).
-   Click Open again if macOS asks to confirm.
-2. It installs Quakespasm.app to ~/Applications/Quakespasm and clears the
-   quarantine flag that otherwise breaks the very first launch (see
-   TROUBLESHOOTING below). A Terminal window shows what it did, then waits
-   for Return.
-3. Add your Quake data - put your own pak files here:
-       ~/Applications/Quakespasm/id1/pak0.pak              (shareware)
-       ~/Applications/Quakespasm/id1/pak0.pak + pak1.pak   (registered)
+INSTALL
+-------
+1. Drag the "Quakespasm" folder (not just the .app) to your Desktop or
+   Applications folder, or anywhere else you like -- it's self-contained.
+2. Add your Quake data - put your own pak files inside that folder's id1/:
+       Quakespasm/id1/pak0.pak              (shareware)
+       Quakespasm/id1/pak0.pak + pak1.pak   (registered)
    Registered Quake is on Steam and GOG.
-4. From then on, double-click Quakespasm.app in that folder like any other
-   app -- no more prompts.
+3. Double-click Quakespasm.app inside that folder.
 
-Re-running "Fix and Install.command" after a future update is safe: it never
-touches an existing id1/ folder, so your data stays put.
-
-MANUAL INSTALL (Panther / Tiger / Lion, or if you'd rather not run a script)
-------------------------------------------------------------------------------
-1. Make a folder for the game, e.g.  ~/Desktop/quake/
-2. Copy BOTH of these from this disk image into that folder:
-       Quakespasm.app
-       quakespasm.pak
-3. Add your Quake data as above, under that folder's id1/ instead.
-4. Double-click Quakespasm.app.
-On Panther/Tiger/Lion (pre-Gatekeeper) this just works. On modern macOS,
-right-click Quakespasm.app and choose Open the first time -- see GATEKEEPER.
+If it shows an error about gfx.wad, or does nothing at all when
+double-clicked, see TROUBLESHOOTING below.
 
 GATEKEEPER (modern macOS)
 --------------------------
 The bundle is unsigned (no paid Apple Developer ID), so macOS quarantines
-whatever you download. Any unsigned app or script needs one right-click ->
-Open the first time it runs from a new location, instead of a plain
-double-click -- that one click can't be removed without notarization we
-don't have. Not needed on Panther / Tiger / Lion, which predate Gatekeeper.
+whatever you download. The first time you run anything unsigned from a new
+location -- the app, or the fix script below -- right-click it and choose
+Open instead of double-clicking; that one click can't be removed without
+notarization we don't have. Not needed on Panther / Tiger / Lion, which
+predate Gatekeeper.
 
 TROUBLESHOOTING: "couldn't load gfx.wad" / Basedir is .../AppTranslocation/...
 -------------------------------------------------------------------------------
 This means Quakespasm.app still carries the quarantine flag from being
 downloaded, and macOS ran it from a temporary sandboxed copy instead of its
-real folder, so it can't see its own data files next to it. Fix: run
-"Fix and Install.command" above, or from Terminal:
-    xattr -dr com.apple.quarantine /path/to/Quakespasm.app
-then launch it again from its real location.
+real folder, so it can't see its own data files next to it. Fix: open the
+"Quakespasm" folder and right-click "Fix Launch Problems.command", choose
+Open once (see GATEKEEPER above), then try Quakespasm.app again. Or from
+Terminal, inside that same folder:
+    xattr -dr com.apple.quarantine .
+This only needs doing once per copy of the game.
 
 PER-MACHINE CONFIG
 ------------------
@@ -345,18 +335,18 @@ RSYNC_EXTRA=""
 # into the SRC_SUMS loop is safe; the IN-DMG list is hardcoded in the remote
 # heredoc because `ssh host bash -s "$VAR"` word-splits a multi-path arg down to
 # its first element - keep the two lists in sync.)
-VERIFY_FILES="Quakespasm.app/Contents/MacOS/quakespasm \
-Quakespasm.app/Contents/MacOS/libFLAC.dylib \
-Quakespasm.app/Contents/MacOS/libmad.dylib \
-Quakespasm.app/Contents/MacOS/libmikmod.dylib \
-Quakespasm.app/Contents/MacOS/libmpg123.dylib \
-Quakespasm.app/Contents/MacOS/libogg.dylib \
-Quakespasm.app/Contents/MacOS/libopus.dylib \
-Quakespasm.app/Contents/MacOS/libopusfile.dylib \
-Quakespasm.app/Contents/MacOS/libvorbis.dylib \
-Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
-Quakespasm.app/Contents/MacOS/libxmp.dylib \
-Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL"
+VERIFY_FILES="Quakespasm/Quakespasm.app/Contents/MacOS/quakespasm \
+Quakespasm/Quakespasm.app/Contents/MacOS/libFLAC.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libmad.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libmikmod.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libmpg123.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libogg.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libopus.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libopusfile.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libvorbis.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libxmp.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL"
 
 # ---- ad-hoc code-sign the staged bundle ----------------------------------
 # REQUIRED for Apple Silicon. macOS on arm64 refuses to map a page whose code
@@ -383,7 +373,7 @@ Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL"
 # invalidated by signing the contents afterwards.
 if command -v codesign >/dev/null 2>&1; then
 	echo "[make-dmg] ad-hoc code-signing the staged bundle"
-	SAPP="$IMG/Quakespasm.app"
+	SAPP="$APP"  # $GAMEDIR/Quakespasm.app
 	# Order is not optional. codesign validates a bundle's nested code when it
 	# signs the bundle, so anything inside must already be signed:
 	#   1. plain dylibs beside the executable  (skip anything inside a framework)
@@ -452,7 +442,7 @@ fi
 # reaches a machine any other way than a fresh browser download (rsync,
 # scp+ditto, a file share) is never quarantined via this DMG's own contents.
 if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
-  "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$IMG/Quakespasm.app"
+  "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$APP"
 fi
 
 SRC_SUMS=$(cd "$IMG" && for f in $VERIFY_FILES; do \
@@ -481,18 +471,18 @@ REM="$1"; MP="$REM/mnt"
 mkdir -p "$MP"
 hdiutil detach "$MP" >/dev/null 2>&1 || true
 hdiutil attach -nobrowse -readonly -mountpoint "$MP" "$REM/out.dmg" >/dev/null 2>&1 || exit 7
-for f in Quakespasm.app/Contents/MacOS/quakespasm \
-         Quakespasm.app/Contents/MacOS/libFLAC.dylib \
-         Quakespasm.app/Contents/MacOS/libmad.dylib \
-         Quakespasm.app/Contents/MacOS/libmikmod.dylib \
-         Quakespasm.app/Contents/MacOS/libmpg123.dylib \
-         Quakespasm.app/Contents/MacOS/libogg.dylib \
-         Quakespasm.app/Contents/MacOS/libopus.dylib \
-         Quakespasm.app/Contents/MacOS/libopusfile.dylib \
-         Quakespasm.app/Contents/MacOS/libvorbis.dylib \
-         Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
-         Quakespasm.app/Contents/MacOS/libxmp.dylib \
-         Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL; do
+for f in Quakespasm/Quakespasm.app/Contents/MacOS/quakespasm \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libFLAC.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libmad.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libmikmod.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libmpg123.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libogg.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libopus.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libopusfile.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libvorbis.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libxmp.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL; do
   printf '%s  %s\n' "$(md5 "$MP/$f" 2>/dev/null | awk '{print $NF}')" "$f"
 done
 hdiutil detach "$MP" >/dev/null 2>&1 || hdiutil detach -force "$MP" >/dev/null 2>&1 || true

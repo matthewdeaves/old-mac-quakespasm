@@ -153,23 +153,24 @@ Download the latest disk image from
 built on Tiger so it mounts on everything from 10.3.9 through modern macOS, and
 the `.app` inside is a fat binary that runs natively on each.
 
-Open the `.dmg`. On modern macOS, right-click **`Fix and Install.command`**
-and choose Open (once -- this app isn't Developer ID signed, so any unsigned
-script needs one right-click-Open bypass the first time instead of a plain
-double-click). It installs `Quakespasm.app` to `~/Applications/Quakespasm`
-and clears the quarantine flag that otherwise breaks the first launch --
-see "Where to put it" below for why that flag matters. Then add your own
-`id1/` containing `pak0.pak` (shareware) or `pak0.pak` + `pak1.pak`
-(registered, from your own copy of the game) into that same folder, and
-double-click `Quakespasm.app` from there like any other app.
+Open the `.dmg` and drag the whole **`Quakespasm`** folder (not just the
+`.app`) to your Desktop, `/Applications`, or anywhere else you like -- it's
+self-contained: the app, its own `quakespasm.pak`, an empty `id1/` for your
+game data, and a fix script all travel together in one drag. Add your own
+`pak0.pak` (shareware) or `pak0.pak` + `pak1.pak` (registered, from your own
+copy of the game) into that folder's `id1/`, then double-click
+`Quakespasm.app`.
 
-Panther/Tiger/Leopard/Lion predate Gatekeeper and quarantine entirely --
-just drag `Quakespasm.app` and `quakespasm.pak` into a folder anywhere
-(e.g. `~/Desktop/quake/`) next to your own `id1/`, no script needed. An Apple
-Silicon Mac now runs a **native `arm64` slice** rather than the `x86_64` one
-under Rosetta 2, and the 2006 Core Duo / Core Solo machines have their own
-`i386` slice, so there is no longer any Mac this binary cannot run on
-natively.
+If it shows a `couldn't load gfx.wad` error, or does nothing at all: open
+the `Quakespasm` folder, right-click **`Fix Launch Problems.command`** and
+choose Open (once -- this app isn't Developer ID signed, so any unsigned
+script needs one right-click-Open bypass instead of a plain double-click),
+then try `Quakespasm.app` again. See "Where to put it" below for why this
+happens. Not needed on Panther/Tiger/Leopard/Lion, which predate Gatekeeper
+and quarantine entirely. An Apple Silicon Mac now runs a **native `arm64`
+slice** rather than the `x86_64` one under Rosetta 2, and the 2006 Core Duo /
+Core Solo machines have their own `i386` slice, so there is no longer any Mac
+this binary cannot run on natively.
 
 ## Sister projects
 
@@ -187,25 +188,20 @@ Bundled SDL 1.2.15 is zlib-licensed.
 
 ### Where to put it on Apple Silicon and modern macOS
 
-Put the game folder in **`/Applications`** (or `~/Applications` -- what
-`Fix and Install.command` uses by default, no admin password needed), not on
-the Desktop.
+Two separate things bite here, and only one cares where the folder is:
 
-macOS asks an app for permission before it may read files in Desktop, Documents
-or Downloads, and it asks **every launch** for an app it cannot identify
-consistently. A game that lives in `/Applications` is outside those protected
-locations, so it never triggers the prompt and can read its own `id1/` folder
-without being interrupted.
+- **App Translocation**, wherever the folder lives: a quarantined app can run
+  from a random, sandboxed copy of itself instead of its real folder, so it
+  can't see `id1/` next to it -- `couldn't load gfx.wad, Basedir is
+  .../AppTranslocation/...`. `Fix Launch Problems.command`, inside the
+  `Quakespasm` folder, clears this; doing it by hand from inside that folder
+  is `xattr -dr com.apple.quarantine .`
+- **The Desktop-permission prompt**, only if you put the folder on the
+  Desktop: macOS asks an app for permission before it may read files in
+  Desktop, Documents or Downloads, and asks again on every launch for an app
+  it can't identify consistently. Putting the `Quakespasm` folder in
+  `/Applications` instead avoids this prompt entirely; there's nothing to
+  clear by hand for it.
 
-A quarantined app also gets **App Translocation** wherever it lives: macOS
-runs it from a random, sandboxed copy instead of its real folder, so it can't
-see `id1/` next to it at all -- `couldn't load gfx.wad, Basedir is
-.../AppTranslocation/...`. `Fix and Install.command` clears the quarantine
-flag for you; doing it by hand is:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/<folder>
-```
-
-PowerPC and Intel Macs running 10.3 through 10.7 have none of this and can keep
-the folder wherever you like.
+PowerPC and Intel Macs running 10.3 through 10.7 have neither of these and can
+keep the folder wherever you like.
