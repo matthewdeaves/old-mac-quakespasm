@@ -3,6 +3,24 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-02 — DMG launch failed on imac-2019: App Translocation, not a
+  crash.** User downloaded the release DMG via Safari, copied
+  `Quakespasm.app` + `quakespasm.pak` + `id1/` to `~/Desktop/quake/` by hand,
+  double-clicked, got "W_LoadWadFile: couldn't load gfx.wad, Basedir is:
+  /private/var/.../AppTranslocation/.../d". The quarantine flag Safari
+  stamps on download survives a plain file copy (it does not require a
+  fresh browser download each time), and macOS runs a quarantined app from a
+  random sandboxed copy instead of its real folder, so it can't see `id1/`
+  sitting next to it. Confirmed on-machine: `xattr -l` showed
+  `com.apple.quarantine` on the copied `.app`; running the existing
+  `scripts/clear-launch-quarantine.sh` against the folder cleared it, and
+  the app then launched from its real path (verified via `ps` showing the
+  real `~/Desktop/quake/...` path, not an AppTranslocation one). Shipped the
+  actual fix so a person doesn't have to know any of this: a new
+  `scripts/bundle/Fix-and-Install.command`, included on every DMG from this
+  release on, that a user right-click-Opens once -- it installs to
+  `~/Applications/Quakespasm` and clears quarantine for them. Wired into
+  `make-dmg.sh`; README.md and the in-DMG README.txt both lead with it now.
 - **2026-08-28 — i386 slice moved to imac-2019 (user directive, speed).**
   Not a straight host swap: unlike the Lion minis (where "no isysroot"
   naturally resolves to a compatible OS since the compiler runs ON a

@@ -184,6 +184,17 @@ cp    "$BIN" "$APP/Contents/MacOS/quakespasm"
 chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
 cp    "$REPO_ROOT/Quake/quakespasm.pak" "$IMG/"
+
+# One-click installer (issue: imac-2019 DMG launch, 2026-09-02). Copies
+# Quakespasm.app + quakespasm.pak to ~/Applications/Quakespasm and clears the
+# quarantine flag that causes App Translocation ("couldn't load gfx.wad,
+# Basedir is .../AppTranslocation/..."). Bundles its own copy of the
+# clear-launch-quarantine.sh primitive under a hidden dir since it runs
+# standalone off the mounted image, with no repo checkout beside it.
+mkdir -p "$IMG/.fix-support"
+cp "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$IMG/.fix-support/clear-launch-quarantine.sh"
+cp "$REPO_ROOT/scripts/bundle/Fix-and-Install.command" "$IMG/Fix and Install.command"
+chmod +x "$IMG/.fix-support/clear-launch-quarantine.sh" "$IMG/Fix and Install.command"
 # Per-arch baselines + per-machine overlays, picked at boot by host.c.
 #
 # Shipped COMMENT-STRIPPED, and that is not cosmetic. Quake's Cbuf_Execute
@@ -247,29 +258,52 @@ WHAT'S NEW in $VERSION
 * The Intel slice is built for 10.6 instead of 10.7, covering 64-bit Macs left
   on Snow Leopard.
 
-INSTALL
--------
+INSTALL (recommended, macOS 10.6+)
+-----------------------------------
+1. Right-click "Fix and Install.command" on this disk image and choose Open
+   (a plain double-click is blocked the first time -- see GATEKEEPER below).
+   Click Open again if macOS asks to confirm.
+2. It installs Quakespasm.app to ~/Applications/Quakespasm and clears the
+   quarantine flag that otherwise breaks the very first launch (see
+   TROUBLESHOOTING below). A Terminal window shows what it did, then waits
+   for Return.
+3. Add your Quake data - put your own pak files here:
+       ~/Applications/Quakespasm/id1/pak0.pak              (shareware)
+       ~/Applications/Quakespasm/id1/pak0.pak + pak1.pak   (registered)
+   Registered Quake is on Steam and GOG.
+4. From then on, double-click Quakespasm.app in that folder like any other
+   app -- no more prompts.
+
+Re-running "Fix and Install.command" after a future update is safe: it never
+touches an existing id1/ folder, so your data stays put.
+
+MANUAL INSTALL (Panther / Tiger / Lion, or if you'd rather not run a script)
+------------------------------------------------------------------------------
 1. Make a folder for the game, e.g.  ~/Desktop/quake/
 2. Copy BOTH of these from this disk image into that folder:
        Quakespasm.app
        quakespasm.pak
-3. Add your Quake data - put your own pak files in an "id1" subfolder:
-       ~/Desktop/quake/id1/pak0.pak              (shareware)
-       ~/Desktop/quake/id1/pak0.pak + pak1.pak   (registered)
-   Registered Quake is on Steam and GOG.
+3. Add your Quake data as above, under that folder's id1/ instead.
 4. Double-click Quakespasm.app.
+On Panther/Tiger/Lion (pre-Gatekeeper) this just works. On modern macOS,
+right-click Quakespasm.app and choose Open the first time -- see GATEKEEPER.
 
-The final layout:
-   ~/Desktop/quake/Quakespasm.app
-   ~/Desktop/quake/quakespasm.pak
-   ~/Desktop/quake/id1/pak0.pak
+GATEKEEPER (modern macOS)
+--------------------------
+The bundle is unsigned (no paid Apple Developer ID), so macOS quarantines
+whatever you download. Any unsigned app or script needs one right-click ->
+Open the first time it runs from a new location, instead of a plain
+double-click -- that one click can't be removed without notarization we
+don't have. Not needed on Panther / Tiger / Lion, which predate Gatekeeper.
 
-MODERN macOS (Gatekeeper)
--------------------------
-The bundle is unsigned, so recent macOS quarantines it once it is downloaded.
-The first time, right-click Quakespasm.app and choose Open instead of
-double-clicking -- one click, no Terminal needed. (Not needed on Panther /
-Tiger / Lion, which predate Gatekeeper.)
+TROUBLESHOOTING: "couldn't load gfx.wad" / Basedir is .../AppTranslocation/...
+-------------------------------------------------------------------------------
+This means Quakespasm.app still carries the quarantine flag from being
+downloaded, and macOS ran it from a temporary sandboxed copy instead of its
+real folder, so it can't see its own data files next to it. Fix: run
+"Fix and Install.command" above, or from Terminal:
+    xattr -dr com.apple.quarantine /path/to/Quakespasm.app
+then launch it again from its real location.
 
 PER-MACHINE CONFIG
 ------------------
