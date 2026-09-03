@@ -102,6 +102,7 @@ void SV_Init (void)
 	Cvar_RegisterVariable (&sv_maxspeed);
 	Cvar_SetCallback (&sv_maxspeed, Host_Callback_Notify);
 	Cvar_RegisterVariable (&sv_accelerate);
+	Cvar_SetCallback (&sv_accelerate, Host_Callback_Notify);
 	Cvar_RegisterVariable (&sv_idealpitchscale);
 	Cvar_RegisterVariable (&sv_aim);
 	Cvar_RegisterVariable (&sv_nostep);

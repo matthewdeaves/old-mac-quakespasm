@@ -164,7 +164,7 @@ SV_Accelerate
 ==============
 */
 cvar_t	sv_maxspeed = {"sv_maxspeed", "320", CVAR_NOTIFY|CVAR_SERVERINFO};
-cvar_t	sv_accelerate = {"sv_accelerate", "10", CVAR_NONE};
+cvar_t	sv_accelerate = {"sv_accelerate", "10", CVAR_NOTIFY|CVAR_SERVERINFO};
 void SV_Accelerate (float wishspeed, const vec3_t wishdir)
 {
 	int			i;
