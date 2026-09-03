@@ -3,6 +3,23 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-03 — `make-dmg.sh` staged and shipped every release over the
+  slow workstation link.** The .app bundle always assembled on whatever host
+  ran the script (normally this workstation) because the ARCHS check needed
+  a modern `lipo`, and only the workstation had one - so the staged bundle
+  always rsynced to DMG_HOST over the workstation's own slow link out to the
+  fleet, the same shape of transfer measured to hang mid-transfer on a
+  bigger port (old-mac-build-host#64). Fix: `DMG_STAGE_HOST` now defaults to
+  imac-2019, which has a working Xcode/lipo too and sits on the same fleet
+  LAN as every DMG_HOST candidate - staging and the bundle rsync become a
+  LAN hop, only the fat binary and the finished compressed .dmg still cross
+  the workstation link, each md5-checked. Needed a real fleet-SSH-trust gap
+  closed first (imac-2019 had no ssh config for mini-g4/quicksilver/
+  sawtooth) - old-mac-build-host fixed that live during this ticket.
+  Verified end-to-end twice, real DMG_HOST (mini-g4), content verified
+  byte-for-byte on both hops. Falls back to staging locally if imac-2019 is
+  busy/unreachable. #43.
+
 - **2026-09-03 — `Fix Launch Problems.command` silently no-op'd on macOS
   that never had the bug it fixes.** App Translocation (the "couldn't load
   gfx.wad, Basedir is .../AppTranslocation/..." failure the script clears)
