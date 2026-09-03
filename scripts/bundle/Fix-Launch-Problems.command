@@ -34,6 +34,44 @@ if [ ! -e "Quakespasm.app" ]; then
 	exit 1
 fi
 
+# The bug this script fixes (App Translocation silently running Quakespasm.app
+# from a randomized sandbox path, cut off from its own id1/) was introduced in
+# macOS 10.12 Sierra. Below that -- every PowerPC OS, and Intel through Lion --
+# it cannot happen, so running this would only ever be a no-op that looks like
+# it did something. Say so instead and stop, matching the user's own report,
+# 2026-09-03: silently no-op'ing through steps that don't apply is worse than
+# an explicit "you don't need this."
+os_version="$(sw_vers -productVersion 2>/dev/null || echo 0)"
+os_major="$(echo "$os_version" | cut -d. -f1)"
+os_minor="$(echo "$os_version" | cut -d. -f2)"
+needs_fix=1
+case "$os_major" in
+	''|*[!0-9]*) needs_fix=1 ;;	# couldn't read a version -- don't skip on a guess
+	*)
+		if [ "$os_major" -lt 10 ]; then
+			needs_fix=0
+		elif [ "$os_major" -eq 10 ]; then
+			case "$os_minor" in
+				''|*[!0-9]*) : ;;	# 10 with no readable minor -- don't skip on a guess
+				*) [ "$os_minor" -lt 12 ] && needs_fix=0 ;;
+			esac
+		fi
+		;;
+esac
+
+if [ "$needs_fix" = 0 ]; then
+	echo "This Mac is running macOS $os_version, which is older than macOS 10.12"
+	echo "Sierra -- the version that introduced the \"downloaded from the internet\""
+	echo "App Translocation behavior this script fixes. It can't happen on this Mac,"
+	echo "so there is nothing for this script to do."
+	echo
+	echo "You don't need this. Just double-click Quakespasm.app."
+	echo
+	printf 'Press Return to close this window...'
+	read -r _
+	exit 0
+fi
+
 TARGET="."
 
 # Presence check trusted only via -l's printed output (see

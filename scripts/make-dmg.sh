@@ -286,14 +286,19 @@ predate Gatekeeper.
 
 TROUBLESHOOTING: "couldn't load gfx.wad" / Basedir is .../AppTranslocation/...
 -------------------------------------------------------------------------------
-This means Quakespasm.app still carries the quarantine flag from being
-downloaded, and macOS ran it from a temporary sandboxed copy instead of its
-real folder, so it can't see its own data files next to it. Fix: open the
-"Quakespasm" folder and right-click "Fix Launch Problems.command", choose
-Open once (see GATEKEEPER above), then try Quakespasm.app again. Or from
-Terminal, inside that same folder:
+Only possible on macOS 10.12 Sierra or later. This means Quakespasm.app still
+carries the quarantine flag from being downloaded, and macOS ran it from a
+temporary sandboxed copy instead of its real folder, so it can't see its own
+data files next to it. Fix: open the "Quakespasm" folder and right-click "Fix
+Launch Problems.command", choose Open once (see GATEKEEPER above), then try
+Quakespasm.app again. Or from Terminal, inside that same folder:
     xattr -dr com.apple.quarantine .
 This only needs doing once per copy of the game.
+
+On Panther, Tiger, Leopard or Lion this cannot happen -- those all predate
+App Translocation -- so "Fix Launch Problems.command" isn't needed there.
+Running it anyway is safe: it checks the OS version itself and tells you so
+instead of working through steps that would only ever be a no-op.
 
 PER-MACHINE CONFIG
 ------------------

@@ -166,8 +166,11 @@ the `Quakespasm` folder, right-click **`Fix Launch Problems.command`** and
 choose Open (once -- this app isn't Developer ID signed, so any unsigned
 script needs one right-click-Open bypass instead of a plain double-click),
 then try `Quakespasm.app` again. See "Where to put it" below for why this
-happens. Not needed on Panther/Tiger/Leopard/Lion, which predate Gatekeeper
-and quarantine entirely. An Apple Silicon Mac now runs a **native `arm64`
+happens. Not needed, and cannot happen, on Panther/Tiger/Leopard/Lion: the bug
+this fixes is App Translocation, which macOS didn't have until 10.12 Sierra.
+The script checks the OS version itself and says so instead of running
+through steps that would only ever be a no-op below that. An Apple Silicon
+Mac now runs a **native `arm64`
 slice** rather than the `x86_64` one under Rosetta 2, and the 2006 Core Duo /
 Core Solo machines have their own `i386` slice, so there is no longer any Mac
 this binary cannot run on natively.
@@ -190,12 +193,12 @@ Bundled SDL 1.2.15 is zlib-licensed.
 
 Two separate things bite here, and only one cares where the folder is:
 
-- **App Translocation**, wherever the folder lives: a quarantined app can run
-  from a random, sandboxed copy of itself instead of its real folder, so it
-  can't see `id1/` next to it -- `couldn't load gfx.wad, Basedir is
-  .../AppTranslocation/...`. `Fix Launch Problems.command`, inside the
-  `Quakespasm` folder, clears this; doing it by hand from inside that folder
-  is `xattr -dr com.apple.quarantine .`
+- **App Translocation** (macOS 10.12 Sierra and later only), wherever the
+  folder lives: a quarantined app can run from a random, sandboxed copy of
+  itself instead of its real folder, so it can't see `id1/` next to it --
+  `couldn't load gfx.wad, Basedir is .../AppTranslocation/...`. `Fix Launch
+  Problems.command`, inside the `Quakespasm` folder, clears this; doing it by
+  hand from inside that folder is `xattr -dr com.apple.quarantine .`
 - **The Desktop-permission prompt**, only if you put the folder on the
   Desktop: macOS asks an app for permission before it may read files in
   Desktop, Documents or Downloads, and asks again on every launch for an app
