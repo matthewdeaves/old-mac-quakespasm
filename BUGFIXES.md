@@ -3,6 +3,20 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-03 — `sv_accelerate` was invisible to infra's webadmin, unlike
+  its three movement-cvar siblings (#42).** `sv_gravity`/`sv_friction`/
+  `sv_maxspeed` all carry `CVAR_NOTIFY|CVAR_SERVERINFO` plus a
+  `Host_Callback_Notify` registration -- live, no restart, broadcast to
+  players, visible in NetQuake's `CCREQ_RULE_INFO` rules poll (same
+  mechanism server-v1.18 used for `deathmatch`/`coop`, issue #13).
+  `sv_accelerate` sat right next to `sv_maxspeed` in `Quake/sv_user.c` with
+  neither: `CVAR_NONE`, no callback. #42 assumed all four already behaved
+  the same way; they didn't. Fixed both pieces to match. Verified A/B on a
+  real dedicated server built in the project's own container (ADR 0011),
+  queried with a `CCREQ_RULE_INFO` walker: before, `sv_accelerate` absent
+  from the nine-key rules reply; after, present as `sv_accelerate=10`.
+  Shipped in server-v1.19.
+
 - **2026-09-02 — arm64 launched windowed, not fullscreen, on real Apple
   Silicon hardware (MacBook Air, Apple M5).** `autoexec-arm64.cfg` hardcoded
   a literal `vid_width 1920 vid_height 1080 vid_fullscreen 1` (exclusive
