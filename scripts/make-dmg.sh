@@ -35,6 +35,11 @@
 #                   when a healthy Tiger box does the job.
 #               The BINARY is still built on Lion (mini-intel) by build-fat.sh;
 #               DMG_HOST only runs the hdiutil packaging step on the staged tree.
+#      DMG_STAGE_HOST  Mac to stage the .app bundle + ship it to DMG_HOST FROM,
+#               instead of doing that here (issue #43). DEFAULT: imac-2019 (the
+#               only host known to have the lipo/codesign this needs), falling
+#               back to staging here if it's busy/unreachable. Set to "" to
+#               always stage here (pre-#43 behaviour).
 #
 # pre:   build/quakespasm-fat present (build with scripts/build-fat.sh;
 #        this script builds it for you if missing)
@@ -113,6 +118,97 @@ case " $ARCHS " in
   *" arm64 "*) echo "[make-dmg] arm64 slice present, native on Apple Silicon" ;;
   *) echo "[make-dmg] NOTE: no arm64 slice; Apple Silicon will use Rosetta 2" ;;
 esac
+
+# ---- optionally stage + ship from a LAN-connected host, not here ---------
+# Everything below (stage the .app, rsync it to DMG_HOST, hdiutil) has always
+# run wherever make-dmg.sh was invoked - normally this workstation - because
+# the ARCHS check just above needs a modern lipo, and until now the
+# workstation was the only machine that had one. That pins the staged bundle
+# (measured for this port: ~20 MB - the fat binary plus SDL/SDL2/codec dylibs,
+# not the ~190 MB the general cross-port finding quoted, which is a different,
+# data-heavier port) to ship workstation -> DMG_HOST over this workstation's
+# link out to the fleet, the same shape of transfer that has hung mid-transfer
+# before on a bigger port (2026-08-08, old-mac-build-host#64). imac-2019 now
+# has a working Xcode/lipo too (issue #43) and sits on the SAME fleet LAN as
+# every DMG_HOST candidate, so staging there instead would make the rsync to
+# DMG_HOST a LAN hop (mini-to-mini measured ~8 MB/s vs. the workstation link
+# cratering to under 1 MB/s) - only the fat binary (once) and the small
+# compressed .dmg (once) would still cross the workstation link.
+#
+# Default ON. Was gated behind an explicit DMG_STAGE_HOST=imac-2019 at first:
+# measured 2026-09-03, imac-2019's own ~/.ssh/config had no entry for mini-g4/
+# quicksilver/sawtooth, so its `ssh "$DMG_HOST"` call below failed outright -
+# "Could not resolve hostname mini-g4". That was fleet SSH trust on a shared
+# machine, old-mac-build-host's call not this script's - raised there, and
+# fixed same-day (old-mac-build-host, commit bd746e4): the Tiger-box
+# legacy-crypto config + retro key are now on imac-2019 too. Re-verified
+# end-to-end after the fix - full run, real DMG_HOST (mini-g4), content
+# verified byte-for-byte on both hops. Same fallback as DMG_HOST's own
+# auto-detect just above: if imac-2019 is busy or unreachable, this just
+# falls through to staging here, same as pre-#43.
+#
+# _QS_DMG_STAGED marks "this process IS the remote leg" - checked first so the
+# re-exec below cannot recurse when this same script runs again on
+# DMG_STAGE_HOST, and so a run started directly ON imac-2019 just stages
+# locally instead of trying to relay to itself. DMG_STAGE_HOST="" (explicitly
+# empty) opts out and always stages here, same as pre-#43.
+if [ -z "${_QS_DMG_STAGED:-}" ]; then
+  DMG_STAGE_HOST="${DMG_STAGE_HOST-imac-2019}"
+  if [ -n "$DMG_STAGE_HOST" ]; then
+    # Claim it like build-fat.sh claims imac-2019 for g3/g4/i386: a split
+    # acquire/release pair, so BENCH_LOCK_CLAIM is required (ticketing-workflow.md)
+    # - without it the picker can only match user@host:repo, which every
+    # session in this repo shares, and a sibling's --release would silently
+    # drop this claim. DMG_HOST's own claim above is a single --run (acquire +
+    # wrapped command + release in one call) and needs no nonce; this one does.
+    export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
+    if STAGE_HOST_RESOLVED="$("$REPO_ROOT/scripts/pick-bench-host.sh" --acquire "$DMG_STAGE_HOST" "make-dmg stage" 2>/dev/null)"; then
+      DMG_STAGE_HOST="$STAGE_HOST_RESOLVED"
+      trap "$REPO_ROOT/scripts/pick-bench-host.sh --release '$DMG_STAGE_HOST' >/dev/null 2>&1; true" EXIT
+      echo "[make-dmg] staging + shipping on $DMG_STAGE_HOST instead of this workstation"
+
+      . "$REPO_ROOT/scripts/source-stamp.sh"
+      . "$REPO_ROOT/scripts/source-stamp-excludes.sh"
+      echo "[make-dmg] sync sources this workstation -> $DMG_STAGE_HOST"
+      rsync -av --partial --inplace --delete \
+        $(source_stamp_rsync_excludes "$SOURCE_STAMP_EXCLUDES") \
+        -e 'ssh -o ServerAliveInterval=15' \
+        "$REPO_ROOT/" "$DMG_STAGE_HOST:quakespasm/" | tail -3
+      # build/ is in the exclude list (same reason as build.sh's sync to the
+      # Lion mini: an output dir that should not bounce through another host),
+      # so the one binary this whole relay exists to avoid re-staging locally
+      # still has to be sent explicitly - it is the one part of the ~190 MB
+      # that is genuinely new every release, everything else (frameworks,
+      # dylibs, cfgs, README) already lives in $DMG_STAGE_HOST's own checkout.
+      ssh "$DMG_STAGE_HOST" "mkdir -p quakespasm/build"
+      scp -q "$BIN" "$DMG_STAGE_HOST:quakespasm/build/quakespasm-fat"
+
+      mkdir -p "$REPO_ROOT/dist"
+      echo "[make-dmg] running make-dmg.sh on $DMG_STAGE_HOST"
+      ssh "$DMG_STAGE_HOST" "cd quakespasm && \
+        DMG_HOST='$DMG_HOST' RETRO_BENCH_LOCK='$DMG_HOST' \
+        QS_PORT_VERSION='${QS_PORT_VERSION:-}' _QS_DMG_STAGED=1 \
+        scripts/make-dmg.sh '$VERSION'"
+
+      echo "[make-dmg] fetch finished .dmg back from $DMG_STAGE_HOST"
+      scp -q "$DMG_STAGE_HOST:quakespasm/dist/QuakeSpasm-OldMac-$VERSION.dmg" "$OUT"
+      # Same paranoia as the local path's own final scp check below: confirm
+      # THIS hop didn't corrupt it either, not just the workstation->DMG_HOST
+      # one the remote leg already verified.
+      RMT_FETCH_MD5=$(ssh "$DMG_STAGE_HOST" "md5 'quakespasm/dist/QuakeSpasm-OldMac-$VERSION.dmg' | awk '{print \$NF}'")
+      LCL_FETCH_MD5=$(md5sum "$OUT" | cut -d' ' -f1)
+      [ "$RMT_FETCH_MD5" = "$LCL_FETCH_MD5" ] || {
+        echo "[make-dmg] FATAL: scp from $DMG_STAGE_HOST corrupted $OUT ($RMT_FETCH_MD5 != $LCL_FETCH_MD5)" >&2
+        exit 1
+      }
+      echo "[make-dmg] OK - $OUT (staged + shipped via $DMG_STAGE_HOST)"
+      ls -lh "$OUT"
+      exit 0
+    else
+      echo "[make-dmg] $DMG_STAGE_HOST busy or unreachable - staging here instead"
+    fi
+  fi
+fi
 
 # ---- stage the disk-image contents (Quakespasm.app + pak + README) -------
 # Everything a player needs lives inside one "Quakespasm" folder at the DMG
