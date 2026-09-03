@@ -3,6 +3,26 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-03 — `Fix Launch Problems.command` silently no-op'd on macOS
+  that never had the bug it fixes.** App Translocation (the "couldn't load
+  gfx.wad, Basedir is .../AppTranslocation/..." failure the script clears)
+  was introduced in macOS 10.12 Sierra; Panther through Lion (10.3-10.11)
+  predate it entirely, so running the script there always did nothing while
+  looking like it might have. User's own words, direct: the script should
+  check and say so instead. Fix: reads `sw_vers -productVersion` first and
+  exits with a plain "you don't need this" below 10.12, before touching
+  anything; an unreadable/unrecognized version does not skip, so it fails
+  safe. Also corrected README.md's claim that these OSes "predate Gatekeeper
+  and quarantine entirely" -- wrong, quarantine started in Leopard 10.5 and
+  Gatekeeper in Lion 10.7.3; the real threshold for this specific bug is App
+  Translocation, 10.12. Tested both branches directly (faked `sw_vers` for
+  the old-OS exit, ran unmodified for the current-OS fix path). Shipped in
+  v1.15.12. Same session, imac-2019's standard smoke test hit the machine's
+  own known Desktop-folder TCC dialog (MISTAKES.md, 2026-08-31) -- confirmed
+  the same already-documented cause via the engine's own log (one startup
+  line then blocked, not a crash), not a new regression; needs one manual
+  click there, same as every release that changes the binary's signature.
+
 - **2026-09-03 — `sv_accelerate` was invisible to infra's webadmin, unlike
   its three movement-cvar siblings (#42).** `sv_gravity`/`sv_friction`/
   `sv_maxspeed` all carry `CVAR_NOTIFY|CVAR_SERVERINFO` plus a
