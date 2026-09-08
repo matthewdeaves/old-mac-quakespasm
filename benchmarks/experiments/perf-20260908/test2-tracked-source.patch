@@ -1,0 +1,737 @@
+diff --git a/Quake/gl_model.h b/Quake/gl_model.h
+index 71576bfb..60c4fb86 100644
+--- a/Quake/gl_model.h
++++ b/Quake/gl_model.h
+@@ -174,6 +174,8 @@ typedef struct msurface_s
+ 	byte		styles[MAXLIGHTMAPS];
+ 	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
+ 	qboolean	cached_dlight;				// true if dynamic light in cache
++	int         cached_dlightframe; // consecutive world evaluation required for reuse
++	unsigned int cached_dlightbits[(MAX_DLIGHTS + 31) >> 5];
+ 	byte		*samples;		// [numstyles*surfsize]
+ } msurface_t;
+ 
+diff --git a/Quake/gl_perfprint.h b/Quake/gl_perfprint.h
+index 2247cf4b..ba2835fe 100644
+--- a/Quake/gl_perfprint.h
++++ b/Quake/gl_perfprint.h
+@@ -41,6 +41,7 @@ typedef enum {
+     PERF_PARTICLES,        // R_DrawParticles
+     PERF_VIEWMODEL,        // R_DrawViewModel
+     PERF_SWAP,             // GL_EndRendering — driver SwapBuffers (vsync wait lives here)
++    PERF_SHADOWS,          // R_DrawShadows, including lighting traces and state changes
+     PERF_REGION_COUNT
+ } perf_region_t;
+ 
+@@ -62,6 +63,8 @@ typedef enum {
+     PERF_CNT_DLIGHT,           // dlights actually marked into surfaces this frame
+     PERF_CNT_SURFACE,          // brush surfaces submitted to the renderer
+     PERF_CNT_ALIAS_TRIS,       // alias-model triangles submitted (sum across entities)
++    PERF_CNT_SHADOW,           // alias shadows actually submitted
++    PERF_CNT_SHADOW_SETUP,     // shadow GL state groups opened (legacy: one per shadow)
+     PERF_CNT_COUNT
+ } perf_counter_t;
+ 
+diff --git a/Quake/gl_rlight.c b/Quake/gl_rlight.c
+index b261b7fc..2d942465 100644
+--- a/Quake/gl_rlight.c
++++ b/Quake/gl_rlight.c
+@@ -25,6 +25,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ 
+ static int	r_dlightframecount;
+ 
++unsigned int r_changed_dlights[(MAX_DLIGHTS + 31) >> 5];
++
++// Only fields consumed by R_AddDynamicLights affect a cached surface.
++// Expiry/slot membership is checked through each surface's current bitset.
++static void R_TrackDlightChanges (void)
++{
++	static dlight_t previous[MAX_DLIGHTS];
++	static int previous_frame = -1;
++	int i;
++	memset (r_changed_dlights, 0, sizeof(r_changed_dlights));
++	for (i = 0; i < MAX_DLIGHTS; i++)
++	{
++		dlight_t *a = &previous[i], *b = &cl_dlights[i];
++		if (previous_frame != r_framecount
++		    || !VectorCompare (a->origin, b->origin)
++		    || !VectorCompare (a->color, b->color)
++		    || a->radius != b->radius || a->minlight != b->minlight)
++			r_changed_dlights[i >> 5] |= 1U << (i & 31);
++		*a = *b;
++	}
++	previous_frame = r_framecount + 1;
++}
++
+ extern cvar_t r_flatlightstyles; //johnfitz
+ extern cvar_t r_lerplightstyles; // PPC port -- finding #5
+ 
+@@ -275,6 +298,8 @@ void R_PushDlights (void)
+ 	// the dlight pipeline picks them up transparently. R_PushEmissiveLights
+ 	// is a no-op when r_emissive_lights cvar is 0 (default).
+ 	R_PushEmissiveLights ();
++	if (gl_lightmap_reuse.value)
++		R_TrackDlightChanges ();
+ 
+ 	r_dlightframecount = r_framecount + 1;	// because the count hasn't advanced yet for this frame
+ 	l = cl_dlights;
+diff --git a/Quake/gl_rmain.c b/Quake/gl_rmain.c
+index 4fc0dc66..3012b1fa 100644
+--- a/Quake/gl_rmain.c
++++ b/Quake/gl_rmain.c
+@@ -64,6 +64,9 @@ cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
+ cvar_t	r_fullbright = {"r_fullbright","0",CVAR_NONE};
+ cvar_t	r_lightmap = {"r_lightmap","0",CVAR_NONE};
+ cvar_t	r_shadows = {"r_shadows","0",CVAR_ARCHIVE};
++cvar_t	gl_shadowstate = {"gl_shadowstate", "0", CVAR_NONE}; // experimental pass-level state; same-binary A/B
++cvar_t	gl_shadowlight_reuse = {"gl_shadowlight_reuse", "0", CVAR_NONE};
++cvar_t	gl_lightmap_reuse = {"gl_lightmap_reuse", "0", CVAR_NONE};
+ // PPC port -- Pass C HIGH leverage: distance gate for R_DrawShadows.
+ // 0 = unlimited (engine default, matches upstream behaviour). Set
+ // non-zero to skip shadow draws beyond this distance from the viewer
+@@ -205,12 +208,12 @@ static qboolean gl_perf_timebase_init = false;
+ 
+ static const char *const gl_perf_region_names[PERF_REGION_COUNT] = {
+ 	"frame", "warp", "sky", "world", "water",
+-	"alias", "alpha", "part", "vmodel", "swap"
++	"alias", "alpha", "part", "vmodel", "swap", "shadow"
+ };
+ 
+ // Round v5 A6 -- counter labels. Order must match perf_counter_t.
+ static const char *const gl_perf_counter_names[PERF_CNT_COUNT] = {
+-	"binds", "draws", "dlights", "surfs", "atris"
++	"binds", "draws", "dlights", "surfs", "atris", "shadows", "shadowsets"
+ };
+ 
+ static void Gl_Perfprint_Callback (cvar_t *var)
+@@ -1094,6 +1097,8 @@ R_DrawShadows
+ void R_DrawShadows (void)
+ {
+ 	int i;
++	qboolean state_active = false;
++	qboolean *shared_state = gl_shadowstate.value ? &state_active : NULL;
+ 
+ 	if (!r_shadows.value || !r_drawentities.value || r_drawflat_cheatsafe || r_lightmap_cheatsafe)
+ 		return;
+@@ -1115,7 +1120,7 @@ void R_DrawShadows (void)
+ 			continue;
+ 
+ 		if (currententity == &cl.viewent)
+-			return;
++			continue;
+ 
+ 		// PPC port -- Pass C HIGH leverage: distance gate.
+ 		// Each shadow draw costs an R_LightPoint BSP trace +
+@@ -1136,9 +1141,11 @@ void R_DrawShadows (void)
+ 				continue;
+ 		}
+ 
+-		GL_DrawAliasShadow (currententity);
++		GL_DrawAliasShadow (currententity, shared_state);
+ 	}
+ 
++	GL_EndAliasShadows (&state_active);
++
+ 	if (gl_stencilbits)
+ 	{
+ 		glDisable(GL_STENCIL_TEST);
+@@ -1185,7 +1192,9 @@ void R_RenderScene (void)
+ 	// G4's Radeon 9000 driver. Function still exists in r_world.c
+ 	// for reference; not called.
+ 
++	PERF_BEGIN(PERF_SHADOWS);
+ 	R_DrawShadows (); //johnfitz -- render entity shadows
++	PERF_END(PERF_SHADOWS);
+ 
+ 	PERF_BEGIN(PERF_ALIAS);
+ 	R_DrawEntitiesOnList (false); //johnfitz -- false means this is the pass for nonalpha entities
+@@ -1431,4 +1440,3 @@ void R_RenderView (void)
+ 					rs_dynamiclightmaps);
+ 	//johnfitz
+ }
+-
+diff --git a/Quake/gl_rmisc.c b/Quake/gl_rmisc.c
+index 8a54dfd4..becfde74 100644
+--- a/Quake/gl_rmisc.c
++++ b/Quake/gl_rmisc.c
+@@ -176,6 +176,9 @@ void R_Init (void)
+ 	Cvar_RegisterVariable (&r_drawentities);
+ 	Cvar_RegisterVariable (&r_drawviewmodel);
+ 	Cvar_RegisterVariable (&r_shadows);
++	Cvar_RegisterVariable (&gl_shadowstate);
++	Cvar_RegisterVariable (&gl_shadowlight_reuse);
++	Cvar_RegisterVariable (&gl_lightmap_reuse);
+ 	Cvar_RegisterVariable (&r_shadow_distance); // PPC port -- Pass C HIGH
+ 	Cvar_RegisterVariable (&r_dynamic_distance); // PPC port -- Round v5 B1
+ 	Cvar_RegisterVariable (&gl_lightmap_subrect); // PPC port -- Round v8 item 1
+diff --git a/Quake/glquake.h b/Quake/glquake.h
+index 42f3b4cf..2037bbfa 100644
+--- a/Quake/glquake.h
++++ b/Quake/glquake.h
+@@ -136,6 +136,9 @@ extern	cvar_t	r_fullbright;
+ extern	cvar_t	r_lightmap;
+ extern	cvar_t	r_lightmapwide;
+ extern	cvar_t	r_shadows;
++extern	cvar_t	gl_shadowstate;
++extern	cvar_t	gl_shadowlight_reuse, gl_lightmap_reuse;
++extern unsigned int r_changed_dlights[(MAX_DLIGHTS + 31) >> 5];
+ extern	cvar_t	r_shadow_distance;
+ extern	cvar_t	r_dynamic_distance;	/* Round v5 B1 -- dlight distance gate */
+ extern	cvar_t	gl_lightmap_subrect;	/* Round v8 item 1 -- subrect lightmap upload */
+@@ -484,7 +487,7 @@ int R_LightPoint (vec3_t p);
+ 
+ void GL_SubdivideSurface (msurface_t *fa);
+ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
+-void R_RenderDynamicLightmaps (msurface_t *fa);
++void R_RenderDynamicLightmaps (msurface_t *fa, qboolean world);
+ void R_UploadLightmaps (void);
+ 
+ void R_DrawWorld_ShowTris (void);
+@@ -498,7 +501,8 @@ void R_DeleteShaders (void);
+ 
+ void GLWorld_CreateShaders (void);
+ void GLAlias_CreateShaders (void);
+-void GL_DrawAliasShadow (entity_t *e);
++void GL_DrawAliasShadow (entity_t *e, qboolean *state_active);
++void GL_EndAliasShadows (qboolean *state_active);
+ void DrawGLTriangleFan (glpoly_t *p);
+ void DrawGLPoly (glpoly_t *p);
+ 
+diff --git a/Quake/r_alias.c b/Quake/r_alias.c
+index a776d847..c55a594f 100644
+--- a/Quake/r_alias.c
++++ b/Quake/r_alias.c
+@@ -57,6 +57,7 @@ static vec3_t	shadevector;
+ static float	entalpha; //johnfitz
+ 
+ static qboolean overbright; //johnfitz
++static unsigned int alias_light_serial; // per scene, independent of map/frame resets
+ 
+ // =============================================================================
+ // PPC port -- Round v11: per-frame GL state cache for R_DrawAliasModel.
+@@ -147,6 +148,7 @@ static alias_state_cache_t r_alias_sc;
+ 
+ void R_AliasStateCache_FrameReset (void)
+ {
++	alias_light_serial++;
+ #ifndef QS_DISABLE_ALIAS_STATE_CACHE
+ 	r_alias_sc.disabled       = (gl_aliasstate_cache.value == 0.0f);
+ 	r_alias_sc.texenv_mode[0] = (GLenum)~0u;
+@@ -943,11 +945,21 @@ void R_SetupAliasLighting (entity_t	*e)
+ 	int			i;
+ 	int		quantizedangle;
+ 	float		radiansangle;
++	int         lightvalue;
+ 
+ 	// if the initial trace is completely black, try again from above
+ 	// this helps with models whose origin is slightly below ground level
+ 	// (e.g. some of the candles in the DOTM start map)
+-	if (!R_LightPoint (e->origin))
++	if (gl_shadowlight_reuse.value && e->shadow_lightframe == alias_light_serial
++	    && VectorCompare (e->origin, e->shadow_lightorg))
++	{
++		lightvalue = e->shadow_lightvalue;
++		VectorCopy (e->shadow_lightcolor, lightcolor);
++		VectorCopy (e->shadow_lightspot, lightspot);
++	}
++	else
++		lightvalue = R_LightPoint (e->origin);
++	if (!lightvalue)
+ 	{
+ 		vec3_t lpos;
+ 		VectorCopy (e->origin, lpos);
+@@ -1379,7 +1391,20 @@ GL_DrawAliasShadow -- johnfitz -- rewritten
+ TODO: orient shadow onto "lightplane" (a global mplane_t*)
+ =============
+ */
+-void GL_DrawAliasShadow (entity_t *e)
++void GL_EndAliasShadows (qboolean *state_active)
++{
++	if (!*state_active)
++		return;
++	glEnable (GL_TEXTURE_2D);
++	glDisable (GL_BLEND);
++	glDepthMask (GL_TRUE);
++	*state_active = false;
++}
++
++// A NULL state pointer retains per-entity setup/cleanup for A/B. Otherwise
++// open lazily after culling and leave the common state for the next shadow.
++// R_DrawShadows closes the scope, even when later entities are skipped.
++void GL_DrawAliasShadow (entity_t *e, qboolean *state_active)
+ {
+ 	float	shadowmatrix[16] = {1,				0,				0,				0,
+ 								0,				1,				0,				0,
+@@ -1398,10 +1423,24 @@ void GL_DrawAliasShadow (entity_t *e)
+ 	entalpha = ENTALPHA_DECODE(e->alpha);
+ 	if (entalpha == 0) return;
+ 
++	// Mod_Extradata can reload an evicted model and upload its textures.
++	// Restore ordinary state before that work, then reopen for this draw.
++	if (state_active && !e->model->cache.data)
++		GL_EndAliasShadows (state_active);
++
+ 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
+ 	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
+ 	R_SetupEntityTransform (e, &lerpdata);
+-	R_LightPoint (e->origin);
++	if (gl_shadowlight_reuse.value)
++	{
++		e->shadow_lightvalue = R_LightPoint (e->origin);
++		e->shadow_lightframe = alias_light_serial;
++		VectorCopy (e->origin, e->shadow_lightorg);
++		VectorCopy (lightcolor, e->shadow_lightcolor);
++		VectorCopy (lightspot, e->shadow_lightspot);
++	}
++	else
++		R_LightPoint (e->origin);
+ 	lheight = currententity->origin[2] - lightspot[2];
+ 
+ // set up matrix
+@@ -1417,16 +1456,26 @@ void GL_DrawAliasShadow (entity_t *e)
+ 	glScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
+ 
+ // draw it
+-	glDepthMask(GL_FALSE);
+-	glEnable (GL_BLEND);
+-	GL_DisableMultitexture ();
+-	glDisable (GL_TEXTURE_2D);
++	if (!state_active || !*state_active)
++	{
++		glDepthMask(GL_FALSE);
++		glEnable (GL_BLEND);
++		GL_DisableMultitexture ();
++		glDisable (GL_TEXTURE_2D);
++		if (state_active)
++			*state_active = true;
++		PERF_COUNT (PERF_CNT_SHADOW_SETUP);
++	}
+ 	shading = false;
+ 	glColor4f(0,0,0,entalpha * 0.5);
+ 	GL_DrawAliasFrame (paliashdr, lerpdata);
+-	glEnable (GL_TEXTURE_2D);
+-	glDisable (GL_BLEND);
+-	glDepthMask(GL_TRUE);
++	PERF_COUNT (PERF_CNT_SHADOW);
++	if (!state_active)
++	{
++		glEnable (GL_TEXTURE_2D);
++		glDisable (GL_BLEND);
++		glDepthMask(GL_TRUE);
++	}
+ 
+ //clean up
+ 	glPopMatrix ();
+diff --git a/Quake/r_brush.c b/Quake/r_brush.c
+index 8e77e9e4..d8e45c8f 100644
+--- a/Quake/r_brush.c
++++ b/Quake/r_brush.c
+@@ -395,7 +395,7 @@ void R_DrawBrushModel (entity_t *e)
+ 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
+ 		{
+ 			R_ChainSurface (psurf, chain_model);
+-			R_RenderDynamicLightmaps(psurf);
++			R_RenderDynamicLightmaps(psurf, false);
+ 			rs_brushpolys++;
+ 		}
+ 	}
+@@ -481,7 +481,7 @@ R_RenderDynamicLightmaps
+ called during rendering
+ ================
+ */
+-void R_RenderDynamicLightmaps (msurface_t *fa)
++void R_RenderDynamicLightmaps (msurface_t *fa, qboolean world)
+ {
+ 	byte		*base;
+ 	int			maps;
+@@ -500,6 +500,26 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
+ 		if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps])
+ 			goto dynamic;
+ 
++	// Reuse only a world surface evaluated in the preceding frame, with
++	// identical light membership and unchanged inputs for every member.
++	// A visibility gap, moving light, lightstyle change, or brush-model draw
++	// falls back to composition. No approximate light positions or colours.
++	if (gl_lightmap_reuse.value && world && r_dynamic.value
++	    && fa->cached_dlightframe == r_framecount - 1
++	    && fa->dlightframe == r_framecount && fa->cached_dlight)
++	{
++		int word;
++		for (word = 0; word < (MAX_DLIGHTS + 31) >> 5; word++)
++			if (fa->dlightbits[word] != fa->cached_dlightbits[word]
++			    || (fa->dlightbits[word] & r_changed_dlights[word]))
++				break;
++		if (word == (MAX_DLIGHTS + 31) >> 5)
++		{
++			fa->cached_dlightframe = r_framecount;
++			return;
++		}
++	}
++
+ 	if (fa->dlightframe == r_framecount	// dynamic this frame
+ 		|| fa->cached_dlight)			// dynamic previously
+ 	{
+@@ -535,6 +555,11 @@ dynamic:
+ 			base = lm->data;
+ 			base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
+ 			R_BuildLightMap (fa, base, LMBLOCK_WIDTH*lightmap_bytes);
++			if (gl_lightmap_reuse.value && world)
++			{
++				fa->cached_dlightframe = r_framecount;
++				memcpy (fa->cached_dlightbits, fa->dlightbits, sizeof(fa->dlightbits));
++			}
+ 		}
+ 	}
+ }
+@@ -1294,6 +1319,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
+ 	unsigned	*bl;
+ 
+ 	surf->cached_dlight = (surf->dlightframe == r_framecount);
++	surf->cached_dlightframe = 0; // all other rebuild paths invalidate reuse
+ 
+ 	smax = (surf->extents[0]>>4)+1;
+ 	tmax = (surf->extents[1]>>4)+1;
+diff --git a/Quake/r_decals.c b/Quake/r_decals.c
+index a7b4d2c6..444119e4 100644
+--- a/Quake/r_decals.c
++++ b/Quake/r_decals.c
+@@ -106,10 +106,13 @@ typedef struct {
+ 	vec3_t   up;
+ 	float    radius;
+ 	float    rotCos, rotSin;	/* per-decal random in-plane rotation */
++	vec3_t   mins, maxs;
+ } r_decal_t;
+ 
+ static r_decal_t r_decal_list[MAX_DECALS];
+ static vec3_t    r_decal_verts[MAX_DECAL_VERTS];
++static float     r_decal_uv[MAX_DECAL_VERTS][2];
++static void DecalTexCoord (const vec3_t v, const r_decal_t *d, float *s, float *t);
+ static int       r_decal_next;		/* FIFO slot head */
+ 
+ /* clipper working state, reset per R_MarkFragments call */
+@@ -137,6 +140,8 @@ cvar_t r_decals      = {"r_decals",      "1",  CVAR_ARCHIVE};
+ cvar_t r_decal_max   = {"r_decal_max",   "32", CVAR_ARCHIVE};
+ cvar_t r_decal_life  = {"r_decal_life",  "30", CVAR_ARCHIVE};
+ cvar_t r_decal_fade  = {"r_decal_fade",  "5",  CVAR_ARCHIVE};
++cvar_t r_decal_cull = {"r_decal_cull", "0", CVAR_NONE};
++cvar_t r_decal_uvcache = {"r_decal_uvcache", "0", CVAR_NONE};
+ 
+ /* Instrumentation, off by default and reported only at the end of a
+  * timedemo, so a bench run costs nothing extra until it is asked for.
+@@ -530,6 +535,26 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
+ 		d->rotSin = sin(ang);
+ 	}
+ 
++	// Final clipped positions and the texture basis are immutable until
++	// this slot is recycled. Populate even when the draw toggle is off.
++	VectorCopy (r_decal_verts[d->firstPoint], d->mins);
++	VectorCopy (d->mins, d->maxs);
++	for (i = 0; i < verts_needed; i++)
++	{
++		int axis_i, v = d->firstPoint + i;
++		DecalTexCoord (r_decal_verts[v], d, &r_decal_uv[v][0], &r_decal_uv[v][1]);
++		for (axis_i = 0; axis_i < 3; axis_i++)
++		{
++			d->mins[axis_i] = q_min(d->mins[axis_i], r_decal_verts[v][axis_i]);
++			d->maxs[axis_i] = q_max(d->maxs[axis_i], r_decal_verts[v][axis_i]);
++		}
++	}
++	for (i = 0; i < 3; i++)
++	{
++		d->mins[i] -= 0.01f;
++		d->maxs[i] += 0.01f;
++	}
++
+ 	now = cl.time;
+ 	d->inUse = true;
+ 	d->fadeStart = now + r_decal_life.value;
+@@ -815,6 +840,8 @@ void R_InitDecals (void)
+ 	Cvar_RegisterVariable (&r_decal_max);
+ 	Cvar_RegisterVariable (&r_decal_life);
+ 	Cvar_RegisterVariable (&r_decal_fade);
++	Cvar_RegisterVariable (&r_decal_cull);
++	Cvar_RegisterVariable (&r_decal_uvcache);
+ 	Cvar_RegisterVariable (&r_decal_stats);
+ 
+ 	GenBulletHole (bullet_data);
+@@ -916,6 +943,8 @@ void R_DrawDecals (void)
+ 			d->inUse = false;
+ 			continue;
+ 		}
++		if (r_decal_cull.value && R_CullBox (d->mins, d->maxs))
++			continue;
+ 
+ 		alpha = 1.0f;
+ 		if (now > d->fadeStart && d->fadeEnd > d->fadeStart)
+@@ -938,7 +967,13 @@ void R_DrawDecals (void)
+ 			glBegin (GL_TRIANGLE_FAN);
+ 			for (j = 0; j < fn; j++)
+ 			{
+-				DecalTexCoord (r_decal_verts[base + j], d, &s, &t);
++				if (r_decal_uvcache.value)
++				{
++					s = r_decal_uv[base + j][0];
++					t = r_decal_uv[base + j][1];
++				}
++				else
++					DecalTexCoord (r_decal_verts[base + j], d, &s, &t);
+ 				glTexCoord2f (s, t);
+ 				glVertex3fv (r_decal_verts[base + j]);
+ 			}
+diff --git a/Quake/r_part.c b/Quake/r_part.c
+index e3d89fbe..36c38d15 100644
+--- a/Quake/r_part.c
++++ b/Quake/r_part.c
+@@ -41,6 +41,7 @@ static float texturescalefactor; //johnfitz -- compensate for apparent size of d
+ 
+ cvar_t	r_particles = {"r_particles","1", CVAR_ARCHIVE}; //johnfitz
+ cvar_t	r_quadparticles = {"r_quadparticles","1", CVAR_ARCHIVE}; //johnfitz
++cvar_t r_particle_cull = {"r_particle_cull", "0", CVAR_NONE};
+ 
+ /*
+ ===============
+@@ -167,6 +168,7 @@ void R_InitParticles (void)
+ 			Hunk_AllocName (r_numparticles * sizeof(particle_t), "particles");
+ 
+ 	Cvar_RegisterVariable (&r_particles); //johnfitz
++	Cvar_RegisterVariable (&r_particle_cull);
+ 	Cvar_SetCallback (&r_particles, R_SetParticleTexture_f);
+ 	Cvar_RegisterVariable (&r_quadparticles); //johnfitz
+ 
+@@ -860,6 +862,18 @@ static void R_InitParticleSTScratch (void)
+ 	part_st_initialized = true;
+ }
+ 
++// Plane support of the complete billboard quad is conservative for both
++// the triangle and quad paths. Keep a margin at the frustum boundary.
++static qboolean R_CullParticle (const vec3_t org, float scale, const float *support)
++{
++	int i;
++	for (i = 0; i < 4; i++)
++		if (DotProduct (org, frustum[i].normal) + scale * support[i]
++		    < frustum[i].dist - 0.01f)
++			return true;
++	return false;
++}
++
+ void R_DrawParticles (void)
+ {
+ 	particle_t		*p;
+@@ -867,6 +881,8 @@ void R_DrawParticles (void)
+ 	vec3_t			up, right, p_up, p_right, p_upright;
+ 	GLubyte			*c;
+ 	int				n, j;
++	float           support[4];
++	qboolean        cull = (r_particle_cull.value != 0);
+ 	extern	cvar_t	r_particles;
+ 
+ 	if (!r_particles.value)
+@@ -881,6 +897,13 @@ void R_DrawParticles (void)
+ 
+ 	VectorScale (vup, 1.5, up);
+ 	VectorScale (vright, 1.5, right);
++	if (cull)
++		for (j = 0; j < 4; j++)
++		{
++			float pu = DotProduct (up, frustum[j].normal);
++			float pr = DotProduct (right, frustum[j].normal);
++			support[j] = q_max(0.0f, pu) + q_max(0.0f, pr);
++		}
+ 
+ 	GL_Bind(particletexture);
+ 	glEnable (GL_BLEND);
+@@ -914,6 +937,8 @@ void R_DrawParticles (void)
+ 				scale = 1.0f + scale * 0.004f;
+ 			scale *= 0.5f; //quad is half the size of triangle
+ 			scale *= texturescalefactor;
++			if (cull && R_CullParticle (p->org, scale, support))
++				continue;
+ 
+ 			c = (GLubyte *) &d_8to24table[(int)p->color];
+ 
+@@ -968,6 +993,8 @@ void R_DrawParticles (void)
+ 			else
+ 				scale = 1.0f + scale * 0.004f;
+ 			scale *= texturescalefactor;
++			if (cull && R_CullParticle (p->org, scale, support))
++				continue;
+ 
+ 			c = (GLubyte *) &d_8to24table[(int)p->color];
+ 
+@@ -1087,4 +1114,3 @@ void R_DrawParticles_ShowTris (void)
+ 		glEnd ();
+ 	}
+ }
+-
+diff --git a/Quake/r_world.c b/Quake/r_world.c
+index 608888ce..a04f5493 100644
+--- a/Quake/r_world.c
++++ b/Quake/r_world.c
+@@ -187,7 +187,7 @@ void R_MarkSurfaces (void)
+ 						{
+ 							rs_brushpolys++; //count wpolys here
+ 							R_ChainSurface(surf, chain_world);
+-							R_RenderDynamicLightmaps(surf);
++							R_RenderDynamicLightmaps(surf, true);
+ 							if (surf->texinfo->texture->warpimage)
+ 								surf->texinfo->texture->update_warp = true;
+ 						}
+diff --git a/Quake/render.h b/Quake/render.h
+index ef600ee6..c46cf91f 100644
+--- a/Quake/render.h
++++ b/Quake/render.h
+@@ -91,6 +91,9 @@ typedef struct entity_s
+ 	vec3_t					currentorigin;	//johnfitz -- transform lerping
+ 	vec3_t					previousangles;	//johnfitz -- transform lerping
+ 	vec3_t					currentangles;	//johnfitz -- transform lerping
++	unsigned int            shadow_lightframe;
++	int                     shadow_lightvalue;
++	vec3_t                  shadow_lightorg, shadow_lightcolor, shadow_lightspot;
+ } entity_t;
+ 
+ // !!! if this is changed, it must be changed in asm_draw.h too !!!
+diff --git a/Quake/snd_dma.c b/Quake/snd_dma.c
+index 7b9f29c0..0817196f 100644
+--- a/Quake/snd_dma.c
++++ b/Quake/snd_dma.c
+@@ -78,6 +78,7 @@ cvar_t		loadas8bit = {"loadas8bit", "0", CVAR_NONE};
+ 
+ cvar_t		sndspeed = {"sndspeed", "11025", CVAR_NONE};
+ cvar_t		snd_mixspeed = {"snd_mixspeed", "44100", CVAR_NONE};
++extern cvar_t snd_filter_reuse;
+ 
+ #if defined(_WIN32)
+ #define SND_FILTERQUALITY_DEFAULT "5"
+@@ -178,6 +179,7 @@ void S_Init (void)
+ 	Cvar_RegisterVariable(&snd_show);
+ 	Cvar_RegisterVariable(&_snd_mixahead);
+ 	Cvar_RegisterVariable(&sndspeed);
++	Cvar_RegisterVariable(&snd_filter_reuse);
+ 	Cvar_RegisterVariable(&snd_mixspeed);
+ 	Cvar_RegisterVariable(&snd_filterquality);
+ 	
+diff --git a/Quake/snd_mix.c b/Quake/snd_mix.c
+index 09335ed1..1bac879e 100644
+--- a/Quake/snd_mix.c
++++ b/Quake/snd_mix.c
+@@ -216,12 +216,15 @@ static void S_MakeBlackmanWindowKernel(float *kernel, int M, float f_c)
+ typedef struct {
+ 	float *memory;  // kernelsize floats
+ 	float *kernel;  // kernelsize floats
++	float scratch[PAINTBUFFER_SIZE + 256]; // per-channel storage, no shared mixer state
+ 	int kernelsize; // M+1, rounded up to be a multiple of 16
+ 	int M;			// M value used to make kernel, even
+ 	int parity;		// 0-3
+ 	float f_c;		// cutoff frequency, [0..1], fraction of sample rate
+ } filter_t;
+ 
++cvar_t snd_filter_reuse = {"snd_filter_reuse", "0", CVAR_NONE};
++
+ static void S_UpdateFilter(filter_t *filter, int M, float f_c)
+ {
+ 	if (filter->f_c != f_c || filter->M != M)
+@@ -261,8 +264,11 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
+ 	const int kernelsize = filter->kernelsize;
+ 	const float *kernel = filter->kernel;
+ 	int parity;
++	qboolean reuse = snd_filter_reuse.value
++	    && count + kernelsize <= (int)Q_COUNTOF(filter->scratch);
+ 
+-	input = (float *) malloc(sizeof(float) * (filter->kernelsize + count));
++	input = reuse ? filter->scratch :
++	    (float *) malloc(sizeof(float) * (filter->kernelsize + count));
+ 	if (!input)
+ 		return;	// silently drop this filter pass on OOM rather than crash
+ 
+@@ -304,7 +310,8 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
+ 
+ 	filter->parity = parity;
+ 
+-	free(input);
++	if (!reuse)
++		free(input);
+ }
+ 
+ /*
+@@ -625,4 +632,3 @@ static void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count, in
+ 
+ 	ch->pos += count;
+ }
+-
+diff --git a/benchmarks/results.csv b/benchmarks/results.csv
+index 2ffdb738..fdb38cbb 100644
+--- a/benchmarks/results.csv
++++ b/benchmarks/results.csv
+@@ -777,3 +777,14 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
+ 2026-08-30T09:09:22Z,272bda91,mini-intel2,demo1,640x480,NA,NA,NA,NA,"",640x480
+ 2026-08-30T09:14:08Z,272bda91,mini-intel2,demo1,640x480,6.7,6.8,6.8,6.80,"",1280x1024
+ 2026-08-30T09:18:42Z,272bda91,mini-intel2,demo1,640x480,6.8,6.8,6.8,6.80,"",1280x1024
++2026-09-08T17:29:38Z,54804f40,yosemite-tiger,demo3,800x600,28.0,28.1,27.9,28.00,"",800x600
++2026-09-08T17:31:21Z,54804f40,quicksilver,demo3,1024x768,44.3,44.2,44.6,44.40,"+exec perf-batch-off.cfg",1680x1050
++2026-09-08T17:34:06Z,54804f40,quicksilver,demo3,1024x768,45.1,45.1,45.1,45.10,"+exec perf-batch-on.cfg",1680x1050
++2026-09-08T17:43:19Z,perf-test2-562837bf9261,quicksilver,demo3,1024x768,44.3,44.5,44.5,44.50,"+exec perf-batch-off.cfg",1680x1050
++2026-09-08T17:42:28Z,perf-test2-562837bf9261,yosemite-tiger,demo3,800x600,27.9,27.9,27.9,27.90,"+exec perf-batch-off.cfg",800x600
++2026-09-08T17:44:38Z,perf-test2-562837bf9261,imac-2019,demo3,1024x768,181.9,182.1,181.6,181.85,"+exec perf-batch-off.cfg",2560x1440
++2026-09-08T17:45:33Z,perf-test2-562837bf9261,quicksilver,demo3,1024x768,45.2,45.1,45.1,45.10,"+exec perf-batch-on.cfg",1680x1050
++2026-09-08T17:47:22Z,perf-test2-562837bf9261,arm64-local,demo3,1280x720,257.0,256.3,258.5,257.40,"+exec perf-batch-off.cfg",2560x1080
++2026-09-08T17:45:32Z,perf-test2-562837bf9261,yosemite-tiger,demo3,800x600,27.9,27.8,27.9,27.85,"+exec perf-batch-on.cfg",800x600
++2026-09-08T17:47:50Z,perf-test2-562837bf9261,imac-2019,demo3,1024x768,177.2,181.9,182.0,181.95,"+exec perf-batch-on.cfg",2560x1440
++2026-09-08T17:49:57Z,perf-test2-562837bf9261,arm64-local,demo3,1280x720,261.8,261.2,259.1,260.15,"+exec perf-batch-on.cfg",2560x1080
+diff --git a/docs/README.md b/docs/README.md
+index 4a958d77..00411462 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -6,6 +6,8 @@ their evidence live in [`adr/`](adr/README.md). Recorded negative results live i
+ 
+ ## Live references
+ 
++- [`PERFORMANCE_PLAN.md`](PERFORMANCE_PLAN.md), active CPU/GPU optimization and
++  graphics plan, with staged implementation, per-machine validation, and results.
+ - [`adr/`](adr/README.md), the twelve architecture decision records: slices and
+   OS floors, cpusubtype stamping, SDL 1.2, the fat build model, build and
+   packaging hosts, config layering, fragile-GPU gating, toggleability,
+diff --git a/scripts/bench.sh b/scripts/bench.sh
+index a805d851..1938cce6 100755
+--- a/scripts/bench.sh
++++ b/scripts/bench.sh
+@@ -116,6 +116,8 @@ case "$TARGET" in
+   imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # i5-9600K + Radeon Pro 580X — fastest
+   imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
+   g5-desktop)  HOST="g5-desktop";  TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # PowerMac7,3 2.7 GHz + RV351, Leopard — ppc970 baseline, no overlay yet (issue #32)
++  g5-panther)  HOST="g5-panther"; TIMEOUT=180; ARCH_CFG="ppc970"; COOLDOWN=5 ;;
++  g5-tiger)    HOST="g5-tiger";   TIMEOUT=180; ARCH_CFG="ppc970"; COOLDOWN=3 ;;
+   quad-leopard)
+                HOST="quad-leopard"; TIMEOUT=110; ARCH_CFG="ppc970"; COOLDOWN=2 ;;  # PowerMac11,2 quad 2.5 GHz + GeForce 6600, Leopard
+   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
+diff --git a/scripts/build.sh b/scripts/build.sh
+index 5f640c3e..43206b3e 100755
+--- a/scripts/build.sh
++++ b/scripts/build.sh
+@@ -245,7 +245,8 @@ case "$TARGET" in
+     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
+     ;;
+   g5)
+-    # iMac G5 (PowerMac8,2, single 970FX @ 2.0 GHz) on Leopard 10.5.8.
++    # G5 on Panther 10.3.9 and later. dyld chooses by CPU, so the 970
++    # slice must support Panther even when a 7400 slice is also present.
+     # The 970 has AltiVec (so __VEC__ paths apply, same as g4) but a deep,
+     # heavily out-of-order pipeline with different AltiVec latencies than the
+     # 7450 — so it gets -mcpu=970 scheduling rather than reusing the g4 slice.
+@@ -257,14 +258,14 @@ case "$TARGET" in
+     # and we have no need for 64-bit GPRs here.
+     MACH_TYPE=ppc
+     CC=/usr/bin/gcc-4.0
+-    SDK=/Developer/SDKs/MacOSX10.5.sdk
+-    VMIN=10.5
++    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
++    VMIN=10.3
+     # Apple gcc defines only __VEC__/__ALTIVEC__/__ppc__ for -mcpu=970 (no
+     # __ppc970__), so the 970 slice is indistinguishable from the 7400 slice
+     # at compile time. -DQS_ARCH_PPC970 gives host.c a hook to load the
+     # generic-G5 autoexec baseline (autoexec-ppc970) instead of the G4 one.
+     # Same compile-time-gate pattern as QS_DISABLE_ALIAS_STATE_CACHE.
+-    CPUFLAGS='-mcpu=970 -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970'
++    CPUFLAGS='-mcpu=970 -faltivec -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970 -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include'
+     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
+     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
+     ;;

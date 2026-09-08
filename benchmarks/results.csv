@@ -777,3 +777,17 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-08-30T09:09:22Z,272bda91,mini-intel2,demo1,640x480,NA,NA,NA,NA,"",640x480
 2026-08-30T09:14:08Z,272bda91,mini-intel2,demo1,640x480,6.7,6.8,6.8,6.80,"",1280x1024
 2026-08-30T09:18:42Z,272bda91,mini-intel2,demo1,640x480,6.8,6.8,6.8,6.80,"",1280x1024
+2026-09-08T17:29:38Z,54804f40,yosemite-tiger,demo3,800x600,28.0,28.1,27.9,28.00,"",800x600
+2026-09-08T17:31:21Z,54804f40,quicksilver,demo3,1024x768,44.3,44.2,44.6,44.40,"+exec perf-batch-off.cfg",1680x1050
+2026-09-08T17:34:06Z,54804f40,quicksilver,demo3,1024x768,45.1,45.1,45.1,45.10,"+exec perf-batch-on.cfg",1680x1050
+2026-09-08T17:43:19Z,perf-test2-562837bf9261,quicksilver,demo3,1024x768,44.3,44.5,44.5,44.50,"+exec perf-batch-off.cfg",1680x1050
+2026-09-08T17:42:28Z,perf-test2-562837bf9261,yosemite-tiger,demo3,800x600,27.9,27.9,27.9,27.90,"+exec perf-batch-off.cfg",800x600
+2026-09-08T17:44:38Z,perf-test2-562837bf9261,imac-2019,demo3,1024x768,181.9,182.1,181.6,181.85,"+exec perf-batch-off.cfg",2560x1440
+2026-09-08T17:45:33Z,perf-test2-562837bf9261,quicksilver,demo3,1024x768,45.2,45.1,45.1,45.10,"+exec perf-batch-on.cfg",1680x1050
+2026-09-08T17:47:22Z,perf-test2-562837bf9261,arm64-local,demo3,1280x720,257.0,256.3,258.5,257.40,"+exec perf-batch-off.cfg",2560x1080
+2026-09-08T17:45:32Z,perf-test2-562837bf9261,yosemite-tiger,demo3,800x600,27.9,27.8,27.9,27.85,"+exec perf-batch-on.cfg",800x600
+2026-09-08T17:47:50Z,perf-test2-562837bf9261,imac-2019,demo3,1024x768,177.2,181.9,182.0,181.95,"+exec perf-batch-on.cfg",2560x1440
+2026-09-08T17:49:57Z,perf-test2-562837bf9261,arm64-local,demo3,1280x720,261.8,261.2,259.1,260.15,"+exec perf-batch-on.cfg",2560x1080
+2026-09-08T17:54:08Z,perf-test2-562837bf9261,g5-panther,demo3,800x600,65.5,65.5,65.5,65.50,"+exec perf-batch-off.cfg",1680x1050
+2026-09-08T17:54:00Z,perf-test2-562837bf9261,imac-g5,demo3,1024x768,87.5,87.5,87.8,87.65,"+exec perf-batch-off.cfg",1440x900
+2026-09-08T18:06:39Z,178fdc70,g5-panther,demo3,800x600,65.6,65.7,65.7,65.70,"",1680x1050

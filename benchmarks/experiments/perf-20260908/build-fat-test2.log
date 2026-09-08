@@ -1,0 +1,75 @@
+[build-fat] stamping port version: v1.15.14-perf-test2-dirty
+[build-fat] claimed build host: mini-intel (held for all five mini-built slices)
+[build-fat] sub-build 1/5: g3
+[build-fat] sub-build 2/5: g4
+[build-fat] g3/g4 sub-builds routed to imac-2019
+[build] sync sources orchestrator → imac-2019
+
+sent 47,544 bytes  received 556 bytes  96,200.00 bytes/sec
+total size is 45,820,313  speedup is 952.61
+[build] compile g3 on imac-2019 (SDK=/Users/mini/SDKs/MacOSX10.3.9.sdk, vmin=10.3, arch=ppc)
+error: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: in swap_object_headers(): malformed load command 0 (cmdsize is zero)
+fatal error: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: internal error: swap_object_headers() failed
+[build] fetch → build/quakespasm-g3
+/Users/matt/Documents/old-mac-quakespasm/build/quakespasm-g3: Mach-O executable ppc_650
+[build] cpusubtype OK: ppc750
+[build] source stamp 562837bf9261 → build/stamps/g3
+[build] sync sources orchestrator → imac-2019
+
+sent 22,693 bytes  received 116 bytes  45,618.00 bytes/sec
+total size is 45,820,313  speedup is 2,008.87
+[build] compile g4 on imac-2019 (SDK=/Users/mini/SDKs/MacOSX10.3.9.sdk, vmin=10.3, arch=ppc)
+error: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: in swap_object_headers(): malformed load command 0 (cmdsize is zero)
+fatal error: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: internal error: swap_object_headers() failed
+[build] fetch → build/quakespasm-g4
+/Users/matt/Documents/old-mac-quakespasm/build/quakespasm-g4: Mach-O executable ppc_7400
+[build] cpusubtype OK: ppc7400
+[build] source stamp 562837bf9261 → build/stamps/g4
+[build-fat] sub-build 3/5: g5
+[build] sync sources orchestrator → mini-intel
+
+sent 47,544 bytes  received 549 bytes  96,186.00 bytes/sec
+total size is 45,820,313  speedup is 952.74
+[build] compile g5 on mini-intel (SDK=/Developer/SDKs/MacOSX10.3.9.sdk, vmin=10.3, arch=ppc)
+[build] fetch → build/quakespasm-g5
+/Users/matt/Documents/old-mac-quakespasm/build/quakespasm-g5: Mach-O executable ppc
+[build] cpusubtype is 'ppc', re-stamping → ppc970 (100)
+[build] cpusubtype OK: ppc970
+[build] source stamp 562837bf9261 → build/stamps/g5
+[build-fat] sub-build 4/5: lion
+[build] sync sources orchestrator → mini-intel
+
+sent 22,697 bytes  received 109 bytes  15,204.00 bytes/sec
+total size is 45,820,313  speedup is 2,009.13
+[build] compile lion on mini-intel (SDK=default, vmin=10.6, arch=x86_64)
+[build] fetch → build/quakespasm-lion
+/Users/matt/Documents/old-mac-quakespasm/build/quakespasm-lion: Mach-O 64-bit executable x86_64
+[build] source stamp 562837bf9261 → build/stamps/lion
+[build-fat] sub-build 5/5: i386
+[build-fat] i386 sub-build routed to imac-2019
+[build] sync sources orchestrator → imac-2019
+
+sent 22,693 bytes  received 116 bytes  15,206.00 bytes/sec
+total size is 45,820,313  speedup is 2,008.87
+[build] compile i386 on imac-2019 (SDK=/Users/mini/SDKs/MacOSX10.4u.sdk, vmin=10.4, arch=x86)
+[build] fetch → build/quakespasm-i386
+/Users/matt/Documents/old-mac-quakespasm/build/quakespasm-i386: Mach-O executable i386
+[build] source stamp 562837bf9261 → build/stamps/i386
+[build-fat] source stamp 562837bf9261
+[build-fat] five mini-built slices match the source
+[build-fat] arm64 slice present and built from this source, it WILL be included
+[build-fat] lipo -create on mini-intel (cross-build host)
+Architectures in the fat file: quakespasm-fat are: ppc750 ppc7400 ppc970 x86_64 i386 (cputype (16777228) cpusubtype (0)) 
+[build-fat] slices in the fused binary (verified on this box):
+ppc750 ppc7400 ppc970 x86_64 i386 arm64
+[build-fat] sanity:
+build/quakespasm-fat: Mach-O universal binary with 6 architectures: [ppc_650:
+- Mach-O executable ppc_650] [ppc_7400:
+- Mach-O executable ppc_7400] [ppc_970] [x86_64] [i386] [arm64]
+build/quakespasm-fat (for architecture cputype (18) cpusubtype (9)):	Mach-O executable ppc_650
+build/quakespasm-fat (for architecture cputype (18) cpusubtype (10)):	Mach-O executable ppc_7400
+build/quakespasm-fat (for architecture cputype (18) cpusubtype (100)):	Mach-O executable ppc_970
+build/quakespasm-fat (for architecture x86_64):	Mach-O 64-bit executable x86_64
+build/quakespasm-fat (for architecture i386):	Mach-O executable i386
+build/quakespasm-fat (for architecture arm64):	Mach-O 64-bit executable arm64
+[build-fat] OK — build/quakespasm-fat ready
