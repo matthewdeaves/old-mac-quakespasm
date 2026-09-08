@@ -69,13 +69,12 @@
   (direct `/sbin/reboot` via the NOPASSWD sudoers entry, `qsreboot-setup.sh`
   installs it) is the one that actually works headless; don't trust a clean
   Tier-2 exit as proof a machine restarted on an unattended bench box.
-- **G5 CPU + an OS below Leopard = a guaranteed dyld crash, not a bug.**
-  `build.sh`'s g5 case is deliberately `-mmacosx-version-min=10.5`; dyld picks
-  that slice on any G5 regardless of the booted OS. g5-panther, g5-tiger and
-  quad-tiger (all G5, all pre-10.5) confirmed 3-for-3, 2026-08-28: `dyld:
-  Symbol not found: ___stderrp` or `_kTISPropertyUnicodeKeyLayoutData`,
-  Trace/BPT trap. Don't re-diagnose this as a regression; it's this repo's
-  own stated floor ("G5 Leopard", never G5 Panther/Tiger) working as built.
+- **G5 must support Panther 10.3.9 and later** (user requirement, 2026-09-08).
+  Older builds deliberately targeted 10.5 and crashed in dyld on Panther/Tiger.
+  The current g5 case uses the 10.3.9 SDK, min-10.3 and the same Carbon/AltiVec
+  header flags as G4, retaining 970 scheduling and exact subtype. Do not restore
+  the Leopard floor. Panther 10.3.9 has rendered all three stock demos on PowerMac7,3;
+  further validation is tracked in docs/PERFORMANCE_PLAN.md.
 - **The orchestration host needs a REAL rsync, not Apple's openrsync.** macOS
   15+ replaced `/usr/bin/rsync` with openrsync, which always sends `--dirs`, an
   option that did not exist before rsync 2.6.4. Panther's rsync 2.5.x and the G3

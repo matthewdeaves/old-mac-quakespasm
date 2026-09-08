@@ -6,6 +6,8 @@ their evidence live in [`adr/`](adr/README.md). Recorded negative results live i
 
 ## Live references
 
+- [`PERFORMANCE_PLAN.md`](PERFORMANCE_PLAN.md), active CPU/GPU optimization and
+  graphics plan, with staged implementation, per-machine validation, and results.
 - [`adr/`](adr/README.md), the twelve architecture decision records: slices and
   OS floors, cpusubtype stamping, SDL 1.2, the fat build model, build and
   packaging hosts, config layering, fragile-GPU gating, toggleability,

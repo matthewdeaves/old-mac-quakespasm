@@ -136,6 +136,9 @@ extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_lightmapwide;
 extern	cvar_t	r_shadows;
+extern	cvar_t	gl_shadowstate;
+extern	cvar_t	gl_shadowlight_reuse, gl_lightmap_reuse;
+extern unsigned int r_changed_dlights[(MAX_DLIGHTS + 31) >> 5];
 extern	cvar_t	r_shadow_distance;
 extern	cvar_t	r_dynamic_distance;	/* Round v5 B1 -- dlight distance gate */
 extern	cvar_t	gl_lightmap_subrect;	/* Round v8 item 1 -- subrect lightmap upload */
@@ -484,7 +487,7 @@ int R_LightPoint (vec3_t p);
 
 void GL_SubdivideSurface (msurface_t *fa);
 void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
-void R_RenderDynamicLightmaps (msurface_t *fa);
+void R_RenderDynamicLightmaps (msurface_t *fa, qboolean world);
 void R_UploadLightmaps (void);
 
 void R_DrawWorld_ShowTris (void);
@@ -498,7 +501,8 @@ void R_DeleteShaders (void);
 
 void GLWorld_CreateShaders (void);
 void GLAlias_CreateShaders (void);
-void GL_DrawAliasShadow (entity_t *e);
+void GL_DrawAliasShadow (entity_t *e, qboolean *state_active);
+void GL_EndAliasShadows (qboolean *state_active);
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
 

@@ -216,11 +216,14 @@ static void S_MakeBlackmanWindowKernel(float *kernel, int M, float f_c)
 typedef struct {
 	float *memory;  // kernelsize floats
 	float *kernel;  // kernelsize floats
+	float scratch[PAINTBUFFER_SIZE + 256]; // per-channel storage, no shared mixer state
 	int kernelsize; // M+1, rounded up to be a multiple of 16
 	int M;			// M value used to make kernel, even
 	int parity;		// 0-3
 	float f_c;		// cutoff frequency, [0..1], fraction of sample rate
 } filter_t;
+
+cvar_t snd_filter_reuse = {"snd_filter_reuse", "1", CVAR_NONE};
 
 static void S_UpdateFilter(filter_t *filter, int M, float f_c)
 {
@@ -261,8 +264,11 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 	const int kernelsize = filter->kernelsize;
 	const float *kernel = filter->kernel;
 	int parity;
+	qboolean reuse = snd_filter_reuse.value
+	    && count + kernelsize <= (int)Q_COUNTOF(filter->scratch);
 
-	input = (float *) malloc(sizeof(float) * (filter->kernelsize + count));
+	input = reuse ? filter->scratch :
+	    (float *) malloc(sizeof(float) * (filter->kernelsize + count));
 	if (!input)
 		return;	// silently drop this filter pass on OOM rather than crash
 
@@ -304,7 +310,8 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 
 	filter->parity = parity;
 
-	free(input);
+	if (!reuse)
+		free(input);
 }
 
 /*
@@ -625,4 +632,3 @@ static void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count, in
 
 	ch->pos += count;
 }
-

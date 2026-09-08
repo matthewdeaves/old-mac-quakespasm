@@ -395,7 +395,7 @@ void R_DrawBrushModel (entity_t *e)
 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
 			R_ChainSurface (psurf, chain_model);
-			R_RenderDynamicLightmaps(psurf);
+			R_RenderDynamicLightmaps(psurf, false);
 			rs_brushpolys++;
 		}
 	}
@@ -481,7 +481,7 @@ R_RenderDynamicLightmaps
 called during rendering
 ================
 */
-void R_RenderDynamicLightmaps (msurface_t *fa)
+void R_RenderDynamicLightmaps (msurface_t *fa, qboolean world)
 {
 	byte		*base;
 	int			maps;
@@ -499,6 +499,26 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 	for (maps=0; maps < MAXLIGHTMAPS && fa->styles[maps] != 255; maps++)
 		if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps])
 			goto dynamic;
+
+	// Reuse only a world surface evaluated in the preceding frame, with
+	// identical light membership and unchanged inputs for every member.
+	// A visibility gap, moving light, lightstyle change, or brush-model draw
+	// falls back to composition. No approximate light positions or colours.
+	if (gl_lightmap_reuse.value && world && r_dynamic.value
+	    && fa->cached_dlightframe == r_framecount - 1
+	    && fa->dlightframe == r_framecount && fa->cached_dlight)
+	{
+		int word;
+		for (word = 0; word < (MAX_DLIGHTS + 31) >> 5; word++)
+			if (fa->dlightbits[word] != fa->cached_dlightbits[word]
+			    || (fa->dlightbits[word] & r_changed_dlights[word]))
+				break;
+		if (word == (MAX_DLIGHTS + 31) >> 5)
+		{
+			fa->cached_dlightframe = r_framecount;
+			return;
+		}
+	}
 
 	if (fa->dlightframe == r_framecount	// dynamic this frame
 		|| fa->cached_dlight)			// dynamic previously
@@ -535,6 +555,11 @@ dynamic:
 			base = lm->data;
 			base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
 			R_BuildLightMap (fa, base, LMBLOCK_WIDTH*lightmap_bytes);
+			if (gl_lightmap_reuse.value && world)
+			{
+				fa->cached_dlightframe = r_framecount;
+				memcpy (fa->cached_dlightbits, fa->dlightbits, sizeof(fa->dlightbits));
+			}
 		}
 	}
 }
@@ -1294,6 +1319,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 	unsigned	*bl;
 
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
+	surf->cached_dlightframe = 0; // all other rebuild paths invalidate reuse
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;

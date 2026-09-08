@@ -54,7 +54,7 @@ The binary carries one slice per CPU family, each stamped with its exact CPU sub
 |---|---|---|---|
 | G3 (750) | `ppc750` | 10.3.9 Panther or later | 10.3.9 and 10.4.11 |
 | G4 (7400 / 7450 / 7447A) | `ppc7400` | 10.3.9 Panther or later | 10.4.11 |
-| G5 (970) | `ppc970` | **10.5 Leopard, a G5 on 10.3 or 10.4 is not supported** | 10.5.8 |
+| G5 (970) | `ppc970` | 10.3.9 Panther or later | 10.3.9 and 10.5.8 |
 | Intel, 32-bit (Core Solo / Duo) | `i386` | 10.4.11 Tiger or later | 10.7.5 |
 | Intel, 64-bit | `x86_64` | 10.6 Snow Leopard or later | 10.7.5 and 15.7 |
 | Apple Silicon | `arm64` | macOS 11.0 Big Sur or later | macOS 15.7 |
@@ -64,9 +64,8 @@ older than its slice needs gets that slice anyway rather than falling back to a 
 one, and won't launch, which is why the G3 and G4 slices are both built at min 10.3
 even though no G4 here runs Panther. Two rows are honest about the gap between what
 is built and what is tested: **a G4 on Panther and an Intel Mac on Snow Leopard should
-both work but neither has been run on hardware** (no such machine in the fleet). The G5
-is the exception, its slice genuinely needs 10.5, so that row is a real floor, not a
-gap in testing.
+both work but neither has been run on hardware** (no such machine in the fleet). The G5 slice now targets 10.3.9 as well; Panther rendering is verified and Tiger validation remains
+in progress. See [the implementation plan](docs/PERFORMANCE_PLAN.md).
 
 ## Framerate
 

@@ -1,7 +1,18 @@
 # 1. Four slices: chosen by CPU capability and not by OS version
 
 Date: 2026-08-20
-Status: accepted
+Status: accepted, G5 floor amended 2026-09-08
+
+## Amendment, 2026-09-08
+
+The user requires G5 support on Panther 10.3.9 and later. The g5 build now
+uses SDK 10.3.9/minimum 10.3, retaining 970 scheduling and subtype. It uses
+`-faltivec` and the compiler-header include path like G4. The prior Leopard-only
+G5 decision below is historical and superseded. Hardware validation status is
+tracked in `docs/PERFORMANCE_PLAN.md`; Panther 10.3.9 has rendered all three stock demos on PowerMac7,3. The app currently ships six
+slices, including i386 and arm64, and SDL's dedicated ppc970 slice was removed
+in the earlier SDL rebuild. The original decision below records its earlier state.
+
 
 ## Context
 

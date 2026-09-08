@@ -174,6 +174,8 @@ typedef struct msurface_s
 	byte		styles[MAXLIGHTMAPS];
 	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
 	qboolean	cached_dlight;				// true if dynamic light in cache
+	int         cached_dlightframe; // consecutive world evaluation required for reuse
+	unsigned int cached_dlightbits[(MAX_DLIGHTS + 31) >> 5];
 	byte		*samples;		// [numstyles*surfsize]
 } msurface_t;
 

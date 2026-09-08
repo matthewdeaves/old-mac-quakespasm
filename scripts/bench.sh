@@ -2,7 +2,7 @@
 # Run timedemo benchmarks on a target machine and append results to the CSV.
 # Assumes the bundle is already deployed (run scripts/deploy.sh first).
 #
-# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop> <demo> <res> [<runs>]
+# usage: scripts/bench.sh <quad-leopard|yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-panther|g5-tiger> <demo> <res> [<runs>]
 #   demo: demo1 | demo2 | demo3
 #   res:  WxH  e.g. 1024x768, 640x480
 #   runs: default 3
@@ -116,6 +116,8 @@ case "$TARGET" in
   imac-2019)   HOST="imac-2019";   TIMEOUT=45;  ARCH_CFG="x86_64";  COOLDOWN=1 ;;  # i5-9600K + Radeon Pro 580X — fastest
   imac-g5)     HOST="imac-g5";     TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # 2 GHz G5 + Radeon 9600 — fastest PPC, Leopard
   g5-desktop)  HOST="g5-desktop";  TIMEOUT=110; ARCH_CFG="ppc970";  COOLDOWN=2 ;;  # PowerMac7,3 2.7 GHz + RV351, Leopard — ppc970 baseline, no overlay yet (issue #32)
+  g5-panther)  HOST="g5-panther"; TIMEOUT=180; ARCH_CFG="ppc970"; COOLDOWN=5 ;;
+  g5-tiger)    HOST="g5-tiger";   TIMEOUT=180; ARCH_CFG="ppc970"; COOLDOWN=3 ;;
   quad-leopard)
                HOST="quad-leopard"; TIMEOUT=110; ARCH_CFG="ppc970"; COOLDOWN=2 ;;  # PowerMac11,2 quad 2.5 GHz + GeForce 6600, Leopard
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;

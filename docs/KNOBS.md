@@ -240,3 +240,22 @@ specifically.
 ## Why this matters
 
 ADR 0008.
+
+## Rendering and audio work reuse (2026-09-08)
+
+These cvars default to 1 and are non-archived. Set any to 0 in the console
+or with `+name 0` at launch to select its original path. No visual quality
+setting is reduced. Defaults were enabled at the user's request after fleet A/B.
+
+| Cvar | Work avoided |
+|---|---|
+| `gl_shadowstate` | Repeated shared GL state setup between alias shadows |
+| `gl_shadowlight_reuse` | A repeated light sample at the same model origin in one scene |
+| `gl_lightmap_reuse` | Recomposition of unchanged, consecutive-frame world lightmaps |
+| `r_particle_cull` | Vertex preparation and drawing of fully offscreen particles |
+| `r_decal_cull` | Drawing of fully offscreen decals |
+| `r_decal_uvcache` | Recalculating immutable decal texture coordinates |
+| `snd_filter_reuse` | Allocating supported audio filter scratch blocks |
+
+Audio output equivalence is tested separately; the FPS timedemos use `-nosound`.
+See [the plan](PERFORMANCE_PLAN.md) and benchmark experiment records for limits.

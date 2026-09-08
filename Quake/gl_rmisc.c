@@ -176,6 +176,9 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_drawentities);
 	Cvar_RegisterVariable (&r_drawviewmodel);
 	Cvar_RegisterVariable (&r_shadows);
+	Cvar_RegisterVariable (&gl_shadowstate);
+	Cvar_RegisterVariable (&gl_shadowlight_reuse);
+	Cvar_RegisterVariable (&gl_lightmap_reuse);
 	Cvar_RegisterVariable (&r_shadow_distance); // PPC port -- Pass C HIGH
 	Cvar_RegisterVariable (&r_dynamic_distance); // PPC port -- Round v5 B1
 	Cvar_RegisterVariable (&gl_lightmap_subrect); // PPC port -- Round v8 item 1

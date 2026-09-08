@@ -106,10 +106,13 @@ typedef struct {
 	vec3_t   up;
 	float    radius;
 	float    rotCos, rotSin;	/* per-decal random in-plane rotation */
+	vec3_t   mins, maxs;
 } r_decal_t;
 
 static r_decal_t r_decal_list[MAX_DECALS];
 static vec3_t    r_decal_verts[MAX_DECAL_VERTS];
+static float     r_decal_uv[MAX_DECAL_VERTS][2];
+static void DecalTexCoord (const vec3_t v, const r_decal_t *d, float *s, float *t);
 static int       r_decal_next;		/* FIFO slot head */
 
 /* clipper working state, reset per R_MarkFragments call */
@@ -137,6 +140,8 @@ cvar_t r_decals      = {"r_decals",      "1",  CVAR_ARCHIVE};
 cvar_t r_decal_max   = {"r_decal_max",   "32", CVAR_ARCHIVE};
 cvar_t r_decal_life  = {"r_decal_life",  "30", CVAR_ARCHIVE};
 cvar_t r_decal_fade  = {"r_decal_fade",  "5",  CVAR_ARCHIVE};
+cvar_t r_decal_cull = {"r_decal_cull", "1", CVAR_NONE};
+cvar_t r_decal_uvcache = {"r_decal_uvcache", "1", CVAR_NONE};
 
 /* Instrumentation, off by default and reported only at the end of a
  * timedemo, so a bench run costs nothing extra until it is asked for.
@@ -530,6 +535,26 @@ R_AddDecal (const vec3_t origin, const vec3_t normal, float radius, int type)
 		d->rotSin = sin(ang);
 	}
 
+	// Final clipped positions and the texture basis are immutable until
+	// this slot is recycled. Populate even when the draw toggle is off.
+	VectorCopy (r_decal_verts[d->firstPoint], d->mins);
+	VectorCopy (d->mins, d->maxs);
+	for (i = 0; i < verts_needed; i++)
+	{
+		int axis_i, v = d->firstPoint + i;
+		DecalTexCoord (r_decal_verts[v], d, &r_decal_uv[v][0], &r_decal_uv[v][1]);
+		for (axis_i = 0; axis_i < 3; axis_i++)
+		{
+			d->mins[axis_i] = q_min(d->mins[axis_i], r_decal_verts[v][axis_i]);
+			d->maxs[axis_i] = q_max(d->maxs[axis_i], r_decal_verts[v][axis_i]);
+		}
+	}
+	for (i = 0; i < 3; i++)
+	{
+		d->mins[i] -= 0.01f;
+		d->maxs[i] += 0.01f;
+	}
+
 	now = cl.time;
 	d->inUse = true;
 	d->fadeStart = now + r_decal_life.value;
@@ -815,6 +840,8 @@ void R_InitDecals (void)
 	Cvar_RegisterVariable (&r_decal_max);
 	Cvar_RegisterVariable (&r_decal_life);
 	Cvar_RegisterVariable (&r_decal_fade);
+	Cvar_RegisterVariable (&r_decal_cull);
+	Cvar_RegisterVariable (&r_decal_uvcache);
 	Cvar_RegisterVariable (&r_decal_stats);
 
 	GenBulletHole (bullet_data);
@@ -916,6 +943,8 @@ void R_DrawDecals (void)
 			d->inUse = false;
 			continue;
 		}
+		if (r_decal_cull.value && R_CullBox (d->mins, d->maxs))
+			continue;
 
 		alpha = 1.0f;
 		if (now > d->fadeStart && d->fadeEnd > d->fadeStart)
@@ -938,7 +967,13 @@ void R_DrawDecals (void)
 			glBegin (GL_TRIANGLE_FAN);
 			for (j = 0; j < fn; j++)
 			{
-				DecalTexCoord (r_decal_verts[base + j], d, &s, &t);
+				if (r_decal_uvcache.value)
+				{
+					s = r_decal_uv[base + j][0];
+					t = r_decal_uv[base + j][1];
+				}
+				else
+					DecalTexCoord (r_decal_verts[base + j], d, &s, &t);
 				glTexCoord2f (s, t);
 				glVertex3fv (r_decal_verts[base + j]);
 			}

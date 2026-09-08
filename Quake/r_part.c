@@ -41,6 +41,7 @@ static float texturescalefactor; //johnfitz -- compensate for apparent size of d
 
 cvar_t	r_particles = {"r_particles","1", CVAR_ARCHIVE}; //johnfitz
 cvar_t	r_quadparticles = {"r_quadparticles","1", CVAR_ARCHIVE}; //johnfitz
+cvar_t r_particle_cull = {"r_particle_cull", "1", CVAR_NONE};
 
 /*
 ===============
@@ -167,6 +168,7 @@ void R_InitParticles (void)
 			Hunk_AllocName (r_numparticles * sizeof(particle_t), "particles");
 
 	Cvar_RegisterVariable (&r_particles); //johnfitz
+	Cvar_RegisterVariable (&r_particle_cull);
 	Cvar_SetCallback (&r_particles, R_SetParticleTexture_f);
 	Cvar_RegisterVariable (&r_quadparticles); //johnfitz
 
@@ -860,6 +862,18 @@ static void R_InitParticleSTScratch (void)
 	part_st_initialized = true;
 }
 
+// Plane support of the complete billboard quad is conservative for both
+// the triangle and quad paths. Keep a margin at the frustum boundary.
+static qboolean R_CullParticle (const vec3_t org, float scale, const float *support)
+{
+	int i;
+	for (i = 0; i < 4; i++)
+		if (DotProduct (org, frustum[i].normal) + scale * support[i]
+		    < frustum[i].dist - 0.01f)
+			return true;
+	return false;
+}
+
 void R_DrawParticles (void)
 {
 	particle_t		*p;
@@ -867,6 +881,8 @@ void R_DrawParticles (void)
 	vec3_t			up, right, p_up, p_right, p_upright;
 	GLubyte			*c;
 	int				n, j;
+	float           support[4];
+	qboolean        cull = (r_particle_cull.value != 0);
 	extern	cvar_t	r_particles;
 
 	if (!r_particles.value)
@@ -881,6 +897,13 @@ void R_DrawParticles (void)
 
 	VectorScale (vup, 1.5, up);
 	VectorScale (vright, 1.5, right);
+	if (cull)
+		for (j = 0; j < 4; j++)
+		{
+			float pu = DotProduct (up, frustum[j].normal);
+			float pr = DotProduct (right, frustum[j].normal);
+			support[j] = q_max(0.0f, pu) + q_max(0.0f, pr);
+		}
 
 	GL_Bind(particletexture);
 	glEnable (GL_BLEND);
@@ -914,6 +937,8 @@ void R_DrawParticles (void)
 				scale = 1.0f + scale * 0.004f;
 			scale *= 0.5f; //quad is half the size of triangle
 			scale *= texturescalefactor;
+			if (cull && R_CullParticle (p->org, scale, support))
+				continue;
 
 			c = (GLubyte *) &d_8to24table[(int)p->color];
 
@@ -968,6 +993,8 @@ void R_DrawParticles (void)
 			else
 				scale = 1.0f + scale * 0.004f;
 			scale *= texturescalefactor;
+			if (cull && R_CullParticle (p->org, scale, support))
+				continue;
 
 			c = (GLubyte *) &d_8to24table[(int)p->color];
 
@@ -1087,4 +1114,3 @@ void R_DrawParticles_ShowTris (void)
 		glEnd ();
 	}
 }
-

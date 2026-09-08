@@ -245,7 +245,8 @@ case "$TARGET" in
     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
     ;;
   g5)
-    # iMac G5 (PowerMac8,2, single 970FX @ 2.0 GHz) on Leopard 10.5.8.
+    # G5 on Panther 10.3.9 and later. dyld chooses by CPU, so the 970
+    # slice must support Panther even when a 7400 slice is also present.
     # The 970 has AltiVec (so __VEC__ paths apply, same as g4) but a deep,
     # heavily out-of-order pipeline with different AltiVec latencies than the
     # 7450 — so it gets -mcpu=970 scheduling rather than reusing the g4 slice.
@@ -257,14 +258,14 @@ case "$TARGET" in
     # and we have no need for 64-bit GPRs here.
     MACH_TYPE=ppc
     CC=/usr/bin/gcc-4.0
-    SDK=/Developer/SDKs/MacOSX10.5.sdk
-    VMIN=10.5
+    SDK=/Developer/SDKs/MacOSX10.3.9.sdk
+    VMIN=10.3
     # Apple gcc defines only __VEC__/__ALTIVEC__/__ppc__ for -mcpu=970 (no
     # __ppc970__), so the 970 slice is indistinguishable from the 7400 slice
     # at compile time. -DQS_ARCH_PPC970 gives host.c a hook to load the
     # generic-G5 autoexec baseline (autoexec-ppc970) instead of the G4 one.
     # Same compile-time-gate pattern as QS_DISABLE_ALIAS_STATE_CACHE.
-    CPUFLAGS='-mcpu=970 -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970'
+    CPUFLAGS='-mcpu=970 -faltivec -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970 -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include'
     SYSROOT="-isysroot $SDK -mmacosx-version-min=$VMIN -arch ppc"
     EXTRA_LDFLAGS='-Wl,-w'  # see g3 case
     ;;

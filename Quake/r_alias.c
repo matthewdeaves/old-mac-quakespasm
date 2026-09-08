@@ -57,6 +57,7 @@ static vec3_t	shadevector;
 static float	entalpha; //johnfitz
 
 static qboolean overbright; //johnfitz
+static unsigned int alias_light_serial; // per scene, independent of map/frame resets
 
 // =============================================================================
 // PPC port -- Round v11: per-frame GL state cache for R_DrawAliasModel.
@@ -147,6 +148,7 @@ static alias_state_cache_t r_alias_sc;
 
 void R_AliasStateCache_FrameReset (void)
 {
+	alias_light_serial++;
 #ifndef QS_DISABLE_ALIAS_STATE_CACHE
 	r_alias_sc.disabled       = (gl_aliasstate_cache.value == 0.0f);
 	r_alias_sc.texenv_mode[0] = (GLenum)~0u;
@@ -943,11 +945,21 @@ void R_SetupAliasLighting (entity_t	*e)
 	int			i;
 	int		quantizedangle;
 	float		radiansangle;
+	int         lightvalue;
 
 	// if the initial trace is completely black, try again from above
 	// this helps with models whose origin is slightly below ground level
 	// (e.g. some of the candles in the DOTM start map)
-	if (!R_LightPoint (e->origin))
+	if (gl_shadowlight_reuse.value && e->shadow_lightframe == alias_light_serial
+	    && VectorCompare (e->origin, e->shadow_lightorg))
+	{
+		lightvalue = e->shadow_lightvalue;
+		VectorCopy (e->shadow_lightcolor, lightcolor);
+		VectorCopy (e->shadow_lightspot, lightspot);
+	}
+	else
+		lightvalue = R_LightPoint (e->origin);
+	if (!lightvalue)
 	{
 		vec3_t lpos;
 		VectorCopy (e->origin, lpos);
@@ -1379,7 +1391,20 @@ GL_DrawAliasShadow -- johnfitz -- rewritten
 TODO: orient shadow onto "lightplane" (a global mplane_t*)
 =============
 */
-void GL_DrawAliasShadow (entity_t *e)
+void GL_EndAliasShadows (qboolean *state_active)
+{
+	if (!*state_active)
+		return;
+	glEnable (GL_TEXTURE_2D);
+	glDisable (GL_BLEND);
+	glDepthMask (GL_TRUE);
+	*state_active = false;
+}
+
+// A NULL state pointer retains per-entity setup/cleanup for A/B. Otherwise
+// open lazily after culling and leave the common state for the next shadow.
+// R_DrawShadows closes the scope, even when later entities are skipped.
+void GL_DrawAliasShadow (entity_t *e, qboolean *state_active)
 {
 	float	shadowmatrix[16] = {1,				0,				0,				0,
 								0,				1,				0,				0,
@@ -1398,10 +1423,24 @@ void GL_DrawAliasShadow (entity_t *e)
 	entalpha = ENTALPHA_DECODE(e->alpha);
 	if (entalpha == 0) return;
 
+	// Mod_Extradata can reload an evicted model and upload its textures.
+	// Restore ordinary state before that work, then reopen for this draw.
+	if (state_active && !e->model->cache.data)
+		GL_EndAliasShadows (state_active);
+
 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
 	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
 	R_SetupEntityTransform (e, &lerpdata);
-	R_LightPoint (e->origin);
+	if (gl_shadowlight_reuse.value)
+	{
+		e->shadow_lightvalue = R_LightPoint (e->origin);
+		e->shadow_lightframe = alias_light_serial;
+		VectorCopy (e->origin, e->shadow_lightorg);
+		VectorCopy (lightcolor, e->shadow_lightcolor);
+		VectorCopy (lightspot, e->shadow_lightspot);
+	}
+	else
+		R_LightPoint (e->origin);
 	lheight = currententity->origin[2] - lightspot[2];
 
 // set up matrix
@@ -1417,16 +1456,26 @@ void GL_DrawAliasShadow (entity_t *e)
 	glScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
 
 // draw it
-	glDepthMask(GL_FALSE);
-	glEnable (GL_BLEND);
-	GL_DisableMultitexture ();
-	glDisable (GL_TEXTURE_2D);
+	if (!state_active || !*state_active)
+	{
+		glDepthMask(GL_FALSE);
+		glEnable (GL_BLEND);
+		GL_DisableMultitexture ();
+		glDisable (GL_TEXTURE_2D);
+		if (state_active)
+			*state_active = true;
+		PERF_COUNT (PERF_CNT_SHADOW_SETUP);
+	}
 	shading = false;
 	glColor4f(0,0,0,entalpha * 0.5);
 	GL_DrawAliasFrame (paliashdr, lerpdata);
-	glEnable (GL_TEXTURE_2D);
-	glDisable (GL_BLEND);
-	glDepthMask(GL_TRUE);
+	PERF_COUNT (PERF_CNT_SHADOW);
+	if (!state_active)
+	{
+		glEnable (GL_TEXTURE_2D);
+		glDisable (GL_BLEND);
+		glDepthMask(GL_TRUE);
+	}
 
 //clean up
 	glPopMatrix ();

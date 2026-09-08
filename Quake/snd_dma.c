@@ -78,6 +78,7 @@ cvar_t		loadas8bit = {"loadas8bit", "0", CVAR_NONE};
 
 cvar_t		sndspeed = {"sndspeed", "11025", CVAR_NONE};
 cvar_t		snd_mixspeed = {"snd_mixspeed", "44100", CVAR_NONE};
+extern cvar_t snd_filter_reuse;
 
 #if defined(_WIN32)
 #define SND_FILTERQUALITY_DEFAULT "5"
@@ -178,6 +179,7 @@ void S_Init (void)
 	Cvar_RegisterVariable(&snd_show);
 	Cvar_RegisterVariable(&_snd_mixahead);
 	Cvar_RegisterVariable(&sndspeed);
+	Cvar_RegisterVariable(&snd_filter_reuse);
 	Cvar_RegisterVariable(&snd_mixspeed);
 	Cvar_RegisterVariable(&snd_filterquality);
 	

@@ -11,11 +11,9 @@ decisions behind it are ADR 0001 (slices and floors), ADR 0003 (SDL), ADR 0004
 /usr/bin/gcc-4.0                Apple gcc 4.0.1 (build 5494), PowerPC cross
 /usr/bin/clang                  Apple clang 1.7, LLVM 2.9-based, Intel native
 /usr/bin/gcc-4.2                llvm-gcc-4.2.1, Intel fallback, unused
-/Developer/SDKs/MacOSX10.3.9.sdk    G3 and G4 targets
+/Developer/SDKs/MacOSX10.3.9.sdk    G3, G4 and G5 targets
 /Developer/SDKs/MacOSX10.4u.sdk     present, no longer used by a shipped slice
-/Developer/SDKs/MacOSX10.5.sdk      G5 target only (2026-08-29: the SDL
-                                     framework's own dedicated ppc970 slice
-                                     was removed, #39; see SDL-rebuild.md)
+/Developer/SDKs/MacOSX10.5.sdk      present, no longer used by a shipped slice
 ```
 
 Read-only and shared with the Q2 port. **Never modify.**
@@ -27,8 +25,9 @@ Read-only and shared with the Q2 port. **Never modify.**
 - **g4** `-isysroot /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3
   -arch ppc -mcpu=7400 -faltivec -maltivec -mabi=altivec -O3 -mtune=7450
   -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include`
-- **g5** `-isysroot /Developer/SDKs/MacOSX10.5.sdk -mmacosx-version-min=10.5
-  -arch ppc -mcpu=970 -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970`
+- **g5** `-isysroot /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3
+  -arch ppc -mcpu=970 -faltivec -maltivec -mabi=altivec -O3 -DQS_ARCH_PPC970
+  -isystem /usr/lib/gcc/powerpc-apple-darwin10/4.0.1/include`
 - **lion** `-arch x86_64 -mmacosx-version-min=10.6 -O3 -Qunused-arguments`, no
   `-isysroot` (Lion's default toolchain SDK). Lion's kernel is `RELEASE_I386` on
   a Macmini2,1, but Core 2 Duo plus 10.7 user-space runs x86_64 binaries fine.

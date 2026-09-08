@@ -41,6 +41,7 @@ typedef enum {
     PERF_PARTICLES,        // R_DrawParticles
     PERF_VIEWMODEL,        // R_DrawViewModel
     PERF_SWAP,             // GL_EndRendering — driver SwapBuffers (vsync wait lives here)
+    PERF_SHADOWS,          // R_DrawShadows, including lighting traces and state changes
     PERF_REGION_COUNT
 } perf_region_t;
 
@@ -62,6 +63,8 @@ typedef enum {
     PERF_CNT_DLIGHT,           // dlights actually marked into surfaces this frame
     PERF_CNT_SURFACE,          // brush surfaces submitted to the renderer
     PERF_CNT_ALIAS_TRIS,       // alias-model triangles submitted (sum across entities)
+    PERF_CNT_SHADOW,           // alias shadows actually submitted
+    PERF_CNT_SHADOW_SETUP,     // shadow GL state groups opened (legacy: one per shadow)
     PERF_CNT_COUNT
 } perf_counter_t;
 

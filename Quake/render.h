@@ -91,6 +91,9 @@ typedef struct entity_s
 	vec3_t					currentorigin;	//johnfitz -- transform lerping
 	vec3_t					previousangles;	//johnfitz -- transform lerping
 	vec3_t					currentangles;	//johnfitz -- transform lerping
+	unsigned int            shadow_lightframe;
+	int                     shadow_lightvalue;
+	vec3_t                  shadow_lightorg, shadow_lightcolor, shadow_lightspot;
 } entity_t;
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!

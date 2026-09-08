@@ -64,6 +64,9 @@ cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
 cvar_t	r_fullbright = {"r_fullbright","0",CVAR_NONE};
 cvar_t	r_lightmap = {"r_lightmap","0",CVAR_NONE};
 cvar_t	r_shadows = {"r_shadows","0",CVAR_ARCHIVE};
+cvar_t	gl_shadowstate = {"gl_shadowstate", "1", CVAR_NONE}; // shared shadow state; set 0 for the original path
+cvar_t	gl_shadowlight_reuse = {"gl_shadowlight_reuse", "1", CVAR_NONE};
+cvar_t	gl_lightmap_reuse = {"gl_lightmap_reuse", "1", CVAR_NONE};
 // PPC port -- Pass C HIGH leverage: distance gate for R_DrawShadows.
 // 0 = unlimited (engine default, matches upstream behaviour). Set
 // non-zero to skip shadow draws beyond this distance from the viewer
@@ -205,12 +208,12 @@ static qboolean gl_perf_timebase_init = false;
 
 static const char *const gl_perf_region_names[PERF_REGION_COUNT] = {
 	"frame", "warp", "sky", "world", "water",
-	"alias", "alpha", "part", "vmodel", "swap"
+	"alias", "alpha", "part", "vmodel", "swap", "shadow"
 };
 
 // Round v5 A6 -- counter labels. Order must match perf_counter_t.
 static const char *const gl_perf_counter_names[PERF_CNT_COUNT] = {
-	"binds", "draws", "dlights", "surfs", "atris"
+	"binds", "draws", "dlights", "surfs", "atris", "shadows", "shadowsets"
 };
 
 static void Gl_Perfprint_Callback (cvar_t *var)
@@ -1094,6 +1097,8 @@ R_DrawShadows
 void R_DrawShadows (void)
 {
 	int i;
+	qboolean state_active = false;
+	qboolean *shared_state = gl_shadowstate.value ? &state_active : NULL;
 
 	if (!r_shadows.value || !r_drawentities.value || r_drawflat_cheatsafe || r_lightmap_cheatsafe)
 		return;
@@ -1115,7 +1120,7 @@ void R_DrawShadows (void)
 			continue;
 
 		if (currententity == &cl.viewent)
-			return;
+			continue;
 
 		// PPC port -- Pass C HIGH leverage: distance gate.
 		// Each shadow draw costs an R_LightPoint BSP trace +
@@ -1136,8 +1141,10 @@ void R_DrawShadows (void)
 				continue;
 		}
 
-		GL_DrawAliasShadow (currententity);
+		GL_DrawAliasShadow (currententity, shared_state);
 	}
+
+	GL_EndAliasShadows (&state_active);
 
 	if (gl_stencilbits)
 	{
@@ -1185,7 +1192,9 @@ void R_RenderScene (void)
 	// G4's Radeon 9000 driver. Function still exists in r_world.c
 	// for reference; not called.
 
+	PERF_BEGIN(PERF_SHADOWS);
 	R_DrawShadows (); //johnfitz -- render entity shadows
+	PERF_END(PERF_SHADOWS);
 
 	PERF_BEGIN(PERF_ALIAS);
 	R_DrawEntitiesOnList (false); //johnfitz -- false means this is the pass for nonalpha entities
@@ -1431,4 +1440,3 @@ void R_RenderView (void)
 					rs_dynamiclightmaps);
 	//johnfitz
 }
-

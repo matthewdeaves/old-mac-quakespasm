@@ -25,6 +25,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static int	r_dlightframecount;
 
+unsigned int r_changed_dlights[(MAX_DLIGHTS + 31) >> 5];
+
+// Only fields consumed by R_AddDynamicLights affect a cached surface.
+// Expiry/slot membership is checked through each surface's current bitset.
+static void R_TrackDlightChanges (void)
+{
+	static dlight_t previous[MAX_DLIGHTS];
+	static int previous_frame = -1;
+	int i;
+	memset (r_changed_dlights, 0, sizeof(r_changed_dlights));
+	for (i = 0; i < MAX_DLIGHTS; i++)
+	{
+		dlight_t *a = &previous[i], *b = &cl_dlights[i];
+		if (previous_frame != r_framecount
+		    || !VectorCompare (a->origin, b->origin)
+		    || !VectorCompare (a->color, b->color)
+		    || a->radius != b->radius || a->minlight != b->minlight)
+			r_changed_dlights[i >> 5] |= 1U << (i & 31);
+		*a = *b;
+	}
+	previous_frame = r_framecount + 1;
+}
+
 extern cvar_t r_flatlightstyles; //johnfitz
 extern cvar_t r_lerplightstyles; // PPC port -- finding #5
 
@@ -275,6 +298,8 @@ void R_PushDlights (void)
 	// the dlight pipeline picks them up transparently. R_PushEmissiveLights
 	// is a no-op when r_emissive_lights cvar is 0 (default).
 	R_PushEmissiveLights ();
+	if (gl_lightmap_reuse.value)
+		R_TrackDlightChanges ();
 
 	r_dlightframecount = r_framecount + 1;	// because the count hasn't advanced yet for this frame
 	l = cl_dlights;
