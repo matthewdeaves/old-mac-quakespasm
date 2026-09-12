@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install the release DMG onto a target Mac *exactly the way an end user would*:
-# copy the .dmg to the Desktop, mount it, copy its contents into
-# ~/Desktop/quake/, then unmount. This is deliberately the DMG path (not
+# copy the .dmg to the Desktop, mount it, then atomically stage its contents at
+# /Applications/QuakeSpasm/ and preserve a legacy Desktop id1/ by copying it.
+# This is deliberately the DMG path (not
 # deploy.sh's direct rsync) so the test loop exercises the same artifact and the
 # same install steps a human performs — that is where the Q2 sister port's
 # 2026-05-31 corrupt-DMG / illegal-instruction bug hid (deploy.sh was clean, the
@@ -84,12 +85,13 @@ if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
   scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
 fi
 
-echo "[deploy-dmg $HOST] mount + install into ~/Desktop/quake/ (preserving id1/ game data)"
+echo "[deploy-dmg $HOST] mount + stage /Applications/QuakeSpasm/ (preserving Desktop id1/ game data)"
 ssh "$HOST" bash -s "$DMG_BASE" <<'REMOTE_EOF'
 set -e
 DMG_BASE="$1"
 MNT="$HOME/qsinstall-mnt"
-DEST="$HOME/Desktop/quake"
+DEST="/Applications/QuakeSpasm"
+DEST_STAGE="/Applications/.QuakeSpasm.stage.$$"
 
 # fresh mountpoint — detach any stale attach, then rmdir (NEVER rm -rf a path
 # that might still be a mounted read-only volume).
@@ -98,15 +100,28 @@ rmdir "$MNT" 2>/dev/null || true
 mkdir -p "$MNT"
 hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/Desktop/$DMG_BASE" >/dev/null
 
-mkdir -p "$DEST"
-# The DMG root holds one "Quakespasm" folder, not the app loose (2026-09-02:
-# matches alephone's folder-drag convention). Replace the app wholesale so no
-# stale bundle files survive. ditto keeps the bundle bit, perms (+x on the
-# binary) and resource forks.
-rm -rf "$DEST/Quakespasm.app"
-ditto "$MNT/Quakespasm/Quakespasm.app" "$DEST/Quakespasm.app"
-# The engine's own pak (menu/UI assets) lives in the gamedir root beside id1/.
-cp -p "$MNT/Quakespasm/quakespasm.pak" "$DEST/quakespasm.pak"
+# Never replace an existing playable install. A later migration may make an
+# explicit backup after the user has inspected it; this installer only creates
+# a fresh, atomically published destination.
+if [ -e "$DEST" ] || [ -L "$DEST" ]; then
+  echo "REFUSE: $DEST already exists; leaving it and ~/Desktop/quake untouched" >&2
+  exit 10
+fi
+[ ! -e "$DEST_STAGE" ] && [ ! -L "$DEST_STAGE" ] || { echo "REFUSE: staging path exists" >&2; exit 11; }
+trap 'rm -rf "$DEST_STAGE"' EXIT HUP INT TERM
+mkdir "$DEST_STAGE"
+# Preserve the existing Desktop game's data by COPYING it. The source remains
+# in place as a compatibility alias and is never overwritten or removed.
+if [ -d "$HOME/Desktop/quake/id1" ]; then
+  ditto "$HOME/Desktop/quake/id1" "$DEST_STAGE/id1"
+else
+  mkdir "$DEST_STAGE/id1"
+fi
+ditto "$MNT/Quakespasm/Quakespasm.app" "$DEST_STAGE/Quakespasm.app"
+cp -p "$MNT/Quakespasm/quakespasm.pak" "$DEST_STAGE/quakespasm.pak"
+cmp -s "$MNT/Quakespasm/Quakespasm.app/Contents/MacOS/quakespasm" \
+       "$DEST_STAGE/Quakespasm.app/Contents/MacOS/quakespasm"
+cmp -s "$MNT/Quakespasm/quakespasm.pak" "$DEST_STAGE/quakespasm.pak"
 
 # Defensive quarantine clear + LaunchServices re-register (issue #35, shared
 # primitive from old-mac-build-host#34). The DMG reaches this machine by scp,
@@ -117,9 +132,13 @@ cp -p "$MNT/Quakespasm/quakespasm.pak" "$DEST/quakespasm.pak"
 # that matters regardless of quarantine: a stale LaunchServices registration
 # for a rebuilt app at this same path can make Finder open the wrong old copy.
 if [ -x "$HOME/.qs-clear-launch-quarantine.sh" ]; then
-  "$HOME/.qs-clear-launch-quarantine.sh" "$DEST/Quakespasm.app"
+  "$HOME/.qs-clear-launch-quarantine.sh" "$DEST_STAGE/Quakespasm.app"
   rm -f "$HOME/.qs-clear-launch-quarantine.sh"
 fi
+
+# Same-volume rename makes the verified staging directory visible in one step.
+mv "$DEST_STAGE" "$DEST"
+trap - EXIT HUP INT TERM
 
 # detach — retry until the slow-disk flush completes; only THEN rmdir the now-
 # empty mountpoint (rmdir can't touch mounted contents, so it's safe).

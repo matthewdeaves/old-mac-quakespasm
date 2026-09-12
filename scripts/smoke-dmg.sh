@@ -47,18 +47,15 @@ if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [
 	exec "$_PICK" --run "$HOST" "smoke-dmg" -- "$0" "$@"
 fi
 DEMO="${2:-demo1}"
-# The normal DMG-install smoke target.  Keep this relative to the remote home
-# directory: older shells and scp agree on that form, whereas a literal `~` in
-# a variable is not expanded by the remote shell.  An explicit override lets a
-# controlled investigation test the same installed artifact outside Desktop
-# without changing the user-facing install path.
-INSTALL_REL="${SMOKE_INSTALL_REL:-Desktop/quake}"
-# ssh joins its remote command arguments before the remote shell parses them.
-# Permit only a simple path below the remote home directory, so an override
-# cannot inject shell syntax, use an absolute path, or climb out of $HOME.
-case "$INSTALL_REL" in
-  ""|/*|*..*|*[!A-Za-z0-9._/-]*)
-    echo "smoke-dmg: SMOKE_INSTALL_REL must be a simple home-relative path" >&2
+# The playable install belongs here (buildhost#73).  Keep this an exact,
+# space-free contract: ssh joins remote-command arguments before the remote
+# shell parses them, so accepting arbitrary paths would permit argument
+# injection.  The old Desktop location is intentionally not a smoke default.
+INSTALL_DIR="${SMOKE_INSTALL_DIR:-/Applications/QuakeSpasm}"
+case "$INSTALL_DIR" in
+  /Applications/QuakeSpasm) ;;
+  *)
+    echo "smoke-dmg: SMOKE_INSTALL_DIR must be /Applications/QuakeSpasm" >&2
     exit 2
     ;;
 esac
@@ -128,14 +125,14 @@ echo "[smoke $HOST] launching DMG-installed Quakespasm.app via LaunchServices (a
 # its body byte-for-byte with NO local expansion at all, so remote-side `$`
 # and `\` are written exactly as they should run; only DEMO/TIMEOUT/
 # LAUNCH_MODE cross the local/remote boundary, as explicit positional args.
-ssh "$HOST" bash -s "$DEMO" "$TIMEOUT" "$COOLDOWN" "$LAUNCH_MODE" "$INSTALL_REL" <<'REMOTE_EOF'
+ssh "$HOST" bash -s "$DEMO" "$TIMEOUT" "$COOLDOWN" "$LAUNCH_MODE" "$INSTALL_DIR" <<'REMOTE_EOF'
 set -u
-DEMO="$1"; TIMEOUT="$2"; COOLDOWN="$3"; LAUNCH_MODE="$4"; INSTALL_REL="$5"
+DEMO="$1"; TIMEOUT="$2"; COOLDOWN="$3"; LAUNCH_MODE="$4"; INSTALL_DIR="$5"
 
 if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
 killall -KILL quakespasm 2>/dev/null || true
 sleep 1
-cd "$HOME/$INSTALL_REL" || { echo 'NO_INSTALL'; exit 9; }
+cd "$INSTALL_DIR" || { echo 'NO_INSTALL'; exit 9; }
 [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
 
 if [ "$LAUNCH_MODE" = open ]; then
@@ -168,7 +165,7 @@ REMOTE_EOF
 
 # Pull the log and report.
 TMP=$(mktemp)
-scp -q "$HOST:$INSTALL_REL/qconsole.log" "$TMP" 2>/dev/null || { echo "[smoke $HOST] FAIL: no qconsole.log (engine never wrote one — no install or instant crash)"; rm -f "$TMP"; exit 1; }
+scp -q "$HOST:$INSTALL_DIR/qconsole.log" "$TMP" 2>/dev/null || { echo "[smoke $HOST] FAIL: no qconsole.log (engine never wrote one — no install or instant crash)"; rm -f "$TMP"; exit 1; }
 
 FPS_LINE=$(grep -E 'frames.*seconds.*fps' "$TMP" 2>/dev/null | tail -1 || true)
 MODE_LINE=$(grep -E 'Video mode' "$TMP" 2>/dev/null | tail -1 || true)

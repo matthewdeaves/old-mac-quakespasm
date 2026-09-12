@@ -70,7 +70,8 @@ scripts/make-dmg.sh v1.9
 # Test the .dmg the way an end user installs it, then smoke-launch it with
 # the production config (the path that caught the Q2 corrupt-DMG crash).
 # deploy-dmg first removes any older QuakeSpasm-OldMac-*.dmg on the target.
-scripts/deploy-dmg.sh yosemite v1.9     # scp + mount + install into ~/Desktop/quake/
+# It stages a fresh /Applications/QuakeSpasm install and copies legacy Desktop id1/.
+scripts/deploy-dmg.sh yosemite v1.9     # scp + mount + verified /Applications install
 scripts/smoke-dmg.sh  yosemite demo1    # launch installed copy, report res + fps
 
 # Run a single bench
@@ -119,7 +120,7 @@ before that commit use the old names, rows after use the new names.
 | `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh g5` + `build.sh lion`, then `lipo -create` the four slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:~/Desktop/quake/`. Same bundle for every machine, host.c picks the right slice + per-machine cfg at boot. |
 | `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac. Output `dist/QuakeSpasm-OldMac-<version>.dmg`, one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), never the G3 or Lion; `DMG_HOST=` overrides. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. Why all of that: ADR 0005. |
-| `deploy-dmg.sh <machine> [ver]` | install the release DMG the way a human does: scp to the Desktop, md5-verify it arrived, mount, `ditto` `Quakespasm.app` + copy `quakespasm.pak` into `~/Desktop/quake/`, **preserving `id1/` game data**, then detach. Default ver = newest `dist/QuakeSpasm-OldMac-*.dmg`. |
+| `deploy-dmg.sh <machine> [ver]` | install the release DMG: scp to the Desktop, md5-verify it arrived, mount, stage and byte-verify `Quakespasm.app` + `quakespasm.pak`, then atomically publish `/Applications/QuakeSpasm/`. It copies legacy Desktop `id1/` data without modifying that source and refuses an occupied destination. Default ver = newest `dist/QuakeSpasm-OldMac-*.dmg`. |
 | `smoke-dmg.sh <machine> [demo]` | launch the DMG-installed copy with the **production** bundle config (no `-noarchautoexec`, no vid/res override) + a `+timedemo` so it self-exits. Reports renderer + actual resolution + fps; PASS iff an fps line appears. This is the install→launch path that catches a crash `deploy.sh` + bench would miss. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s, slower CPU); yosemite 240 s. |
 | `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 5 PPC machines, `intel` = the 2 Intel machines, `all` = all 7 (default). |
