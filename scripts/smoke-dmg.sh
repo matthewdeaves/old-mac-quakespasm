@@ -53,6 +53,15 @@ DEMO="${2:-demo1}"
 # controlled investigation test the same installed artifact outside Desktop
 # without changing the user-facing install path.
 INSTALL_REL="${SMOKE_INSTALL_REL:-Desktop/quake}"
+# ssh joins its remote command arguments before the remote shell parses them.
+# Permit only a simple path below the remote home directory, so an override
+# cannot inject shell syntax, use an absolute path, or climb out of $HOME.
+case "$INSTALL_REL" in
+  ""|/*|*..*|*[!A-Za-z0-9._/-]*)
+    echo "smoke-dmg: SMOKE_INSTALL_REL must be a simple home-relative path" >&2
+    exit 2
+    ;;
+esac
 
 # LAUNCH_MODE picks how this host gets tested. "open" uses
 # `open -W -a APP --args ...`, the real LaunchServices path (LSOpenApplication)
