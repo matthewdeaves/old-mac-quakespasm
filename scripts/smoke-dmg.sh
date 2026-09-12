@@ -26,6 +26,19 @@
 set -euo pipefail
 HOST="${1:?usage: $0 <machine> [demo]}"
 
+# The playable install belongs here (buildhost#73).  Keep this an exact,
+# space-free contract: ssh joins remote-command arguments before the remote
+# shell parses them, so accepting arbitrary paths would permit argument
+# injection. Validate before the picker can claim or contact a host.
+INSTALL_DIR="${SMOKE_INSTALL_DIR:-/Applications/QuakeSpasm}"
+case "$INSTALL_DIR" in
+  /Applications/QuakeSpasm) ;;
+  *)
+    echo "smoke-dmg: SMOKE_INSTALL_DIR must be /Applications/QuakeSpasm" >&2
+    exit 2
+    ;;
+esac
+
 # Claim this machine for the whole run. See scripts/pick-bench-host.sh.
 #
 # Re-exec under the picker rather than acquire-here-and-trap: bash traps REPLACE
@@ -47,18 +60,6 @@ if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [
 	exec "$_PICK" --run "$HOST" "smoke-dmg" -- "$0" "$@"
 fi
 DEMO="${2:-demo1}"
-# The playable install belongs here (buildhost#73).  Keep this an exact,
-# space-free contract: ssh joins remote-command arguments before the remote
-# shell parses them, so accepting arbitrary paths would permit argument
-# injection.  The old Desktop location is intentionally not a smoke default.
-INSTALL_DIR="${SMOKE_INSTALL_DIR:-/Applications/QuakeSpasm}"
-case "$INSTALL_DIR" in
-  /Applications/QuakeSpasm) ;;
-  *)
-    echo "smoke-dmg: SMOKE_INSTALL_DIR must be /Applications/QuakeSpasm" >&2
-    exit 2
-    ;;
-esac
 
 # LAUNCH_MODE picks how this host gets tested. "open" uses
 # `open -W -a APP --args ...`, the real LaunchServices path (LSOpenApplication)
