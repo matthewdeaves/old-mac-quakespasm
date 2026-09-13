@@ -3,6 +3,18 @@
 One short entry per real bug fixed: what it was, what the fix was. Newest
 first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
 
+- **2026-09-13 — `deploy-dmg.sh`'s new upgrade-with-backup logic reported
+  failure on every genuinely fresh install.** old-mac-quakespasm#47's
+  upgrade-with-backup remote script ended with
+  `[ -n "$BACKUP" ] && echo "rollback copy kept at..."` as its LAST
+  statement before the heredoc terminator. Under `set -e`, a fresh install
+  (no prior `/Applications/QuakeSpasm`, so `$BACKUP` is empty) makes that
+  `[ -n ]` test itself fail, and with nothing after it to absorb the
+  failure the whole remote script — and therefore `deploy-dmg.sh` —
+  exited 1 despite the install completing correctly. Caught live on
+  g5-panther's first-ever install (files present, id1 preserved, exit 1
+  anyway). Fix: `|| true` on that line. Re-ran on g5-panther, exit 0.
+
 - **2026-09-03 — `make-dmg.sh` staged and shipped every release over the
   slow workstation link.** The .app bundle always assembled on whatever host
   ran the script (normally this workstation) because the ARCHS check needed

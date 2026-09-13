@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Install the release DMG onto a target Mac *exactly the way an end user would*:
-# copy the .dmg to the Desktop, mount it, then atomically stage its contents at
-# /Applications/QuakeSpasm/ and preserve a legacy Desktop id1/ by copying it.
-# This is deliberately the DMG path (not
-# deploy.sh's direct rsync) so the test loop exercises the same artifact and the
-# same install steps a human performs — that is where the Q2 sister port's
-# 2026-05-31 corrupt-DMG / illegal-instruction bug hid (deploy.sh was clean, the
-# DMG wasn't). See MISTAKES.md.
+# stage the .dmg under ~/oldmac/quakespasm/incoming (port-owned transfer
+# staging, never the Desktop — user rule, retro-agents 5cbbb3d), mount it,
+# then atomically publish its contents at /Applications/QuakeSpasm/. This is
+# deliberately the DMG path (not deploy.sh's direct rsync) so the test loop
+# exercises the same artifact and the same install steps a human performs —
+# that is where the Q2 sister port's 2026-05-31 corrupt-DMG / illegal-
+# instruction bug hid (deploy.sh was clean, the DMG wasn't). See MISTAKES.md.
 #
 # usage: scripts/deploy-dmg.sh <machine> [version]
 #   machine: yosemite | yosemite-tiger | sawtooth | quicksilver | mini-g4 |
@@ -16,6 +16,14 @@
 # Preserves the user's game data: the id1/ folder (pak0.pak / pak1.pak / saves /
 # configs) is left untouched; only the app + the engine's own quakespasm.pak are
 # (re)installed.
+#
+# An existing /Applications/QuakeSpasm is upgraded, not refused: it is
+# renamed aside to QuakeSpasm.bak-<timestamp> (never deleted -- that is the
+# rollback copy, restore it with scripts/rollback-dmg.sh) and its id1/ is
+# what seeds the new install's game data, since that is the machine's actual
+# current state. Only a genuinely first-ever install with no prior
+# /Applications/QuakeSpasm falls back to seeding id1/ from the legacy
+# ~/Desktop/quake/id1 this script used to read exclusively. old-mac-quakespasm#47.
 
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,31 +60,37 @@ else
 fi
 DMG_BASE=$(basename "$DMG")
 
-echo "[deploy-dmg $HOST] copy $DMG_BASE to ~/Desktop/"
-ssh "$HOST" 'mkdir -p ~/Desktop'
+INCOMING="oldmac/quakespasm/incoming"
+echo "[deploy-dmg $HOST] copy $DMG_BASE to ~/$INCOMING/"
+ssh "$HOST" "mkdir -p ~/$INCOMING"
 
 # Clean up any previously-shipped release DMGs first so bench machines don't
 # accumulate stale versions across releases (and so a leftover same-name DMG
 # can't be silently reused if a later scp ever fails). Scoped to our own
-# QuakeSpasm-OldMac-*.dmg release artifacts on the Desktop — the user's own
-# files and game data are never touched. Removing the current name too is fine:
-# it's re-copied fresh on the next line. Also detach any stale mount of an old
-# image so its /Volumes entry doesn't linger.
-OLD_DMGS=$(ssh "$HOST" 'ls -1 ~/Desktop/QuakeSpasm-OldMac-*.dmg 2>/dev/null || true')
+# QuakeSpasm-OldMac-*.dmg release artifacts in this staging dir — the user's
+# own files and game data are never touched. Removing the current name too is
+# fine: it's re-copied fresh on the next line. Also detach any stale mount of
+# an old image so its /Volumes entry doesn't linger.
+# find, not `ls -1 <glob>`: the incoming dir starts empty on every host (it's
+# new, per-port staging under ~/oldmac, not the Desktop everyone already had
+# stale DMGs sitting in), and zsh's default nomatch behavior prints "no
+# matches found" straight to stderr on a failed glob BEFORE the command's own
+# 2>/dev/null redirection ever applies. find is silent either way.
+OLD_DMGS=$(ssh "$HOST" "find ~/$INCOMING -maxdepth 1 -name 'QuakeSpasm-OldMac-*.dmg' 2>/dev/null")
 if [ -n "$OLD_DMGS" ]; then
   echo "[deploy-dmg $HOST] removing old release DMG(s) on target:"
   echo "$OLD_DMGS" | sed 's/^/    /'
-  ssh "$HOST" 'rm -f ~/Desktop/QuakeSpasm-OldMac-*.dmg'
+  ssh "$HOST" "rm -f ~/$INCOMING/QuakeSpasm-OldMac-*.dmg"
 fi
 
-scp -q "$DMG" "$HOST:Desktop/$DMG_BASE"
+scp -q "$DMG" "$HOST:$INCOMING/$DMG_BASE"
 
 # Verify the .dmg arrived intact (md5 the local vs remote copy) — defence in
 # depth on top of make-dmg.sh's own end-to-end content check.
 LCL_MD5=$(md5sum "$DMG" | cut -d' ' -f1)
-RMT_MD5=$(ssh "$HOST" "md5 'Desktop/$DMG_BASE' | awk '{print \$NF}'")
+RMT_MD5=$(ssh "$HOST" "md5 '$INCOMING/$DMG_BASE' | awk '{print \$NF}'")
 [ "$LCL_MD5" = "$RMT_MD5" ] || { echo "[deploy-dmg $HOST] FATAL: scp corrupted the DMG ($LCL_MD5 != $RMT_MD5)" >&2; exit 1; }
-echo "[deploy-dmg $HOST] DMG on Desktop verified intact ($RMT_MD5)"
+echo "[deploy-dmg $HOST] DMG in $INCOMING verified intact ($RMT_MD5)"
 
 # Shared primitive (issue #35), scp'd over for the remote block below to run
 # and then delete. Best-effort — an old checkout without it just skips the
@@ -85,7 +99,7 @@ if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
   scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
 fi
 
-echo "[deploy-dmg $HOST] mount + stage /Applications/QuakeSpasm/ (preserving Desktop id1/ game data)"
+echo "[deploy-dmg $HOST] mount + stage /Applications/QuakeSpasm/ (upgrade with backup if occupied)"
 ssh "$HOST" bash -s "$DMG_BASE" <<'REMOTE_EOF'
 set -e
 DMG_BASE="$1"
@@ -98,21 +112,29 @@ DEST_STAGE="/Applications/.QuakeSpasm.stage.$$"
 hdiutil detach "$MNT" >/dev/null 2>&1 || hdiutil detach -force "$MNT" >/dev/null 2>&1 || true
 rmdir "$MNT" 2>/dev/null || true
 mkdir -p "$MNT"
-hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/Desktop/$DMG_BASE" >/dev/null
+hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/oldmac/quakespasm/incoming/$DMG_BASE" >/dev/null
 
-# Never replace an existing playable install. A later migration may make an
-# explicit backup after the user has inspected it; this installer only creates
-# a fresh, atomically published destination.
+# Upgrade, never clobber: an existing install is renamed aside as the
+# rollback copy (scripts/rollback-dmg.sh restores it), it is NEVER deleted
+# or written into in place. old-mac-quakespasm#47.
+BACKUP=""
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
-  echo "REFUSE: $DEST already exists; leaving it and ~/Desktop/quake untouched" >&2
-  exit 10
+  OLD_VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
+    "$DEST/Quakespasm.app/Contents/Info.plist" 2>/dev/null || echo unknown)"
+  BACKUP="$DEST.bak-$(date +%Y%m%d-%H%M%S)"
+  [ -e "$BACKUP" ] && { echo "REFUSE: $BACKUP already exists (two installs same second?)" >&2; exit 11; }
+  mv "$DEST" "$BACKUP"
+  echo "upgrading: backed up existing install (version $OLD_VER) to $BACKUP"
 fi
 [ ! -e "$DEST_STAGE" ] && [ ! -L "$DEST_STAGE" ] || { echo "REFUSE: staging path exists" >&2; exit 11; }
 trap 'rm -rf "$DEST_STAGE"' EXIT HUP INT TERM
 mkdir "$DEST_STAGE"
-# Preserve the existing Desktop game's data by COPYING it. The source remains
-# in place as a compatibility alias and is never overwritten or removed.
-if [ -d "$HOME/Desktop/quake/id1" ]; then
+# Seed id1/ (the actual game data: paks, saves, configs). An upgrade's own
+# backup is the machine's real current state and wins; only a genuine
+# first-ever install (no prior $DEST) falls back to the legacy Desktop copy.
+if [ -n "$BACKUP" ] && [ -d "$BACKUP/id1" ]; then
+  ditto "$BACKUP/id1" "$DEST_STAGE/id1"
+elif [ -d "$HOME/Desktop/quake/id1" ]; then
   ditto "$HOME/Desktop/quake/id1" "$DEST_STAGE/id1"
 else
   mkdir "$DEST_STAGE/id1"
@@ -155,6 +177,12 @@ ls -la "$DEST" | awk '{print "  "$NF}' | grep -vE '^\s+\.$|^\s+\.\.$' | grep -v 
 echo "app binary archs:"
 file "$DEST/Quakespasm.app/Contents/MacOS/quakespasm" 2>/dev/null | sed 's/.*: //' || true
 [ -d "$DEST/id1" ] && echo "id1/ game data preserved." || echo "NOTE: no id1/ yet — add pak0.pak before launching."
+# `|| true`: this is the LAST statement before REMOTE_EOF under `set -e` --
+# a fresh install (no prior $DEST) leaves $BACKUP empty, the `[ -n ]` test
+# itself fails, and with nothing following to protect it that failure exits
+# the whole remote script with status 1 despite a fully successful install.
+# Reproduced live on g5-panther's first-ever install before this fix.
+[ -n "$BACKUP" ] && echo "rollback copy kept at: $BACKUP (scripts/rollback-dmg.sh restores it)" || true
 REMOTE_EOF
 
 echo "[deploy-dmg $HOST] done — installed from $DMG_BASE"
