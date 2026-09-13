@@ -109,6 +109,25 @@ esac
 TIMEOUT="${SMOKE_TIMEOUT:-$TIMEOUT}"
 COOLDOWN="${SMOKE_COOLDOWN:-$COOLDOWN}"
 
+# Report whether a real console user is logged in during this run --
+# old-mac-quakespasm#45's original failure (2026-09-04) was specifically a
+# TCC SystemPolicyAllFiles denial with NOBODY logged in to answer the
+# one-time consent prompt. Moving the install off ~/Desktop and onto
+# /Applications (this ticket) sidesteps that particular TCC gate, and every
+# smoke run since has PASSED -- but every one of those runs also happened
+# to have a console user logged in, which is a materially easier case than
+# the original bug. This line makes that distinction visible in the run's
+# own output instead of a silent, easily-misread PASS: a PASS here with
+# CONSOLE_USER=none is real evidence #45 is fixed; a PASS with a user
+# logged in is evidence the /Applications move helps, not proof of the
+# no-login case.
+if $IS_LOCAL; then
+  CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo none)
+else
+  CONSOLE_USER=$(ssh "$HOST" "stat -f '%Su' /dev/console 2>/dev/null || echo none")
+fi
+echo "[smoke $HOST] console user: ${CONSOLE_USER:-none} (see old-mac-quakespasm#45 — a PASS with no console user is the strong form of this test)"
+
 echo "[smoke $HOST] launching DMG-installed Quakespasm.app via LaunchServices (as a human's double-click would), demo=$DEMO"
 # Production launch, via `open`, not a direct binary exec — issue #35. A
 # direct exec (the old form of this script) never goes through LaunchServices,
