@@ -791,3 +791,4 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-09-08T17:54:08Z,perf-test2-562837bf9261,g5-panther,demo3,800x600,65.5,65.5,65.5,65.50,"+exec perf-batch-off.cfg",1680x1050
 2026-09-08T17:54:00Z,perf-test2-562837bf9261,imac-g5,demo3,1024x768,87.5,87.5,87.8,87.65,"+exec perf-batch-off.cfg",1440x900
 2026-09-08T18:06:39Z,178fdc70,g5-panther,demo3,800x600,65.6,65.7,65.7,65.70,"",1680x1050
+2026-09-13T09:23:23Z,8831c882,imac-2019,demo1,640x480,215.6,NA,NA,215.6,"",2560x1440

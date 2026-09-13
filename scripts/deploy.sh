@@ -15,6 +15,16 @@
 # MacOSX/AppController.m:433); runtime sysctl hw.model picks the
 # per-machine overlay. End-user install is just .app + their own
 # id1/pak0.pak alongside.
+#
+# Ships to /Applications/QuakeSpasm-Bench/ on the target -- a dev/bench
+# install, deliberately separate from /Applications/QuakeSpasm (the one
+# scripts/deploy-dmg.sh manages for a human to play from), so a fast,
+# frequent dev-loop deploy never touches the "current release" copy or
+# needs deploy-dmg.sh's upgrade-with-backup dance. Migrated off the legacy
+# ~/Desktop/quake/ target (old-mac-quakespasm#47): a machine's existing
+# id1/ there is copied to the new location once, the first time this
+# script runs after the move, and left in place afterward as a
+# compatibility alias -- never removed, never written back to.
 
 set -euo pipefail
 
@@ -45,8 +55,8 @@ fi
 
 # MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
 # ppc slice is the Panther-compatible build. One framework serves all
-# six targets — no per-host SDL swap. See "How the fat SDL was built"
-# in MacOSX/CLAUDE.md if it ever needs regenerating from
+# six targets — no per-host SDL swap. See MacOSX/SDL-rebuild.md (stale
+# pointer here used to say MacOSX/CLAUDE.md) if it ever needs regenerating from
 # MacOSX/SDL-panther.dylib.
 case "$TARGET" in
   yosemite)
@@ -220,31 +230,45 @@ if command -v codesign >/dev/null 2>&1; then
     || echo "[deploy] WARN: signature still does not validate after signing" >&2
 fi
 
-echo "[deploy] ship to $HOST:~/Desktop/quake/"
+BENCH_DIR="/Applications/QuakeSpasm-Bench"
+
+# One-time migration off the legacy ~/Desktop/quake/ target
+# (old-mac-quakespasm#47): if the new location has no id1/ yet but the
+# legacy one exists, copy it over so a machine's accumulated config/saves
+# aren't orphaned by the path move. Copies, never removes the legacy copy
+# — it stays as a harmless compatibility alias. No-op on every run after
+# the first.
+ssh "$HOST" "mkdir -p '$BENCH_DIR'
+  if [ ! -e '$BENCH_DIR/id1' ] && [ -d ~/Desktop/quake/id1 ]; then
+    ditto ~/Desktop/quake/id1 '$BENCH_DIR/id1'
+    echo '[deploy] migrated legacy ~/Desktop/quake/id1 -> $BENCH_DIR/id1'
+  fi" 2>&1 | sed 's/^/[deploy] /' || true
+
+echo "[deploy] ship to $HOST:$BENCH_DIR/"
 # Remove any previously-installed Quakespasm.app wholesale before rsync, same
 # reasoning as deploy-dmg.sh. rsync updates a symlink target fine but refuses
 # to REPLACE an existing real file/directory with a symlink ("could not make
 # way for new symlink") -- exactly what happens upgrading a target that still
 # has an old cp -r-flattened SDL.framework (every target deployed before this
 # fix) to today's cp -a one. Best-effort: nothing to remove on a fresh target.
-ssh "$HOST" 'rm -rf ~/Desktop/quake/Quakespasm.app' 2>/dev/null || true
+ssh "$HOST" "rm -rf '$BENCH_DIR/Quakespasm.app'" 2>/dev/null || true
 
 # Migration: pre-v1.4 builds shipped autoexec cfgs to id1/. Remove any
 # stragglers on the target so user-visible id1/ stays clean (engine
 # now loads from Resources/ via CFBundle). Best effort — failure on a
 # fresh target with no id1/ is fine.
-ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg \
-                   ~/Desktop/quake/id1/autoexec-ppc750.cfg \
-                   ~/Desktop/quake/id1/autoexec-ppc7400.cfg \
-                   ~/Desktop/quake/id1/autoexec-ppc970.cfg \
-                   ~/Desktop/quake/id1/autoexec-x86_64.cfg \
-                   ~/Desktop/quake/id1/autoexec-yosemite.cfg \
-                   ~/Desktop/quake/id1/autoexec-sawtooth.cfg \
-                   ~/Desktop/quake/id1/autoexec-quicksilver.cfg \
-                   ~/Desktop/quake/id1/autoexec-mini-g4.cfg \
-                   ~/Desktop/quake/id1/autoexec-mini-intel.cfg \
-                   ~/Desktop/quake/id1/autoexec-imac-2019.cfg \
-                   ~/Desktop/quake/id1/autoexec-imac-g5.cfg 2>/dev/null' || true
+ssh "$HOST" "rm -f '$BENCH_DIR/id1/autoexec.cfg' \
+                   '$BENCH_DIR/id1/autoexec-ppc750.cfg' \
+                   '$BENCH_DIR/id1/autoexec-ppc7400.cfg' \
+                   '$BENCH_DIR/id1/autoexec-ppc970.cfg' \
+                   '$BENCH_DIR/id1/autoexec-x86_64.cfg' \
+                   '$BENCH_DIR/id1/autoexec-yosemite.cfg' \
+                   '$BENCH_DIR/id1/autoexec-sawtooth.cfg' \
+                   '$BENCH_DIR/id1/autoexec-quicksilver.cfg' \
+                   '$BENCH_DIR/id1/autoexec-mini-g4.cfg' \
+                   '$BENCH_DIR/id1/autoexec-mini-intel.cfg' \
+                   '$BENCH_DIR/id1/autoexec-imac-2019.cfg' \
+                   '$BENCH_DIR/id1/autoexec-imac-g5.cfg' 2>/dev/null" || true
 
 # --checksum: force file-content comparison instead of trusting size+mtime.
 # Saw at least one stale-icon case on sawtooth where rsync's size+mtime
@@ -253,7 +277,7 @@ ssh "$HOST" 'rm -f ~/Desktop/quake/id1/autoexec.cfg \
 # 12 MB bundle the checksum cost is negligible (seconds at most) and it
 # is the only way to guarantee the deployed bytes match the local repo.
 rsync -av --partial --checksum $RSYNC_EXTRA -e 'ssh -o ServerAliveInterval=15' \
-  "$STAGE/" "$HOST:Desktop/quake/" | tail -8
+  "$STAGE/" "$HOST:$BENCH_DIR/" | tail -8
 
 # Shared primitive (issue #35), scp'd over for the remote block below to run
 # and then delete. Best-effort — an old checkout without it just skips the
@@ -271,13 +295,18 @@ fi
 # false-positives the WARN below. The staged copy is what was actually sent.
 LOCAL_BIN_MD5=$(md5sum "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm" | awk '{print $1}')
 LOCAL_ICN_MD5=$(md5sum "$REPO_ROOT/MacOSX/QuakeSpasm.icns" | awk '{print $1}')
+# Back to a single-quoted remote block (matching every other block in this
+# script): BENCH_DIR is always the same literal path, so it is spliced in as
+# plain text below rather than reopened as a bash-interpolated double-quoted
+# string, which would also require re-escaping every remote-side $ in this
+# block — the exact mistake caught in review before this shipped.
 REMOTE_VERIFY=$(ssh "$HOST" '
   if command -v md5 >/dev/null 2>&1; then
-    BIN_MD5=$(md5 -q ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null)
-    ICN_MD5=$(md5 -q ~/Desktop/quake/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null)
+    BIN_MD5=$(md5 -q /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null)
+    ICN_MD5=$(md5 -q /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null)
   else
-    BIN_MD5=$(md5sum ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | awk "{print \$1}")
-    ICN_MD5=$(md5sum ~/Desktop/quake/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null | awk "{print \$1}")
+    BIN_MD5=$(md5sum /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | awk "{print \$1}")
+    ICN_MD5=$(md5sum /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null | awk "{print \$1}")
   fi
   echo "$BIN_MD5 $ICN_MD5"
 ' 2>/dev/null)
@@ -290,7 +319,7 @@ if [ "$LOCAL_ICN_MD5" != "$REMOTE_ICN_MD5" ]; then
   echo "[deploy] WARN: icon md5 mismatch on $HOST (local $LOCAL_ICN_MD5 vs remote $REMOTE_ICN_MD5)"
 fi
 
-ssh "$HOST" 'chmod +x ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null
+ssh "$HOST" 'chmod +x /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null
 
 # Round v4 §14.7: scrub any custom-icon overlay left from a previous
 # Get-Info-paste icon edit. The canonical icon now lives at
@@ -299,7 +328,7 @@ ssh "$HOST" 'chmod +x ~/Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2
 # pasted overlay because kHasCustomIcon makes the Icon\r resource fork
 # win over CFBundleIconFile. find -name "Icon?" matches the literal
 # Icon-followed-by-CR filename without the inline-CR-quoting hell.
-APP=~/Desktop/quake/Quakespasm.app
+APP=/Applications/QuakeSpasm-Bench/Quakespasm.app
 find "$APP" -maxdepth 1 -name "Icon?" -exec rm -f {} \; 2>/dev/null
 # SetFile is in /Developer/Tools on Tiger and at /usr/bin on Lion. -a c
 # clears the kHasCustomIcon flag (lowercase = clear, capital = set).
