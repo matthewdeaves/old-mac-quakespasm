@@ -16,7 +16,8 @@
 #
 # usage: scripts/smoke-dmg.sh <machine> [demo]
 #   machine: yosemite | yosemite-tiger | sawtooth | quicksilver | mini-g4 | imac-g5 |
-#            mini-intel | imac-2019
+#            mini-intel | imac-2019 | workstation (this Mac, local — no ssh
+#            alias for it by design; old-mac-quakespasm#51)
 #   demo:    demo1 (default) | demo2 | demo3
 #
 # After this passes, the human starts a NEW GAME by hand — the timedemo proves
@@ -61,6 +62,12 @@ if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [
 fi
 DEMO="${2:-demo1}"
 
+# workstation is this Mac -- no ssh alias for it exists (nor should one;
+# pick-bench-host.sh already treats it as local-only via LOCAL_ALIASES).
+# old-mac-quakespasm#51.
+IS_LOCAL=false
+[ "$HOST" = workstation ] && IS_LOCAL=true
+
 # LAUNCH_MODE picks how this host gets tested. "open" uses
 # `open -W -a APP --args ...`, the real LaunchServices path (LSOpenApplication)
 # -- same call a Finder double-click makes, so it exercises code-signature
@@ -88,6 +95,9 @@ case "$HOST" in
                TIMEOUT=120; COOLDOWN=2; LAUNCH_MODE=exec ;;
   mini-intel2) TIMEOUT=60;  COOLDOWN=1; LAUNCH_MODE=open ;;
   mini-sl)     TIMEOUT=60;  COOLDOWN=1; LAUNCH_MODE=open ;;
+  # Apple Silicon, modern macOS -- same LAUNCH_MODE as the other Gatekeeper-
+  # era hosts (mini-intel/imac-2019/mini-sl), timeout in line with imac-2019.
+  workstation) TIMEOUT=45;  COOLDOWN=1; LAUNCH_MODE=open ;;
   *) echo "unknown machine: $HOST" >&2; exit 2 ;;
 esac
 
@@ -126,7 +136,12 @@ echo "[smoke $HOST] launching DMG-installed Quakespasm.app via LaunchServices (a
 # its body byte-for-byte with NO local expansion at all, so remote-side `$`
 # and `\` are written exactly as they should run; only DEMO/TIMEOUT/
 # LAUNCH_MODE cross the local/remote boundary, as explicit positional args.
-ssh "$HOST" bash -s "$DEMO" "$TIMEOUT" "$COOLDOWN" "$LAUNCH_MODE" "$INSTALL_DIR" <<'REMOTE_EOF'
+if $IS_LOCAL; then
+  RUNNER=(bash -s)
+else
+  RUNNER=(ssh "$HOST" bash -s)
+fi
+"${RUNNER[@]}" "$DEMO" "$TIMEOUT" "$COOLDOWN" "$LAUNCH_MODE" "$INSTALL_DIR" <<'REMOTE_EOF'
 set -u
 DEMO="$1"; TIMEOUT="$2"; COOLDOWN="$3"; LAUNCH_MODE="$4"; INSTALL_DIR="$5"
 
@@ -166,7 +181,11 @@ REMOTE_EOF
 
 # Pull the log and report.
 TMP=$(mktemp)
-scp -q "$HOST:$INSTALL_DIR/qconsole.log" "$TMP" 2>/dev/null || { echo "[smoke $HOST] FAIL: no qconsole.log (engine never wrote one — no install or instant crash)"; rm -f "$TMP"; exit 1; }
+if $IS_LOCAL; then
+  cp "$INSTALL_DIR/qconsole.log" "$TMP" 2>/dev/null || { echo "[smoke $HOST] FAIL: no qconsole.log (engine never wrote one — no install or instant crash)"; rm -f "$TMP"; exit 1; }
+else
+  scp -q "$HOST:$INSTALL_DIR/qconsole.log" "$TMP" 2>/dev/null || { echo "[smoke $HOST] FAIL: no qconsole.log (engine never wrote one — no install or instant crash)"; rm -f "$TMP"; exit 1; }
+fi
 
 FPS_LINE=$(grep -E 'frames.*seconds.*fps' "$TMP" 2>/dev/null | tail -1 || true)
 MODE_LINE=$(grep -E 'Video mode' "$TMP" 2>/dev/null | tail -1 || true)

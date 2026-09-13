@@ -10,7 +10,9 @@
 #
 # usage: scripts/deploy-dmg.sh <machine> [version]
 #   machine: yosemite | yosemite-tiger | sawtooth | quicksilver | mini-g4 |
-#            imac-g5 | mini-intel | imac-2019  (ssh alias)
+#            imac-g5 | mini-intel | imac-2019 (ssh alias) | workstation
+#            (this Mac, local — no ssh alias exists for it by design,
+#            see pick-bench-host.sh's LOCAL_ALIASES; old-mac-quakespasm#51)
 #   version: e.g. v1.8  (default: newest dist/QuakeSpasm-OldMac-*.dmg)
 #
 # Preserves the user's game data: the id1/ folder (pak0.pak / pak1.pak / saves /
@@ -62,9 +64,18 @@ else
 fi
 DMG_BASE=$(basename "$DMG")
 
+# workstation is this Mac -- no ssh alias for it exists (nor should one;
+# pick-bench-host.sh already treats it as local-only via LOCAL_ALIASES).
+# Every ssh/scp below gets a local equivalent instead. old-mac-quakespasm#51.
+IS_LOCAL=false
+[ "$HOST" = workstation ] && IS_LOCAL=true
+run_on_host() {
+  if $IS_LOCAL; then bash -c "cd \"\$HOME\" && $1"; else ssh "$HOST" "$1"; fi
+}
+
 INCOMING="oldmac/quakespasm/incoming"
 echo "[deploy-dmg $HOST] copy $DMG_BASE to ~/$INCOMING/"
-ssh "$HOST" "mkdir -p ~/$INCOMING"
+run_on_host "mkdir -p ~/$INCOMING"
 
 # Clean up any previously-shipped release DMGs first so bench machines don't
 # accumulate stale versions across releases (and so a leftover same-name DMG
@@ -78,31 +89,44 @@ ssh "$HOST" "mkdir -p ~/$INCOMING"
 # stale DMGs sitting in), and zsh's default nomatch behavior prints "no
 # matches found" straight to stderr on a failed glob BEFORE the command's own
 # 2>/dev/null redirection ever applies. find is silent either way.
-OLD_DMGS=$(ssh "$HOST" "find ~/$INCOMING -maxdepth 1 -name 'QuakeSpasm-OldMac-*.dmg' 2>/dev/null")
+OLD_DMGS=$(run_on_host "find ~/$INCOMING -maxdepth 1 -name 'QuakeSpasm-OldMac-*.dmg' 2>/dev/null")
 if [ -n "$OLD_DMGS" ]; then
   echo "[deploy-dmg $HOST] removing old release DMG(s) on target:"
   echo "$OLD_DMGS" | sed 's/^/    /'
-  ssh "$HOST" "rm -f ~/$INCOMING/QuakeSpasm-OldMac-*.dmg"
+  run_on_host "rm -f ~/$INCOMING/QuakeSpasm-OldMac-*.dmg"
 fi
 
-scp -q "$DMG" "$HOST:$INCOMING/$DMG_BASE"
+if $IS_LOCAL; then
+  cp "$DMG" "$HOME/$INCOMING/$DMG_BASE"
+else
+  scp -q "$DMG" "$HOST:$INCOMING/$DMG_BASE"
+fi
 
 # Verify the .dmg arrived intact (md5 the local vs remote copy) — defence in
 # depth on top of make-dmg.sh's own end-to-end content check.
 LCL_MD5=$(md5sum "$DMG" | cut -d' ' -f1)
-RMT_MD5=$(ssh "$HOST" "md5 '$INCOMING/$DMG_BASE' | awk '{print \$NF}'")
+RMT_MD5=$(run_on_host "md5 '$INCOMING/$DMG_BASE' | awk '{print \$NF}'")
 [ "$LCL_MD5" = "$RMT_MD5" ] || { echo "[deploy-dmg $HOST] FATAL: scp corrupted the DMG ($LCL_MD5 != $RMT_MD5)" >&2; exit 1; }
 echo "[deploy-dmg $HOST] DMG in $INCOMING verified intact ($RMT_MD5)"
 
-# Shared primitive (issue #35), scp'd over for the remote block below to run
+# Shared primitive (issue #35), copied over for the remote block below to run
 # and then delete. Best-effort — an old checkout without it just skips the
 # quarantine-clear/lsregister step.
 if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
-  scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
+  if $IS_LOCAL; then
+    cp -p "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOME/.qs-clear-launch-quarantine.sh"
+  else
+    scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
+  fi
 fi
 
 echo "[deploy-dmg $HOST] mount + stage /Applications/QuakeSpasm/ (upgrade with backup if occupied)"
-ssh "$HOST" bash -s "$DMG_BASE" <<'REMOTE_EOF'
+if $IS_LOCAL; then
+  RUNNER=(bash -s)
+else
+  RUNNER=(ssh "$HOST" bash -s)
+fi
+"${RUNNER[@]}" "$DMG_BASE" <<'REMOTE_EOF'
 set -e
 DMG_BASE="$1"
 MNT="$HOME/qsinstall-mnt"
