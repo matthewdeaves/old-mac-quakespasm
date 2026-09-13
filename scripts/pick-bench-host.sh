@@ -130,7 +130,11 @@ WAIT_SECS="${BENCH_LOCK_WAIT:-0}"
 # never make a host busy or select that agent for release cleanup. A fixed
 # list is not future-proof; matching an application marker is a fair
 # follow-up if another executable name appears.
-GAME_PROC_CASE='xash3d|xash3d.bin|quake2|q2ded|quake3|ioquake3|ioq3ded|quakespasm|alephone|alephone-ppc-test|AlephOne|Marathon'
+#
+# build-host#79: `alephone-ppc-test` is 17 characters, one over Darwin's
+# MAXCOMLEN -- `ps -o ucomm=` truncates the real process to
+# `alephone-ppc-tes` (16), so the untruncated literal below never matched it.
+GAME_PROC_CASE='xash3d|xash3d.bin|quake2|q2ded|quake3|ioquake3|ioq3ded|quakespasm|alephone|alephone-ppc-tes|AlephOne|Marathon'
 
 # accept-new, never `no`. See note 2 above.
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new)
@@ -425,7 +429,10 @@ cmd_boot_intent() {
 cmd_release_boot_intent() {
 	local target="${1:?usage: --release-boot-intent TARGET}" live owner
 	[ -n "$CLAIM" ] || { echo "pick-bench-host: --release-boot-intent requires BENCH_LOCK_CLAIM." >&2; return 2; }
-	live="$(boot_live_alias "$target")" || {
+	# no, not the default (yes): the sibling holding our own fresh boot-intent
+	# lock classifies busy, not free, so a require_free lookup here would never
+	# find it -- build-host#78.
+	live="$(boot_live_alias "$target" no)" || {
 		echo "pick-bench-host: no reachable sibling for boot-intent cleanup of $target." >&2
 		return 1
 	}
@@ -453,7 +460,7 @@ cmd_check_boot_intent() {
 		age="$(echo "$out" | awk '{print $1}')"; procs="$(echo "$out" | awk '{print $2}')"
 		os="$(echo "$out" | awk '{print $3}')"; owner="$(echo "$out" | cut -d' ' -f4-)"
 		want="$(expect_os "$live")"; state="$(classify "$age" "$procs" "$os" "$want")"
-		case "$owner" in *"boot-intent target=$target"*"claim=$claim"*)
+		case "$owner" in *"claim=$claim"*"boot-intent target=$target"*)
 			[ "$state" = busy ] && [ "$procs" = 0 ] || continue
 			echo "$live"; return 0 ;;
 		esac
