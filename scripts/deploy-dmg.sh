@@ -18,12 +18,14 @@
 # (re)installed.
 #
 # An existing /Applications/QuakeSpasm is upgraded, not refused: it is
-# renamed aside to QuakeSpasm.bak-<timestamp> (never deleted -- that is the
-# rollback copy, restore it with scripts/rollback-dmg.sh) and its id1/ is
-# what seeds the new install's game data, since that is the machine's actual
-# current state. Only a genuinely first-ever install with no prior
-# /Applications/QuakeSpasm falls back to seeding id1/ from the legacy
-# ~/Desktop/quake/id1 this script used to read exclusively. old-mac-quakespasm#47.
+# renamed aside to ~/oldmac/quakespasm/backups/QuakeSpasm.bak-<timestamp>
+# (never deleted -- that is the rollback copy, restore it with
+# scripts/rollback-dmg.sh; NOT left in /Applications itself, which holds
+# only the current build) and its id1/ is what seeds the new install's game
+# data, since that is the machine's actual current state. Only a genuinely
+# first-ever install with no prior /Applications/QuakeSpasm falls back to
+# seeding id1/ from the legacy ~/Desktop/quake/id1 this script used to read
+# exclusively. old-mac-quakespasm#47, #49.
 
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -106,6 +108,7 @@ DMG_BASE="$1"
 MNT="$HOME/qsinstall-mnt"
 DEST="/Applications/QuakeSpasm"
 DEST_STAGE="/Applications/.QuakeSpasm.stage.$$"
+BACKUP_DIR="$HOME/oldmac/quakespasm/backups"
 
 # fresh mountpoint — detach any stale attach, then rmdir (NEVER rm -rf a path
 # that might still be a mounted read-only volume).
@@ -116,12 +119,17 @@ hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/oldmac/quakespasm/i
 
 # Upgrade, never clobber: an existing install is renamed aside as the
 # rollback copy (scripts/rollback-dmg.sh restores it), it is NEVER deleted
-# or written into in place. old-mac-quakespasm#47.
+# or written into in place. Backups live under ~/oldmac, not /Applications
+# (user rule, 2026-09-13: /Applications holds only the current build, so a
+# human testing it is never looking at an ambiguous directory listing —
+# caught live on mini-g4 by old-mac-build-host, old-mac-quakespasm#49).
+# old-mac-quakespasm#47.
 BACKUP=""
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
   OLD_VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
     "$DEST/Quakespasm.app/Contents/Info.plist" 2>/dev/null || echo unknown)"
-  BACKUP="$DEST.bak-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$BACKUP_DIR"
+  BACKUP="$BACKUP_DIR/QuakeSpasm.bak-$(date +%Y%m%d-%H%M%S)"
   [ -e "$BACKUP" ] && { echo "REFUSE: $BACKUP already exists (two installs same second?)" >&2; exit 11; }
   mv "$DEST" "$BACKUP"
   echo "upgrading: backed up existing install (version $OLD_VER) to $BACKUP"

@@ -5,10 +5,12 @@
 # usage: scripts/rollback-dmg.sh <machine> [backup-name]
 #   machine:     ssh alias
 #   backup-name: e.g. QuakeSpasm.bak-20260913-095619 (default: the newest
-#                /Applications/QuakeSpasm.bak-* on the target)
+#                one in ~/oldmac/quakespasm/backups/ on the target)
 #
 # Never deletes anything: the install being rolled back FROM is itself kept,
-# renamed to /Applications/QuakeSpasm.rolledback-<timestamp>. old-mac-quakespasm#47.
+# renamed into the same ~/oldmac/quakespasm/backups/ directory as
+# QuakeSpasm.rolledback-<timestamp> -- /Applications holds only the current
+# build (user rule, 2026-09-13; old-mac-quakespasm#47, #49).
 
 set -euo pipefail
 
@@ -28,14 +30,15 @@ ssh "$HOST" bash -s "$WANT_BACKUP" <<'REMOTE_EOF'
 set -e
 WANT="$1"
 DEST="/Applications/QuakeSpasm"
+BACKUP_DIR="$HOME/oldmac/quakespasm/backups"
 
 if [ -n "$WANT" ]; then
-  BACKUP="/Applications/$WANT"
+  BACKUP="$BACKUP_DIR/$WANT"
 else
-  BACKUP="$(ls -1dt /Applications/QuakeSpasm.bak-* 2>/dev/null | head -1 || true)"
+  BACKUP="$(ls -1dt "$BACKUP_DIR"/QuakeSpasm.bak-* 2>/dev/null | head -1 || true)"
 fi
 [ -n "$BACKUP" ] && [ -d "$BACKUP" ] || {
-  echo "no backup found (looked for /Applications/QuakeSpasm.bak-*)" >&2
+  echo "no backup found (looked for $BACKUP_DIR/QuakeSpasm.bak-*)" >&2
   exit 1
 }
 
@@ -47,7 +50,8 @@ echo "rolling back: current install (version $CUR_VER) -> restoring $BACKUP (ver
 
 # Same-volume renames only: the install being replaced is kept, never removed.
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
-  SIDE="/Applications/QuakeSpasm.rolledback-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$BACKUP_DIR"
+  SIDE="$BACKUP_DIR/QuakeSpasm.rolledback-$(date +%Y%m%d-%H%M%S)"
   mv "$DEST" "$SIDE"
   echo "current install kept at: $SIDE"
 fi
