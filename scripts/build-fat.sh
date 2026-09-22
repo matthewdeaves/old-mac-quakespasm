@@ -226,15 +226,17 @@ scp -q "$LION:/tmp/quakespasm-fat" build/quakespasm-fat
 ssh "$LION" "rm -f /tmp/quakespasm-fat$(for a in $SLICES; do printf ' /tmp/quakespasm-%s' "$a"; done)" 2>/dev/null || true
 
 # Verify the fuse HERE, not on Lion: Lion's lipo cannot name an arm64 slice,
-# so its own report would look like a corrupt fat.
+# and this box's lipo (Xcode/CLT 27) cannot name a PowerPC one, so read the
+# fat header directly instead of trusting either.
 echo "[build-fat] slices in the fused binary (verified on this box):"
-lipo -archs build/quakespasm-fat
+FAT_ARCHS=$(scripts/macho-archs.sh build/quakespasm-fat)
+echo "$FAT_ARCHS"
 for a in $SLICES; do
   case $a in
     g3) want=ppc750 ;; g4) want=ppc7400 ;; g5) want=ppc970 ;;
     lion) want=x86_64 ;; i386) want=i386 ;; arm64) want=arm64 ;;
   esac
-  case " $(lipo -archs build/quakespasm-fat) " in
+  case " $FAT_ARCHS " in
     *" $want "*) ;;
     *) echo "[build-fat] fuse lost the $a slice ($want)" >&2; exit 1 ;;
   esac

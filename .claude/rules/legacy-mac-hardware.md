@@ -1,9 +1,9 @@
 ## Hard rules
 
 - **Never trust "done" or exit 0.** After every build: fresh mtimes on each
-  `build/quakespasm-{g3,g4,g5,lion,i386,arm64}` from THIS run; `lipo
-  -detailed_info build/quakespasm-fat` showing six slices at their exact
-  subtypes — `build-fat.sh` deliberately fuses WITHOUT arm64 when that slice
+  `build/quakespasm-{g3,g4,g5,lion,i386,arm64}` from THIS run;
+  `scripts/macho-archs.sh build/quakespasm-fat` showing six slices at their
+  exact subtypes — `build-fat.sh` deliberately fuses WITHOUT arm64 when that slice
   is missing and only warns, so a five-slice fat is a passing build; and
   after `deploy.sh`, read its md5 comparison, it WARNS rather than fails, and
   a WARN means the target is not running what you built. ADR 0002.
@@ -29,8 +29,10 @@
   `--exclude-from` so the build stops instead of copying `.git` to the mini.
 - **Every PowerPC slice carries its exact cpusubtype**, never generic `ppc
   (ALL)`, which is a launch blocker on Tiger and Leopard. `build.sh` asserts and
-  re-stamps. Trust `lipo`, not `file` (modern `file` renders subtype 9 as
-  `ppc_650`). ADR 0002.
+  re-stamps. Trust `scripts/macho-archs.sh`, which reads the header bytes, not
+  `file` (renders subtype 9 as `ppc_650`) and not the workstation's `lipo`
+  (Xcode/CLT 27 prints PowerPC as `cputype unknown`, measured 2026-09-22).
+  ADR 0002.
 - **Bench every change on all targets**, 3 runs, median of 2 and 3, two commits
   per phase (code, then bench). A regression verdict needs a same-session A/B on
   the suspected target. ADR 0009.

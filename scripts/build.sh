@@ -452,6 +452,8 @@ file "$REPO_ROOT/build/quakespasm-$TARGET"
 # the linker emit ALL instead of 7400. So don't trust the compiler — assert the
 # subtype here and re-stamp if it drifted. Thin 32-bit big-endian Mach-O:
 # cpusubtype is the 4-byte big-endian field at offset 8. Idempotent.
+# Read back with macho-archs.sh, not lipo: this box's lipo (Xcode/CLT 27)
+# prints "big-endian-mach-o: <path>" for any PowerPC file.
 case "$TARGET" in
   g3)   WANT_SUBTYPE=9;   WANT_NAME=ppc750  ;;
   g4)   WANT_SUBTYPE=10;  WANT_NAME=ppc7400 ;;
@@ -460,12 +462,12 @@ case "$TARGET" in
 esac
 if [ -n "$WANT_SUBTYPE" ]; then
   BIN="$REPO_ROOT/build/quakespasm-$TARGET"
-  GOT=$(lipo -info "$BIN" | sed 's/.*: //')
+  GOT=$("$REPO_ROOT/scripts/macho-archs.sh" "$BIN")
   if [ "$GOT" != "$WANT_NAME" ]; then
     echo "[build] cpusubtype is '$GOT', re-stamping → $WANT_NAME ($WANT_SUBTYPE)"
     printf "$(printf '\\%03o\\%03o\\%03o\\%03o' 0 0 0 "$WANT_SUBTYPE")" \
       | dd of="$BIN" bs=1 seek=8 count=4 conv=notrunc 2>/dev/null
-    GOT=$(lipo -info "$BIN" | sed 's/.*: //')
+    GOT=$("$REPO_ROOT/scripts/macho-archs.sh" "$BIN")
     [ "$GOT" = "$WANT_NAME" ] || { echo "[build] FAILED to stamp $WANT_NAME (got '$GOT')" >&2; exit 1; }
   fi
   echo "[build] cpusubtype OK: $GOT"

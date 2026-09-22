@@ -98,12 +98,11 @@ if [ ! -f "$BIN" ]; then
   scripts/build-fat.sh
 fi
 # Sanity: must be the multi-slice fat, not a stray single-arch binary.
-# Use lipo (reads the Mach header directly) rather than file(1): file's ppc
-# subtype names vary by host/toolchain - on an Apple-silicon workstation it
-# renders the ppc750 slice as "ppc_650", so the old `file | grep ppc_750`
-# check spuriously failed on a perfectly good 6-arch fat. lipo -archs is
-# authoritative and stable.
-ARCHS=$(lipo -archs "$BIN" 2>/dev/null || echo)
+# Read the Mach headers ourselves (macho-archs.sh), not file(1) or lipo: file
+# renders the ppc750 slice as "ppc_650" on an Apple-silicon workstation, and
+# since Xcode/CLT 27 (macOS 26.6, 2026-09-22) the workstation's lipo cannot
+# name a PowerPC slice at all ("cputype unknown").
+ARCHS=$("$REPO_ROOT/scripts/macho-archs.sh" "$BIN" 2>/dev/null || echo)
 # arm64 is deliberately NOT in this list. It is the one slice a Lion mini
 # cannot build, so it is optional at fuse time and its absence is a Rosetta 2
 # downgrade rather than a broken release. Say which way it went, though, so a
