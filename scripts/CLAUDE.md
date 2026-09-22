@@ -12,7 +12,7 @@ bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
 
 ## Per-script gotchas
 
-- **build.sh** flocks `~/quakespasm/build/.build.lock` to serialise concurrent
+- **build.sh** flocks `<repo>/build/.build.lock` to serialise concurrent
   g3/g4/g5 invocations. After any build, `file build/quakespasm-<t>` must report
   the right CPU subtype, anything else is the `.o` race (ADR 0004). It also
   stamps `QS_PORT_VERSION` (ADR 0004).

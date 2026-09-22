@@ -169,33 +169,38 @@ if [ -z "${_QS_DMG_STAGED:-}" ]; then
 
       . "$REPO_ROOT/scripts/source-stamp.sh"
       . "$REPO_ROOT/scripts/source-stamp-excludes.sh"
+      # Same tree, same protect rules as build.sh's sync (#46): under ~/oldmac,
+      # and deploy-dmg.sh's incoming/ + backups/ kept out of --delete's reach.
+      REMOTE_TREE="oldmac/quakespasm"
       echo "[make-dmg] sync sources this workstation -> $DMG_STAGE_HOST"
+      ssh "$DMG_STAGE_HOST" "mkdir -p $REMOTE_TREE"
       rsync -av --partial --inplace --delete \
         $(source_stamp_rsync_excludes "$SOURCE_STAMP_EXCLUDES") \
+        --filter='P /incoming/' --filter='P /backups/' \
         -e 'ssh -o ServerAliveInterval=15' \
-        "$REPO_ROOT/" "$DMG_STAGE_HOST:quakespasm/" | tail -3
+        "$REPO_ROOT/" "$DMG_STAGE_HOST:$REMOTE_TREE/" | tail -3
       # build/ is in the exclude list (same reason as build.sh's sync to the
       # Lion mini: an output dir that should not bounce through another host),
       # so the one binary this whole relay exists to avoid re-staging locally
       # still has to be sent explicitly - it is the one part of the ~190 MB
       # that is genuinely new every release, everything else (frameworks,
       # dylibs, cfgs, README) already lives in $DMG_STAGE_HOST's own checkout.
-      ssh "$DMG_STAGE_HOST" "mkdir -p quakespasm/build"
-      scp -q "$BIN" "$DMG_STAGE_HOST:quakespasm/build/quakespasm-fat"
+      ssh "$DMG_STAGE_HOST" "mkdir -p $REMOTE_TREE/build"
+      scp -q "$BIN" "$DMG_STAGE_HOST:$REMOTE_TREE/build/quakespasm-fat"
 
       mkdir -p "$REPO_ROOT/dist"
       echo "[make-dmg] running make-dmg.sh on $DMG_STAGE_HOST"
-      ssh "$DMG_STAGE_HOST" "cd quakespasm && \
+      ssh "$DMG_STAGE_HOST" "cd $REMOTE_TREE && \
         DMG_HOST='$DMG_HOST' RETRO_BENCH_LOCK='$DMG_HOST' \
         QS_PORT_VERSION='${QS_PORT_VERSION:-}' _QS_DMG_STAGED=1 \
         scripts/make-dmg.sh '$VERSION'"
 
       echo "[make-dmg] fetch finished .dmg back from $DMG_STAGE_HOST"
-      scp -q "$DMG_STAGE_HOST:quakespasm/dist/QuakeSpasm-OldMac-$VERSION.dmg" "$OUT"
+      scp -q "$DMG_STAGE_HOST:$REMOTE_TREE/dist/QuakeSpasm-OldMac-$VERSION.dmg" "$OUT"
       # Same paranoia as the local path's own final scp check below: confirm
       # THIS hop didn't corrupt it either, not just the workstation->DMG_HOST
       # one the remote leg already verified.
-      RMT_FETCH_MD5=$(ssh "$DMG_STAGE_HOST" "md5 'quakespasm/dist/QuakeSpasm-OldMac-$VERSION.dmg' | awk '{print \$NF}'")
+      RMT_FETCH_MD5=$(ssh "$DMG_STAGE_HOST" "md5 '$REMOTE_TREE/dist/QuakeSpasm-OldMac-$VERSION.dmg' | awk '{print \$NF}'")
       LCL_FETCH_MD5=$(md5sum "$OUT" | cut -d' ' -f1)
       [ "$RMT_FETCH_MD5" = "$LCL_FETCH_MD5" ] || {
         echo "[make-dmg] FATAL: scp from $DMG_STAGE_HOST corrupted $OUT ($RMT_FETCH_MD5 != $LCL_FETCH_MD5)" >&2

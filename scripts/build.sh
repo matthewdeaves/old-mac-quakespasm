@@ -80,6 +80,11 @@ elif [ -z "${QS_BUILD_HOST_PRECLAIMED:-}" ]; then
 fi
 BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
 LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines below
+# The source tree on the build host, relative to its $HOME. Lives under ~/oldmac
+# (user, 2026-09-04, build-host#73; this repo's #46), not bare ~/quakespasm.
+# deploy-dmg.sh keeps incoming/ and backups/ in this same directory on any host
+# that is also a deploy target, so the sync below protects them from --delete.
+REMOTE_TREE="oldmac/quakespasm"
 trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
 
 # Port release label stamped into the binary's version string. Computed HERE on
@@ -92,7 +97,7 @@ trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" -
 QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
 
 # Serialize concurrent invocations. Both targets rsync to the same
-# lion:quakespasm/ path and `make -j2` in lion:quakespasm/Quake/ — running
+# lion:$REMOTE_TREE/ path and `make -j2` in lion:$REMOTE_TREE/Quake/ — running
 # them in parallel races on the .o files and produces a binary stamped with
 # the *other* target's CPU subtype. Symptom: `lipo -info` reports ppc7400
 # for a g3 build, the binary loads on Panther but crashes during AppKit NIB
@@ -390,13 +395,16 @@ esac
 echo "[build] sync sources orchestrator → $LION"
 # exclude prereqs/ (5 GB of installer DMGs; only used locally for setup)
 # and benchmarks/raw/ + build/ (output dirs that shouldn't bounce through Lion)
+# rsync creates only the last path component, so make ~/oldmac first.
+ssh "$LION" "mkdir -p $REMOTE_TREE"
 rsync -av --partial --inplace --delete \
   $(source_stamp_rsync_excludes "$SOURCE_STAMP_EXCLUDES") \
+  --filter='P /incoming/' --filter='P /backups/' \
   -e 'ssh -o ServerAliveInterval=15' \
-  "$REPO_ROOT/" "$LION:quakespasm/" | tail -3
+  "$REPO_ROOT/" "$LION:$REMOTE_TREE/" | tail -3
 
 echo "[build] compile $TARGET on $LION (SDK=${SDK:-default}, vmin=$VMIN, arch=$MACH_TYPE)"
-ssh "$LION" "cd quakespasm/Quake && \
+ssh "$LION" "cd $REMOTE_TREE/Quake && \
   make -f Makefile.darwin clean >/dev/null 2>&1
   make -f Makefile.darwin MACH_TYPE=$MACH_TYPE -j2 \
     CC=$CC \
@@ -428,7 +436,7 @@ ssh "$LION" "cd quakespasm/Quake && \
 
 mkdir -p "$REPO_ROOT/build"
 echo "[build] fetch → build/quakespasm-$TARGET"
-scp -q "$LION:quakespasm/Quake/quakespasm-$TARGET" "$REPO_ROOT/build/quakespasm-$TARGET"
+scp -q "$LION:$REMOTE_TREE/Quake/quakespasm-$TARGET" "$REPO_ROOT/build/quakespasm-$TARGET"
 file "$REPO_ROOT/build/quakespasm-$TARGET"
 
 # --- exact cpusubtype enforcement -------------------------------------------

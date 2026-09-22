@@ -15,7 +15,7 @@
 # Strategy (per docs/research/fat-binary-feasibility.md §7):
 #   1. Run scripts/build.sh g3, g4, g5, lion sequentially. Each takes the
 #      build flock individually; we serialise the sub-builds.
-#      Parallel sub-builds would race on the build host's quakespasm/Quake/
+#      Parallel sub-builds would race on the build host's oldmac/quakespasm/Quake/
 #      tree (`make clean` + `-j2` aliases the .o files), so SERIAL is required.
 #   2. lipo -create the four per-target binaries into a single fat.
 #      Verified working in fat-binary-feasibility.md §1: zero warnings,
@@ -45,7 +45,7 @@ echo "[build-fat] stamping port version: $QS_PORT_VERSION"
 
 # Pin ONE Intel build host for the whole fat build and claim it up front.
 # This MUST be a single host for the entire run: the five mini-built slices accumulate in
-# that host's quakespasm/Quake/ tree and the final lipo happens there, so letting
+# that host's oldmac/quakespasm/Quake/ tree and the final lipo happens there, so letting
 # individual sub-builds drift onto different minis would lipo an incomplete set.
 # Claiming once also stops another repo/agent taking the box between sub-builds.
 # An explicit BUILD_HOST (or LION) from the caller always wins.
