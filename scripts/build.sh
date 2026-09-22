@@ -82,9 +82,10 @@ BUILD_HOST="${BUILD_HOST:-${LION:-mini-intel}}"
 LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines below
 # The source tree on the build host, relative to its $HOME. Lives under ~/oldmac
 # (user, 2026-09-04, build-host#73; this repo's #46), not bare ~/quakespasm.
-# deploy-dmg.sh keeps incoming/ and backups/ in this same directory on any host
-# that is also a deploy target, so the sync below protects them from --delete.
-REMOTE_TREE="oldmac/quakespasm"
+# Its own src/ subdir, because the sync below runs --delete: ~/oldmac/quakespasm
+# also holds deploy-dmg.sh's incoming/ + backups/ and, on imac-2019, the
+# *-legacy dirs build-host moved there. A sync into the parent would wipe them.
+REMOTE_TREE="oldmac/quakespasm/src"
 trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
 
 # Port release label stamped into the binary's version string. Computed HERE on
@@ -399,7 +400,6 @@ echo "[build] sync sources orchestrator → $LION"
 ssh "$LION" "mkdir -p $REMOTE_TREE"
 rsync -av --partial --inplace --delete \
   $(source_stamp_rsync_excludes "$SOURCE_STAMP_EXCLUDES") \
-  --filter='P /incoming/' --filter='P /backups/' \
   -e 'ssh -o ServerAliveInterval=15' \
   "$REPO_ROOT/" "$LION:$REMOTE_TREE/" | tail -3
 

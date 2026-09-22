@@ -23,8 +23,8 @@ Each mini hosts this port and the Quake II sister port at once. Isolation:
 
 | Resource | QuakeSpasm | Q2 |
 |---|---|---|
-| Source rsync target | `mini-intel:oldmac/quakespasm/` | `mini-intel:oldmac/quake2/` |
-| `make` cwd | `mini-intel:oldmac/quakespasm/Quake/` | `mini-intel:oldmac/quake2/` |
+| Source rsync target | `mini-intel:oldmac/quakespasm/src/` | `mini-intel:oldmac/quake2/` |
+| `make` cwd | `mini-intel:oldmac/quakespasm/src/Quake/` | `mini-intel:oldmac/quake2/` |
 | Local flock | `<repo>/build/.build.lock` | `<repo>/build/.build.lock` |
 | Local build outputs | `<repo>/build/quakespasm-*` | `<repo>/build/q2-*` |
 

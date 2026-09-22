@@ -169,14 +169,14 @@ if [ -z "${_QS_DMG_STAGED:-}" ]; then
 
       . "$REPO_ROOT/scripts/source-stamp.sh"
       . "$REPO_ROOT/scripts/source-stamp-excludes.sh"
-      # Same tree, same protect rules as build.sh's sync (#46): under ~/oldmac,
-      # and deploy-dmg.sh's incoming/ + backups/ kept out of --delete's reach.
-      REMOTE_TREE="oldmac/quakespasm"
+      # Same tree as build.sh's sync (#46): its own src/ subdir under
+      # ~/oldmac/quakespasm, so --delete cannot reach deploy-dmg.sh's
+      # incoming/ + backups/ or anything else parked beside it.
+      REMOTE_TREE="oldmac/quakespasm/src"
       echo "[make-dmg] sync sources this workstation -> $DMG_STAGE_HOST"
       ssh "$DMG_STAGE_HOST" "mkdir -p $REMOTE_TREE"
       rsync -av --partial --inplace --delete \
         $(source_stamp_rsync_excludes "$SOURCE_STAMP_EXCLUDES") \
-        --filter='P /incoming/' --filter='P /backups/' \
         -e 'ssh -o ServerAliveInterval=15' \
         "$REPO_ROOT/" "$DMG_STAGE_HOST:$REMOTE_TREE/" | tail -3
       # build/ is in the exclude list (same reason as build.sh's sync to the

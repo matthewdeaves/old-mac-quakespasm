@@ -24,8 +24,8 @@
 # one place the shared list changes build.sh's transfer. Two consequences, both
 # checked: the mini stops receiving 64 MB of DMGs it never reads, and because
 # `rsync --delete` PROTECTS excluded paths on the receiver, an existing remote
-# oldmac/quakespasm/dist/ is now left in place rather than deleted. Nothing on the
-# build host reads it -- the remote only ever runs make in oldmac/quakespasm/Quake --
+# oldmac/quakespasm/src/dist/ is now left in place rather than deleted. Nothing on the
+# build host reads it -- the remote only ever runs make in oldmac/quakespasm/src/Quake --
 # so it is inert, but it does not self-clean.
 #
 # .claude/ is Claude Code session state, not source: commands and skills under
