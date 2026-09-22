@@ -17,8 +17,8 @@ Everything the watch shows for Quake II that Quake 1 *does* have, health, armor,
 ammo, current weapon, powerups (with an estimated countdown), pickups, damage
 haptics, works identically.
 
-**Off by default.** The whole feature is gated on the `watch_host` cvar: empty ⇒
-no socket touched, no per-frame work, no packets. The default fleet build, the
+**Off by default.** The whole feature is gated on the `watch_enable` cvar
+(default `0`): off ⇒ no socket touched, no per-frame work, no packets. The default fleet build, the
 benchmarks and the DMG behave identically. This is a *runtime* opt-in, not a
 load-time change (see [`MISTAKES.md`](../MISTAKES.md) on "zero-risk load-time"
 traps).
@@ -27,20 +27,27 @@ traps).
 
 | cvar | default | meaning |
 |---|---|---|
-| `watch_host` | `""` | destination `ip` / `ip:port`, or `"auto"` for Bonjour; empty disables the feature |
+| `watch_enable` | `0` | on/off switch. `1` starts the feed, `0` stops it (also mid-game) |
+| `watch_host` | `"auto"` | destination `ip` / `ip:port`, or `"auto"` for Bonjour. Empty also disables the feature |
 | `watch_port` | `27999` | port used when `watch_host` omits one |
 | `watch_rate` | `10` | vitals heartbeat, Hz (floored to ≥1 ms interval) |
 | `watch_events` | `1` | also emit discrete damage / centerprint / sound events |
 
-All four are `CVAR_ARCHIVE`, so they persist in `config.cfg`. Set live from the
-console, or from an `autoexec-*.cfg`:
+All five are `CVAR_ARCHIVE`, so they persist in `config.cfg`. To turn it on,
+put this in `id1/config.cfg` (or type it at the console, which saves it there
+on quit):
 
 ```
-set watch_host "192.168.1.50"
+watch_enable "1"
 ```
 
-On the fleet, `set watch_host "auto"` belongs in the per-machine bundle cfg
-(`autoexec-<machine>.cfg`) so it runs after `config.cfg`.
+Each per-arch bundle cfg (`autoexec-*.cfg`) carries the same line commented
+out. The bundle cfgs run after `config.cfg`, so they deliberately do not set
+`watch_enable`: if they did, they would override the user's choice on every
+launch. Uncommenting it there forces the feed on for that machine class.
+Before 2026-09-22 the bundle cfgs set `watch_host "auto"`, which turned the
+feed on everywhere. A `config.cfg` that still holds `watch_host "auto"` is
+harmless now: it only names the destination.
 
 ## Wire format (newline-delimited JSON: UDP)
 
@@ -109,7 +116,7 @@ phoneless game costs no CPU.
 
 ```
 nc -ul 27999                          # one terminal, raw JSON
-# then in-game:  set watch_host "127.0.0.1"
+# then in-game:  watch_host "127.0.0.1"; watch_enable 1
 ```
 
 The Quake II repo also ships `scripts/watchlink-listen.py`, a friendlier desktop

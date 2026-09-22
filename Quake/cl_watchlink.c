@@ -25,9 +25,10 @@
  * in-game help computer (no F1 objectives screen), so the companion simply
  * shows the sector name and no objectives panel -- a graceful, cut-down HUD.
  *
- * Everything here is gated on the `watch_host` cvar: when it is empty the
- * feature is completely inert -- no sockets touched, no per-frame work, no
- * packets emitted -- so the default fleet build behaves exactly as before.
+ * Everything here is gated on the `watch_enable` cvar (default 0, archived to
+ * config.cfg): while it is 0 -- or watch_host is empty -- the feature is
+ * completely inert -- no sockets touched, no per-frame work, no packets
+ * emitted. watch_host only says WHERE to send ("auto" = Bonjour by default).
  * This is a runtime-gated opt-in, NOT a load-time change.
  *
  * Transport is newline-delimited JSON. The retro PPC fleet is big-endian, so
@@ -119,7 +120,8 @@ typedef int		wl_socket_t;
 
 extern double	realtime;	/* monotonic wall clock, seconds */
 
-static cvar_t	watch_host = {"watch_host", "", CVAR_ARCHIVE};   /* "ip"/"ip:port", "auto", "" => off */
+static cvar_t	watch_enable = {"watch_enable", "0", CVAR_ARCHIVE}; /* master on/off switch */
+static cvar_t	watch_host = {"watch_host", "auto", CVAR_ARCHIVE};   /* "ip"/"ip:port", "auto", "" => off */
 static cvar_t	watch_port = {"watch_port", "27999", CVAR_ARCHIVE};
 static cvar_t	watch_rate = {"watch_rate", "10", CVAR_ARCHIVE}; /* vitals heartbeat, Hz */
 static cvar_t	watch_events = {"watch_events", "1", CVAR_ARCHIVE};
@@ -441,6 +443,17 @@ WatchLink_PumpDiscovery (void)
 #endif /* WATCHLINK_BONJOUR */
 
 /*
+ * The one on/off test. Both must hold: the switch is on and there is somewhere
+ * to send. watch_host "" still means off, for configs written before
+ * watch_enable existed.
+ */
+static qboolean
+WatchLink_Enabled (void)
+{
+	return (watch_enable.value && watch_host.string[0]) ? true : false;
+}
+
+/*
  * Reconcile internal state with the watch_host cvar and, in "auto" mode, drive
  * Bonjour discovery. Cheap to call every frame; only does real work when the
  * cvar string changed or a discovery socket has data pending. QuakeSpasm's
@@ -448,6 +461,23 @@ WatchLink_PumpDiscovery (void)
  * remembering the last value we acted on.
  */
 static char watch_host_seen[128] = "\001"; /* sentinel: forces first reconcile */
+
+/*
+ * Switched off: drop the destination and any discovery in flight, and reset
+ * the sentinel so switching back on reconciles from scratch.
+ */
+static void
+WatchLink_Disarm (void)
+{
+	if (watch_host_seen[0] == '\001')
+		return;
+	watch_host_seen[0] = '\001';
+	watch_host_seen[1] = '\0';
+	watch_sin_valid = false;
+#ifdef WATCHLINK_BONJOUR
+	WatchLink_StopDiscovery ();
+#endif
+}
 
 static void
 WatchLink_Sync (void)
@@ -506,7 +536,7 @@ WatchLink_Sync (void)
 static qboolean
 WatchLink_DestReady (void)
 {
-	if (!watch_host.string[0])
+	if (!WatchLink_Enabled ())
 		return false;
 
 	if (!watch_sin_valid && !WatchLink_IsAuto ())
@@ -596,6 +626,7 @@ WatchLink_EscapeJson (char *dst, int dstsize, const char *src)
 void
 CL_WatchLink_Init (void)
 {
+	Cvar_RegisterVariable (&watch_enable);
 	Cvar_RegisterVariable (&watch_host);
 	Cvar_RegisterVariable (&watch_port);
 	Cvar_RegisterVariable (&watch_rate);
@@ -625,7 +656,7 @@ CL_WatchLink_Event (const char *kind, const char *detail)
 	/* Never echo the menu attract-loop / demo playback to the companion. */
 	if (cls.demoplayback)
 		return;
-	if (!watch_host.string[0])
+	if (!WatchLink_Enabled ())
 		return;
 
 	WatchLink_Sync ();
@@ -814,12 +845,15 @@ CL_WatchLink_Frame (void)
 	int		i;
 	double		interval;
 
-	if (!watch_host.string[0])
+	if (!WatchLink_Enabled ())
+	{
+		WatchLink_Disarm ();	/* no-op unless it was just switched off */
 		return;			/* feature off -- stay fully inert */
+	}
 
 	/* A timedemo benchmark (incl. the sysreport grid) is running: stay fully
-	   inert so the feed never perturbs the FPS measurement. The fleet cfg sets
-	   watch_host "auto", so a benchmark on a fleet box would otherwise pay for
+	   inert so the feed never perturbs the FPS measurement. With watch_enable 1
+	   and watch_host "auto", a benchmark on a fleet box would otherwise pay for
 	   WatchLink_Sync()/discovery every frame. The demoplayback guard below also
 	   covers it, but bailing here first keeps the benchmark frame truly clean. */
 	if (cls.timedemo)

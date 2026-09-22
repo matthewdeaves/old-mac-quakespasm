@@ -32,6 +32,12 @@ Updated 2026-06-06.
 
 The R300 gate makes the existing `-noglsl -novbo -notexturenpot -nowarpmipmaps` switches redundant on these cards (the gate already skips all four), but they remain available for finer A/B.
 
+## Companion feed (cvar: all targets, 2026-09-22)
+
+| Cvar | Default | What it does | File |
+|------|---------|--------------|------|
+| `watch_enable` | 0 (off) | Master switch for the watchlink UDP feed to the iPhone/Apple Watch companion. Set `1` in `id1/config.cfg` or the console. Bundle cfgs carry it commented out and must not set it, because they run after `config.cfg`. See `docs/WATCHLINK.md`. | `Quake/cl_watchlink.c` |
+
 ## Video-mode lock for fragile-GPU machines (cmdline/console: 2026-05-31)
 
 | Flag/cvar | Default | What it does | File |
