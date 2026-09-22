@@ -129,15 +129,19 @@ fi
 "${RUNNER[@]}" "$DMG_BASE" <<'REMOTE_EOF'
 set -e
 DMG_BASE="$1"
-MNT="$HOME/qsinstall-mnt"
+# Mountpoint under ~/oldmac, not loose in $HOME (fleet tidy rule, buildhost
+# 2026-09-22). The old ~/qsinstall-mnt is detached and rmdir'd if present.
+MNT="$HOME/oldmac/quakespasm/qsinstall-mnt"
 DEST="/Applications/QuakeSpasm"
 DEST_STAGE="/Applications/.QuakeSpasm.stage.$$"
 BACKUP_DIR="$HOME/oldmac/quakespasm/backups"
 
 # fresh mountpoint — detach any stale attach, then rmdir (NEVER rm -rf a path
 # that might still be a mounted read-only volume).
-hdiutil detach "$MNT" >/dev/null 2>&1 || hdiutil detach -force "$MNT" >/dev/null 2>&1 || true
-rmdir "$MNT" 2>/dev/null || true
+for m in "$MNT" "$HOME/qsinstall-mnt"; do
+  hdiutil detach "$m" >/dev/null 2>&1 || hdiutil detach -force "$m" >/dev/null 2>&1 || true
+  rmdir "$m" 2>/dev/null || true
+done
 mkdir -p "$MNT"
 hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/oldmac/quakespasm/incoming/$DMG_BASE" >/dev/null
 
@@ -215,6 +219,16 @@ file "$DEST/Quakespasm.app/Contents/MacOS/quakespasm" 2>/dev/null | sed 's/.*: /
 # the whole remote script with status 1 despite a fully successful install.
 # Reproduced live on g5-panther's first-ever install before this fix.
 [ -n "$BACKUP" ] && echo "rollback copy kept at: $BACKUP (scripts/rollback-dmg.sh restores it)" || true
+# Keep ONE rollback copy, the one this upgrade just made; older ones are
+# pruned so backups don't pile up (fleet tidy rule, buildhost 2026-09-22,
+# after 7 accumulated). Only after the verified install above, and only
+# when this run made a backup, so a failed or fresh install prunes nothing.
+if [ -n "$BACKUP" ] && [ -d "$DEST/Quakespasm.app" ]; then
+  for old in "$BACKUP_DIR"/QuakeSpasm.bak-*; do
+    [ -d "$old" ] && [ "$old" != "$BACKUP" ] || continue
+    rm -rf "$old" && echo "pruned older rollback copy: $old"
+  done
+fi
 REMOTE_EOF
 
 echo "[deploy-dmg $HOST] done — installed from $DMG_BASE"
