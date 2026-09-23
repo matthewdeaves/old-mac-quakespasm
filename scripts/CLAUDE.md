@@ -24,9 +24,9 @@ bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
   180 s (slower CPU), yosemite 240 s.
 - **make-dmg.sh** defaults to a reachable Tiger host and content-verifies the
   binaries inside the image against source. **deploy-dmg.sh / smoke-dmg.sh**
-  install and production-launch it; deploy-dmg first removes any older
-  `QuakeSpasm-OldMac-*.dmg` from the target Desktop so releases don't pile up.
-  ADR 0005.
+  install and production-launch it. They are buildhost's shared scripts
+  (build-host#96), synced byte-identical: change `dmg-port.conf`, or send
+  buildhost the fix. ADR 0005.
 - **bench-and-commit.sh** refuses dirty trees and any NA fps cell; the
   manual-commit override for a lone transient is in ADR 0009.
 - **make-icon.py**, conservative defaults, Photoshop over `--scrub-interior`.
