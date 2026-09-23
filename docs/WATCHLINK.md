@@ -12,7 +12,7 @@ both games. The companion (iPhone relay + watchOS app) lives in its own repo:
 **[quake2-tactical-watch](https://github.com/matthewdeaves/quake2-tactical-watch)**.
 
 Quake 1 has no in-game help computer (no F1 objectives screen), so the companion
-simply shows the sector name with no objectives panel, a graceful, cut-down HUD.
+shows the sector name with no objectives panel.
 Everything the watch shows for Quake II that Quake 1 *does* have, health, armor,
 ammo, current weapon, powerups (with an estimated countdown), pickups, damage
 haptics, works identically.

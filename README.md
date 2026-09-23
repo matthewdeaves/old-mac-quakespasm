@@ -9,16 +9,8 @@
   <img src="docs/images/quakespasm-icon-256.png" width="180" alt="QuakeSpasm icon" />
 </p>
 
-A QuakeSpasm build as one fat binary for PowerPC, Intel and Apple Silicon, tested
-on G3, G4, G5, Intel and Apple Silicon Macs, from a 1999 Power Mac to today. It reads the
-machine model at boot (`sysctl hw.model`) and loads settings tuned to run well on
-that hardware.
-
-> **About this project.** A personal project, I love Quake and I collect and
-> tinker with old Macs. My part is the setup and testing: the build, deploy and
-> benchmark scripts, and the per-machine settings. The engine and config changes
-> were made mostly **with AI (Claude), which I directed and checked against real
-> benchmarks on the machines**, not hand-written from scratch.
+QuakeSpasm as one fat binary for PowerPC, Intel and Apple Silicon Macs. At boot it
+reads the machine model (`sysctl hw.model`) and loads per-machine settings.
 
 <p align="center">
   <img src="docs/screenshots/sawtooth_spasm0010.webp" width="24%" alt="Sawtooth G4 / GeForce2 MX" />
@@ -68,7 +60,7 @@ run on hardware** (no such machine in the fleet).
 
 ## Framerate
 
-`timedemo demo1`, with the per-machine settings each Mac actually ships with
+`timedemo demo1`, with each Mac's shipped per-machine settings
 (translucent water, shadows, dynamic lights, trilinear), median of runs 2 & 3:
 
 | Machine | 1024×768 | 640×480 |
@@ -84,20 +76,15 @@ run on hardware** (no such machine in the fleet).
 release. Everything else is measured on the v1.14 build.
 
 The iMac G5 runs native 1440×900 only (its Leopard driver hangs on a mode
-switch) at ~102 fps; the 2019 iMac sits well over 1500 fps. The G3 ships at
-800×600, its default, where demo1 runs 25.5 on Panther and 25.1 on Tiger,
-comfortably above 20 fps with everything turned on. That pair is the same Mac
-booted from two partitions, running the byte-identical binary out of the same
-disk image: the OS costs the G3 a couple of percent and nothing else. Every
-machine stays above its target (≥ 60 fps on the G4/G5/Lion machines, ≥ 20 on the
-G3); full history and all three demos in
+switch) at ~102 fps; the 2019 iMac runs over 1500 fps. The G3 defaults to
+800×600, where demo1 runs 25.5 fps on Panther and 25.1 on Tiger. Targets: ≥ 60 fps
+on the G4/G5/Lion machines, ≥ 20 on the G3. Full history and all three demos in
 [`benchmarks/results.csv`](benchmarks/results.csv).
 
 ## How it's built and benchmarked
 
-One modern Mac drives the whole fleet over SSH. The Lion mini does double duty:
-it cross-builds the five PowerPC/Intel slices (arm64 is built on the Apple Silicon Mac) and benches itself. These diagrams
-cover the setup, the build pipeline and the timedemo bench loop.
+One modern Mac drives the fleet over SSH. A Lion Mac mini cross-builds the five
+PowerPC/Intel slices; arm64 is built on an Apple Silicon Mac.
 
 ![Build and bench rack: one orchestration box drives the fleet via the Lion mini cross-build host](docs/images/architecture.svg)
 
@@ -147,14 +134,12 @@ not this one.
 
 Download the latest disk image from
 [**Releases**](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
-(`QuakeSpasm-OldMac-<version>.dmg`). One image installs on every supported Mac,
-built on Tiger so it mounts on everything from 10.3.9 through modern macOS, and
-the `.app` inside is a fat binary that runs natively on each.
+(`QuakeSpasm-OldMac-<version>.dmg`). The image is built on Tiger so it mounts on
+10.3.9 through current macOS.
 
 Open the `.dmg` and drag the whole **`Quakespasm`** folder (not just the
-`.app`) to your Desktop, `/Applications`, or anywhere else you like -- it's
-self-contained: the app, its own `quakespasm.pak`, an empty `id1/` for your
-game data, and a fix script all travel together in one drag. Add your own
+`.app`) to `/Applications` or anywhere else. It holds the app, `quakespasm.pak`,
+an empty `id1/` and a fix script. Add your own
 `pak0.pak` (shareware) or `pak0.pak` + `pak1.pak` (registered, from your own
 copy of the game) into that folder's `id1/`, then double-click
 `Quakespasm.app`.
@@ -164,14 +149,9 @@ the `Quakespasm` folder, right-click **`Fix Launch Problems.command`** and
 choose Open (once -- this app isn't Developer ID signed, so any unsigned
 script needs one right-click-Open bypass instead of a plain double-click),
 then try `Quakespasm.app` again. See "Where to put it" below for why this
-happens. Not needed, and cannot happen, on Panther/Tiger/Leopard/Lion: the bug
-this fixes is App Translocation, which macOS didn't have until 10.12 Sierra.
-The script checks the OS version itself and says so instead of running
-through steps that would only ever be a no-op below that. An Apple Silicon
-Mac now runs a **native `arm64`
-slice** rather than the `x86_64` one under Rosetta 2, and the 2006 Core Duo /
-Core Solo machines have their own `i386` slice, so there is no longer any Mac
-this binary cannot run on natively.
+happens. Not needed before 10.12 Sierra (no App Translocation there); the script
+checks the OS version. Apple Silicon runs the native `arm64` slice, and Core Duo /
+Core Solo Macs run the `i386` slice.
 
 ## Sister projects
 
@@ -189,7 +169,7 @@ Bundled SDL 1.2.15 is LGPL-2.1; SDL2.framework (arm64 only) is zlib.
 
 ### Where to put it on Apple Silicon and modern macOS
 
-Two separate things bite here, and only one cares where the folder is:
+Two separate issues; only the second depends on where the folder is:
 
 - **App Translocation** (macOS 10.12 Sierra and later only), wherever the
   folder lives: a quarantined app can run from a random, sandboxed copy of
