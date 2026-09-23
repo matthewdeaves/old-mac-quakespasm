@@ -1,7 +1,7 @@
 # QuakeSpasm: old-Mac port
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
-[![Platform: PowerPC + Intel macOS](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20macOS-lightgrey.svg)](#tested-machines)
+[![Platform: PowerPC | Intel | Apple Silicon](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20%7C%20Apple%20Silicon-lightgrey.svg)](#tested-machines)
 [![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#tested-machines)
 [![Download: latest .dmg](https://img.shields.io/badge/Download-latest%20.dmg-brightgreen.svg)](https://github.com/matthewdeaves/old-mac-quakespasm/releases/latest)
 
@@ -9,8 +9,8 @@
   <img src="docs/images/quakespasm-icon-256.png" width="180" alt="QuakeSpasm icon" />
 </p>
 
-A QuakeSpasm build as one fat PowerPC + Intel binary, tested on a range of old
-Macs, G3, G4, G5 and Intel, from a 1999 Power Mac to a 2019 iMac. It reads the
+A QuakeSpasm build as one fat binary for PowerPC, Intel and Apple Silicon, tested
+on G3, G4, G5, Intel and Apple Silicon Macs, from a 1999 Power Mac to today. It reads the
 machine model at boot (`sysctl hw.model`) and loads settings tuned to run well on
 that hardware.
 
@@ -41,10 +41,9 @@ that hardware.
 | **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
 | **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7 Sequoia | 2560×1440 |
 
-The GeForce 9400 Mac mini plays fine and passes normal launch and play testing,
-but its own driver (not this engine) occasionally logs a low-level GPU fault
-under back-to-back relaunches; a real play session (launch, play, quit) is not
-known to trigger it. See `MISTAKES.md` for the full evidence.
+On the GeForce 9400 Mac mini, the GLSL alias-model renderer made the driver log GPU
+channel faults and could panic the Mac, so it is off by default on that GPU
+(`-glslalias` turns it back on). Details in #57.
 
 ### Which OS each CPU needs
 
@@ -54,18 +53,16 @@ The binary carries one slice per CPU family, each stamped with its exact CPU sub
 |---|---|---|---|
 | G3 (750) | `ppc750` | 10.3.9 Panther or later | 10.3.9 and 10.4.11 |
 | G4 (7400 / 7450 / 7447A) | `ppc7400` | 10.3.9 Panther or later | 10.4.11 |
-| G5 (970) | `ppc970` | 10.3.9 Panther or later | 10.3.9 and 10.5.8 |
+| G5 (970) | `ppc970` | 10.3.9 Panther or later | 10.3.9, 10.4.11 and 10.5.8 |
 | Intel, 32-bit (Core Solo / Duo) | `i386` | 10.4.11 Tiger or later | 10.7.5 |
-| Intel, 64-bit | `x86_64` | 10.6 Snow Leopard or later | 10.7.5 and 15.7 |
+| Intel, 64-bit | `x86_64` | 10.6 Snow Leopard or later | 10.6.8, 10.7.5 and 15.7 |
 | Apple Silicon | `arm64` | macOS 11.0 Big Sur or later | macOS 15.7 |
 
 `dyld` picks a slice by CPU alone; the OS plays no part in it. A Mac running an OS
 older than its slice needs gets that slice anyway rather than falling back to a lower
 one, and won't launch, which is why the G3 and G4 slices are both built at min 10.3
-even though no G4 here runs Panther. Two rows are honest about the gap between what
-is built and what is tested: **a G4 on Panther and an Intel Mac on Snow Leopard should
-both work but neither has been run on hardware** (no such machine in the fleet). The G5 slice now targets 10.3.9 as well; Panther rendering is verified and Tiger validation remains
-in progress. See [the implementation plan](docs/PERFORMANCE_PLAN.md).
+even though no G4 here runs Panther. **A G4 on Panther should work but has not been
+run on hardware** (no such machine in the fleet).
 
 ## Framerate
 
