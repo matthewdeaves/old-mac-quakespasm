@@ -19,12 +19,12 @@
 # configs) is left untouched; only the app + the engine's own quakespasm.pak are
 # (re)installed.
 #
-# An existing /Applications/QuakeSpasm is upgraded, not refused: it is
-# renamed aside to ~/oldmac/quakespasm/backups/QuakeSpasm.bak-<timestamp>
-# (never deleted -- that is the rollback copy, restore it with
-# scripts/rollback-dmg.sh; NOT left in /Applications itself, which holds
-# only the current build) and its id1/ is what seeds the new install's game
-# data, since that is the machine's actual current state. Only a genuinely
+# An existing /Applications/QuakeSpasm is upgraded, not refused: it is moved
+# aside to ~/oldmac/quakespasm/backups/ for the swap only, and its id1/ seeds
+# the new install's game data, since that is the machine's actual current
+# state. No rollback copy is kept (user rule 2026-09-23: fix forward): once
+# the new install is verified and its id1/ matches the old one, the old
+# install is deleted. Only a genuinely
 # first-ever install with no prior /Applications/QuakeSpasm falls back to
 # seeding id1/ from the legacy ~/Desktop/quake/id1 this script used to read
 # exclusively. old-mac-quakespasm#47, #49.
@@ -154,13 +154,9 @@ done
 mkdir -p "$MNT"
 hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$HOME/oldmac/quakespasm/incoming/$DMG_BASE" >/dev/null
 
-# Upgrade, never clobber: an existing install is renamed aside as the
-# rollback copy (scripts/rollback-dmg.sh restores it), it is NEVER deleted
-# or written into in place. Backups live under ~/oldmac, not /Applications
-# (user rule, 2026-09-13: /Applications holds only the current build, so a
-# human testing it is never looking at an ambiguous directory listing —
-# caught live on mini-g4 by old-mac-build-host, old-mac-quakespasm#49).
-# old-mac-quakespasm#47.
+# Upgrade, never clobber: an existing install is moved aside (under ~/oldmac,
+# never /Applications, #49) and never written into in place. It is deleted
+# at the end once the new install is verified (fix forward, no rollback).
 BACKUP=""
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
   OLD_VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
@@ -228,17 +224,24 @@ file "$DEST/Quakespasm.app/Contents/MacOS/quakespasm" 2>/dev/null | sed 's/.*: /
 # itself fails, and with nothing following to protect it that failure exits
 # the whole remote script with status 1 despite a fully successful install.
 # Reproduced live on g5-panther's first-ever install before this fix.
-[ -n "$BACKUP" ] && echo "rollback copy kept at: $BACKUP (scripts/rollback-dmg.sh restores it)" || true
-# Keep ONE rollback copy, the one this upgrade just made; older ones are
-# pruned so backups don't pile up (fleet tidy rule, buildhost 2026-09-22,
-# after 7 accumulated). Only after the verified install above, and only
-# when this run made a backup, so a failed or fresh install prunes nothing.
+# No rollback copy (user rule 2026-09-23: fix forward). Delete the moved-aside
+# install, and any older ones, once the new install is in place, but only if
+# the new id1/ matches the old one byte for byte: the old folder is the only
+# other copy of the user's game data. `|| true` keeps `set -e` from failing a
+# good install on the last test (a fresh install has no $BACKUP).
 if [ -n "$BACKUP" ] && [ -d "$DEST/Quakespasm.app" ]; then
-  for old in "$BACKUP_DIR"/QuakeSpasm.bak-*; do
-    [ -d "$old" ] && [ "$old" != "$BACKUP" ] || continue
-    rm -rf "$old" && echo "pruned older rollback copy: $old"
-  done
+  if [ -d "$BACKUP/id1" ] && ! diff -r "$BACKUP/id1" "$DEST/id1" >/dev/null 2>&1; then
+    echo "WARN: new id1/ differs from the old install's; kept $BACKUP" >&2
+  else
+    rm -rf "$BACKUP" && echo "old install removed (fix forward, no rollback copy)"
+  fi
 fi
+for old in "$BACKUP_DIR"/QuakeSpasm.bak-*; do
+  if [ -d "$old" ] && [ "$old" != "$BACKUP" ]; then
+    rm -rf "$old" && echo "removed leftover rollback copy: $old"
+  fi
+done
+rmdir "$BACKUP_DIR" 2>/dev/null || true
 REMOTE_EOF
 
 echo "[deploy-dmg $HOST] done — installed from $DMG_BASE"
