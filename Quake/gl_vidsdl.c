@@ -1702,6 +1702,15 @@ static void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-noglslalias"))
 		Con_Warning ("GLSL alias model rendering disabled at command line\n");
+	// PPC port -- GeForce 9400 (Macmini3,1, Snow Leopard 10.6.8). With the GLSL
+	// alias path on, the driver logs "NVDA(OpenGL): Channel exception" bursts
+	// 2-4 s after the map loads, and launching again on the same boot has
+	// panicked the kernel (old-mac-quake2#84, 2026-09-23, one launch per fresh
+	// boot): production 21/20/18 faults with the storage hint or GLSL gamma
+	// off; -noglslalias alone 0 faults and demo1 completes (233 fps). Off by
+	// default on this GPU; -glslalias forces it back on for A/B.
+	else if (gl_renderer && strstr(gl_renderer, "GeForce 9400") && !COM_CheckParm("-glslalias"))
+		Con_Warning ("GLSL alias model rendering off on GeForce 9400 (quake2#84; -glslalias forces)\n");
 	else if (gl_glsl_able && gl_vbo_able && gl_max_texture_units >= 3)
 	{
 		gl_glsl_alias_able = true;

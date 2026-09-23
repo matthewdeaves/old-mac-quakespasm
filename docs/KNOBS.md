@@ -32,6 +32,12 @@ Updated 2026-06-06.
 
 The R300 gate makes the existing `-noglsl -novbo -notexturenpot -nowarpmipmaps` switches redundant on these cards (the gate already skips all four), but they remain available for finer A/B.
 
+## GeForce 9400 knob (cmdline, 2026-09-23)
+
+| Flag | Default | What it does | File |
+|------|---------|--------------|------|
+| `-glslalias` | off on GL_RENDERER "GeForce 9400" | Forces the GLSL alias-model path back on. That path makes this GPU log NVDA channel exceptions and, on a second launch, kernel panics (old-mac-quake2#84). `-noglslalias` turns it off anywhere. | `gl_vidsdl.c` |
+
 ## Companion feed (cvar: all targets, 2026-09-22)
 
 | Cvar | Default | What it does | File |
