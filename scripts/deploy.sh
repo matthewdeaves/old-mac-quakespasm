@@ -238,23 +238,34 @@ BENCH_DIR="/Applications/QuakeSpasm"
 
 # One-time migrations (#47, #55). If the install has no id1/ yet, seed it from
 # the retired /Applications/QuakeSpasm-Bench or the legacy ~/Desktop/quake,
-# copying (ditto) so the source is never modified. Then move the retired
-# second folder out of /Applications into ~/oldmac, never delete it: it may
-# hold the only saves on that machine. No-op on every run after the first.
+# copying (ditto) so the source is never modified. Then delete the -Bench
+# folder, but only once the install's own id1/ holds pak0.pak, and only if it
+# has no saved games the install lacks. No attic copy: the user's rule
+# (2026-09-04) is that generated leftovers go. No-op after the first run.
 ssh "$HOST" "mkdir -p '$BENCH_DIR'
   if [ ! -e '$BENCH_DIR/id1' ]; then
     for src in /Applications/QuakeSpasm-Bench/id1 ~/Desktop/quake/id1; do
       if [ -d \"\$src\" ]; then
         ditto \"\$src\" '$BENCH_DIR/id1'
-        echo \"[deploy] seeded $BENCH_DIR/id1 from \$src\"
+        echo \"seeded $BENCH_DIR/id1 from \$src\"
         break
       fi
     done
   fi
   if [ -d /Applications/QuakeSpasm-Bench ]; then
-    mkdir -p ~/oldmac/quakespasm/retired
-    mv /Applications/QuakeSpasm-Bench ~/oldmac/quakespasm/retired/QuakeSpasm-Bench-\$(date +%Y%m%d-%H%M%S) &&
-      echo '[deploy] moved retired /Applications/QuakeSpasm-Bench to ~/oldmac/quakespasm/retired/'
+    if ! ls '$BENCH_DIR/id1' 2>/dev/null | grep -qi '^pak0.pak\$'; then
+      echo 'keeping /Applications/QuakeSpasm-Bench: $BENCH_DIR/id1 has no pak0.pak yet'
+    else
+      extra=''
+      for sv in /Applications/QuakeSpasm-Bench/id1/*.sav; do
+        [ -f \"\$sv\" ] && [ ! -f '$BENCH_DIR/id1/'\"\$(basename \"\$sv\")\" ] && extra=\"\$extra \$(basename \"\$sv\")\"
+      done
+      if [ -n \"\$extra\" ]; then
+        echo \"keeping /Applications/QuakeSpasm-Bench: saves not in the install:\$extra\"
+      else
+        rm -rf /Applications/QuakeSpasm-Bench && echo 'removed retired /Applications/QuakeSpasm-Bench'
+      fi
+    fi
   fi" 2>&1 | sed 's/^/[deploy] /' || true
 
 echo "[deploy] ship to $HOST:$BENCH_DIR/"
