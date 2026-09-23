@@ -94,8 +94,11 @@ start)
     sleep 1
     cd $QDIR
     [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
-    nohup $BIN -dedicated 4 -nolauncher -basedir . -nosound -condebug \
-      +allow_download 1 +sv_public 0 +map $MAP >/dev/null 2>&1 &
+    # Subshell + nohup: detach from this ssh session so the server outlives
+    # it. A plain background job was killed when \`start\` returned, and
+    # every client got \"CL_Connect: connect failed\" (#58, 2026-09-23).
+    ( nohup $BIN -dedicated 4 -nolauncher -basedir . -nosound -condebug \
+      +allow_download 1 +sv_public 0 +map $MAP >/dev/null 2>&1 & )
     sleep 4
     tail -8 qconsole.log 2>/dev/null || true"
   IP=$(ssh "$HOST" "ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null")
