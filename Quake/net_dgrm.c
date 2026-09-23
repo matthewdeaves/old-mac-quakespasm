@@ -1041,10 +1041,22 @@ static qsocket_t *_Datagram_CheckNewConnections (void)
 				SZ_Clear(&net_message);
 				return NULL;
 			}
-			// it's somebody coming back in from a crash/disconnect
-			// so close the old qsocket and let their retry get them back in
-			NET_Close(s);
-			return NULL;
+			// PPC port -- #62: ret == 1 is the same IP on a DIFFERENT port,
+			// which is also a second machine behind the same NAT (one
+			// household). Upstream treated it as a crash-return and closed
+			// the first player's live connection. Now: the exact address
+			// (ret == 0) is a return from a crash/disconnect as before; a
+			// same-IP/other-port socket is only reaped if it has gone
+			// silent (a live client sends every frame), so a crashed client
+			// reconnecting from a new source port still gets its old slot
+			// back quickly, and a live housemate is never kicked.
+			if (ret == 0 || net_time - s->lastMessageTime > 5.0)
+			{
+				// it's somebody coming back in from a crash/disconnect
+				// so close the old qsocket and let their retry get them back in
+				NET_Close(s);
+				return NULL;
+			}
 		}
 	}
 
