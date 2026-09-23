@@ -138,8 +138,17 @@ BACKUP_DIR="$HOME/oldmac/quakespasm/backups"
 
 # fresh mountpoint — detach any stale attach, then rmdir (NEVER rm -rf a path
 # that might still be a mounted read-only volume).
+# Detach by DEVICE, not mount path: Panther's hdiutil only accepts a device,
+# so a path-based detach silently left every Panther install's image attached
+# (quake3 eb3a4eb7, 10 leaked mounts on g5-panther). The device comes from
+# mount(8), which reads the same on 10.3 through current macOS.
+detach_mnt() {	# $1 mountpoint, $2 optional -force; 0 when not (or no longer) mounted
+  dev="$(mount | awk -v m="$1" '$2 == "on" && $3 == m { print $1; exit }' | sed 's/s[0-9]*$//')"
+  [ -n "$dev" ] || return 0
+  hdiutil detach $2 "$dev" >/dev/null 2>&1
+}
 for m in "$MNT" "$HOME/qsinstall-mnt"; do
-  hdiutil detach "$m" >/dev/null 2>&1 || hdiutil detach -force "$m" >/dev/null 2>&1 || true
+  detach_mnt "$m" || detach_mnt "$m" -force || true
   rmdir "$m" 2>/dev/null || true
 done
 mkdir -p "$MNT"
@@ -202,10 +211,11 @@ trap - EXIT HUP INT TERM
 # empty mountpoint (rmdir can't touch mounted contents, so it's safe).
 detached=no
 for k in 1 2 3 4 5; do
-  if hdiutil detach "$MNT" >/dev/null 2>&1; then detached=yes; break; fi
+  if detach_mnt "$MNT"; then detached=yes; break; fi
   sleep 2
 done
-[ "$detached" = yes ] || hdiutil detach -force "$MNT" >/dev/null 2>&1 || true
+[ "$detached" = yes ] || detach_mnt "$MNT" -force || true
+mount | awk -v m="$MNT" '$3 == m { print "WARN: image still attached at " m }'
 rmdir "$MNT" 2>/dev/null || true
 
 echo "installed into $DEST:"
