@@ -264,6 +264,8 @@ for f in id1/spasm*.tga id1/spasm*.png id1/spasm*.jpg; do
   if [ -f "\$f" ]; then mv "\$f" "\$DEST/"; fi
 done
 set -e
+# The generated cfg is ours, not game data: leave id1/ as we found it (#55).
+rm -f id1/screenshot.cfg
 
 # Write manifest.txt with vantage labels.
 cat > "\$DEST/manifest.txt" <<MANIFEST
