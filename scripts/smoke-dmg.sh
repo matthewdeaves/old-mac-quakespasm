@@ -100,7 +100,7 @@ trap 'rm -f "$OUT" "$LOG"' EXIT
 set -u
 case "$DEST" in "~/"*) DEST="$HOME/${DEST#"~/"}" ;; esac
 case "$SLOG" in "") ;; "~/"*) SLOG="$HOME/${SLOG#"~/"}" ;; /*) ;; *) SLOG="$DEST/$SLOG" ;; esac
-ROOT="$HOME/oldmac/$PORT/deploy"; mkdir -p "$ROOT"
+ROOT="$HOME/oldmac/$PORT/deploy"
 OUTLOG="$ROOT/smoke-stdout.log"
 [ -n "$SLOG" ] || SLOG="$OUTLOG"
 [ -d "$DEST/$APP" ] || { echo "VERDICT UNTESTED no $DEST/$APP installed"; exit 0; }
@@ -129,8 +129,13 @@ if [ "$MUTE" = yes ]; then
 	VOL="$(osascript -e 'output volume of (get volume settings)' 2>/dev/null)"
 	case "$VOL" in ''|*[!0-9]*) VOL=; echo "INFO cannot read the volume here, so not muting" ;; *) osascript -e 'set volume output volume 0' >/dev/null 2>&1 ;; esac
 fi
-restore() { [ -n "$VOL" ] && osascript -e "set volume output volume $VOL" >/dev/null 2>&1; }
+# Scratch goes with the run; the log travels back between LOG_BEGIN/LOG_END.
+restore() {
+	[ -n "$VOL" ] && osascript -e "set volume output volume $VOL" >/dev/null 2>&1
+	rm -f "$OUTLOG" "$ROOT/open.err" "$ROOT/open.sample"; rmdir "$ROOT" 2>/dev/null
+}
 trap restore EXIT
+mkdir -p "$ROOT"
 
 quit_game() {
 	local n t
@@ -174,7 +179,7 @@ open_check() {
 	done
 }
 
-[ -f "$SLOG" ] && mv -f "$SLOG" "$SLOG.prev"
+rm -f "$SLOG"
 for p in ${PRE_RM[@]+"${PRE_RM[@]}"}; do rm -f "$HOME/$p"; done
 if [ "$old" = no ] && [ "$CUSER" = "$ME" ] && [ -z "$ARCH" ]; then
 	MODE=open
