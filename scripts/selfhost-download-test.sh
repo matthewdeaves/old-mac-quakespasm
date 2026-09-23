@@ -31,13 +31,18 @@ HOST="${SELFHOST_HOST:-mini-intel}"
 # holder is running -- another repo's timedemo mid-flight, with no error on
 # either side. The lock is the only thing arbitrating this hardware.
 #
-# KNOWN LIMIT, deliberately not solved here: `--run` scopes the lock to this
-# INVOCATION, and `start` returns while the dedicated server keeps running. So
-# the box is released while a server is still up on it. That is still strictly
-# better than no lock -- the destructive part is now serialised -- but it does
-# not reserve the machine for the server's lifetime. Anyone benching mini-intel
-# should check for a stray server, not just the lock. See issue #18.
+# `start` must run INSIDE a claim the caller holds for the server's whole life:
+# releasing a claim TERMs any game still running on the host (pick-bench-host
+# #38), so a `start` under its own `--run` has its server killed the moment it
+# returns, and every client gets "CL_Connect: connect failed" (found on #58).
+# So `start` refuses unless the caller already holds $HOST:
+#   scripts/pick-bench-host.sh --run mini-intel -- bash -c \
+#     'scripts/selfhost-download-test.sh start; <client test>; scripts/selfhost-download-test.sh stop'
 _PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+if [ "${1:-start}" = start ] && [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ]; then
+	echo "selfhost: run 'start' inside your own claim on $HOST (see the comment above); refusing" >&2
+	exit 2
+fi
 if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$HOST"
 	exec "$_PICK" --run "$HOST" "selfhost" -- "$0" "$@"
