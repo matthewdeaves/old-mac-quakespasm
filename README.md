@@ -131,8 +131,7 @@ cover the setup, the build pipeline and the timedemo bench loop.
 
 There is also a headless Linux server, so a game does not have to be hosted on
 one of the old Macs. It builds from the same tree and ships as its own release
-(`server-v*`). The latest, v1.20, is aarch64 only for now; the last x86_64 build is
-server-v1.19. It needs glibc 2.31 or newer, so Ubuntu
+(`server-v*`), for x86_64 and aarch64. It needs glibc 2.31 or newer, so Ubuntu
 20.04 or Debian 11 upward, and it ships no content.
 
 Read [`server/README.md`](server/README.md) before putting one on the internet.
