@@ -6,9 +6,9 @@ their evidence live in [`adr/`](adr/README.md). Recorded negative results live i
 
 ## Live references
 
-- [`PERFORMANCE_PLAN.md`](PERFORMANCE_PLAN.md), active CPU/GPU optimization and
-  graphics plan, with staged implementation, per-machine validation, and results.
-- [`adr/`](adr/README.md), the twelve architecture decision records: slices and
+- [`PERFORMANCE_PLAN.md`](PERFORMANCE_PLAN.md), a past optimisation plan and its
+  results. History, not a current roadmap.
+- [`adr/`](adr/README.md), the fourteen architecture decision records: slices and
   OS floors, cpusubtype stamping, SDL 1.2, the fat build model, build and
   packaging hosts, config layering, fragile-GPU gating, toggleability,
   benchmarking, the bundle, the Linux server, code-not-content.
@@ -24,9 +24,8 @@ their evidence live in [`adr/`](adr/README.md). Recorded negative results live i
 - [`NETPLAY_DOWNLOAD_PLAN.md`](NETPLAY_DOWNLOAD_PLAN.md), online network play,
   DPMaster server browser, auto-download of missing maps. Copies QSS's
   in-protocol UDP download (no TLS, no curl, no new libs); gated behind
-  `allow_download`, default 0. **DONE and hardware-verified**, full
-  browse → join → download → play loop tested against `denver.quakeone.com` and a
-  self-host rig (`scripts/selfhost-download-test.sh`).
+  `allow_download`, default 0. The full loop was hardware-verified once, but the
+  download currently stalls before it starts (#59).
 - [`LIGHTNING_BOLT_DEBUG.md`](LIGHTNING_BOLT_DEBUG.md), root-cause post-mortem
   for the dark lightning bolt on Radeon 9200 and GMA 950. Decoded the
   `bolt2.mdl` skin (the bright core is fullbright-palette texels split into the

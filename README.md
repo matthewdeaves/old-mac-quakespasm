@@ -40,6 +40,8 @@ that hardware.
 | **Mac mini** (Macmini3,1, 2009) | 2.26 GHz Core 2 Duo | NVIDIA GeForce 9400 256 MB | 10.6.8 Snow Leopard | 1024×768 |
 | **Mac mini Intel** (Macmini2,1, 2007) | 2.33 GHz Core 2 Duo | Intel GMA 950 64 MB | 10.7.5 Lion | 1024×768 |
 | **iMac 27"** (iMac19,1, 2019) | 3.7 GHz Core i5-9600K | AMD Radeon Pro 580X 8 GB | 15.7 Sequoia | 2560×1440 |
+| **Power Mac G5** (dual, three partitions) | 2.7 GHz PPC 970 ×2 | ATI Radeon 9600 | 10.3.9, 10.4.11, 10.5.8 | native |
+| **MacBook Air** (Mac17,4, 2026) | Apple M5 | Apple M5 GPU | 26.6 Tahoe | native |
 
 On the GeForce 9400 Mac mini, the GLSL alias-model renderer made the driver log GPU
 channel faults and could panic the Mac, so it is off by default on that GPU
@@ -54,9 +56,9 @@ The binary carries one slice per CPU family, each stamped with its exact CPU sub
 | G3 (750) | `ppc750` | 10.3.9 Panther or later | 10.3.9 and 10.4.11 |
 | G4 (7400 / 7450 / 7447A) | `ppc7400` | 10.3.9 Panther or later | 10.4.11 |
 | G5 (970) | `ppc970` | 10.3.9 Panther or later | 10.3.9, 10.4.11 and 10.5.8 |
-| Intel, 32-bit (Core Solo / Duo) | `i386` | 10.4.11 Tiger or later | 10.7.5 |
+| Intel, 32-bit (Core Solo / Duo) | `i386` | 10.4.11 Tiger or later | not yet run on hardware |
 | Intel, 64-bit | `x86_64` | 10.6 Snow Leopard or later | 10.6.8, 10.7.5 and 15.7 |
-| Apple Silicon | `arm64` | macOS 11.0 Big Sur or later | macOS 15.7 |
+| Apple Silicon | `arm64` | macOS 11.0 Big Sur or later | macOS 26 |
 
 `dyld` picks a slice by CPU alone; the OS plays no part in it. A Mac running an OS
 older than its slice needs gets that slice anyway rather than falling back to a lower
@@ -94,7 +96,7 @@ G3); full history and all three demos in
 ## How it's built and benchmarked
 
 One modern Mac drives the whole fleet over SSH. The Lion mini does double duty:
-it cross-builds the four PowerPC/Intel slices and benches itself. These diagrams
+it cross-builds the five PowerPC/Intel slices (arm64 is built on the Apple Silicon Mac) and benches itself. These diagrams
 cover the setup, the build pipeline and the timedemo bench loop.
 
 ![Build and bench rack: one orchestration box drives the fleet via the Lion mini cross-build host](docs/images/architecture.svg)
@@ -105,7 +107,7 @@ cover the setup, the build pipeline and the timedemo bench loop.
 
 ## Features
 
-- **One fat binary** (PPC G3 + G4 AltiVec + G5 + Intel x86_64); runs on Mac OS X
+- **One fat binary** (six slices: ppc750, ppc7400 with AltiVec, ppc970, i386, x86_64, arm64); runs on Mac OS X
   10.3.9 Panther through modern macOS. Every PowerPC slice carries its exact CPU
   subtype (`ppc750` / `ppc7400` / `ppc970`) so Tiger and Leopard grade it
   correctly on a G3.
@@ -129,7 +131,8 @@ cover the setup, the build pipeline and the timedemo bench loop.
 
 There is also a headless Linux server, so a game does not have to be hosted on
 one of the old Macs. It builds from the same tree and ships as its own release
-(`server-v*`), for x86_64 and aarch64. It needs glibc 2.31 or newer, so Ubuntu
+(`server-v*`). The latest, v1.20, is aarch64 only for now; the last x86_64 build is
+server-v1.19. It needs glibc 2.31 or newer, so Ubuntu
 20.04 or Debian 11 upward, and it ships no content.
 
 Read [`server/README.md`](server/README.md) before putting one on the internet.
@@ -183,7 +186,7 @@ and [**old-mac-quake3**](https://github.com/matthewdeaves/old-mac-quake3)
 GPL-2.0-or-later, inherited verbatim from upstream QuakeSpasm. See
 [`LICENSE.txt`](LICENSE.txt). Chain: id Software (1996–2001) → John Fitzgibbons /
 FitzQuake → QuakeSpasm developers ([sezero/quakespasm](https://github.com/sezero/quakespasm)).
-Bundled SDL 1.2.15 is zlib-licensed.
+Bundled SDL 1.2.15 is LGPL-2.1; SDL2.framework (arm64 only) is zlib.
 
 ### Where to put it on Apple Silicon and modern macOS
 

@@ -29,7 +29,7 @@ OpenGL in this binary at all, so it cannot be used as a client.
 ```sh
 sudo useradd --system --home /opt/quakespasm-server --shell /usr/sbin/nologin quake
 sudo mkdir -p /opt/quakespasm-server/id1
-sudo tar xzf quakespasm-server-*-linux-x86_64.tar.gz --strip-components=1 \
+sudo tar xzf quakespasm-server-*-linux-$(uname -m).tar.gz --strip-components=1 \
      -C /opt/quakespasm-server
 sudo cp /opt/quakespasm-server/server.cfg /opt/quakespasm-server/id1/server.cfg
 

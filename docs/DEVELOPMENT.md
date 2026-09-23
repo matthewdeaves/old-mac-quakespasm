@@ -9,8 +9,8 @@ in [`MacOSX/CLAUDE.md`](../MacOSX/CLAUDE.md); per-script contracts are in
 ## Build path
 
 `Quake/Makefile.darwin`, with `MACH_TYPE` set and SDK plus `-mcpu` injected via
-`CPUFLAGS` / `LDFLAGS`. Not the Xcode project (ADR 0004). Four slices, one per
-`scripts/build.sh` target, lipo'd by `build-fat.sh` (ADR 0001, ADR 0004).
+`CPUFLAGS` / `LDFLAGS`. Not the Xcode project (ADR 0004). Six slices: five
+`scripts/build.sh` targets plus `build-arm64.sh`, lipo'd by `build-fat.sh` (ADR 0001, ADR 0004).
 
 `prereqs/` vendors the installers (Xcode 3.2.6 DMG, Xcode 2.5 DMG for the 10.3.9
 SDK, SDL 1.2.15 source), about 5 GB, gitignored. Its README carries the download
