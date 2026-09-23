@@ -16,15 +16,15 @@
 # per-machine overlay. End-user install is just .app + their own
 # id1/pak0.pak alongside.
 #
-# Ships to /Applications/QuakeSpasm-Bench/ on the target -- a dev/bench
-# install, deliberately separate from /Applications/QuakeSpasm (the one
-# scripts/deploy-dmg.sh manages for a human to play from), so a fast,
-# frequent dev-loop deploy never touches the "current release" copy or
-# needs deploy-dmg.sh's upgrade-with-backup dance. Migrated off the legacy
-# ~/Desktop/quake/ target (old-mac-quakespasm#47): a machine's existing
-# id1/ there is copied to the new location once, the first time this
-# script runs after the move, and left in place afterward as a
-# compatibility alias -- never removed, never written back to.
+# Ships to /Applications/QuakeSpasm/ on the target, the same folder
+# scripts/deploy-dmg.sh installs releases into. It used to go to a separate
+# /Applications/QuakeSpasm-Bench so dev deploys never touched the release
+# copy, but the fleet rule is one game folder per Mac holding the latest
+# build and its game data, nothing else (#55, 2026-09-23). A dev deploy
+# therefore replaces the installed .app in place, with no rollback copy;
+# re-run deploy-dmg.sh to go back to a release. Seeding id1/ from the
+# retired -Bench folder or the legacy ~/Desktop/quake/ (#47) happens once,
+# below, and only copies.
 
 set -euo pipefail
 
@@ -230,18 +230,31 @@ if command -v codesign >/dev/null 2>&1; then
     || echo "[deploy] WARN: signature still does not validate after signing" >&2
 fi
 
-BENCH_DIR="/Applications/QuakeSpasm-Bench"
+# One game folder per Mac (fleet rule, #55): dev and bench builds install into
+# the same /Applications/QuakeSpasm that deploy-dmg.sh installs releases into,
+# so /Applications holds the latest build and nothing else. bench.sh,
+# profile-pass.sh and screenshot.sh all run from here.
+BENCH_DIR="/Applications/QuakeSpasm"
 
-# One-time migration off the legacy ~/Desktop/quake/ target
-# (old-mac-quakespasm#47): if the new location has no id1/ yet but the
-# legacy one exists, copy it over so a machine's accumulated config/saves
-# aren't orphaned by the path move. Copies, never removes the legacy copy
-# — it stays as a harmless compatibility alias. No-op on every run after
-# the first.
+# One-time migrations (#47, #55). If the install has no id1/ yet, seed it from
+# the retired /Applications/QuakeSpasm-Bench or the legacy ~/Desktop/quake,
+# copying (ditto) so the source is never modified. Then move the retired
+# second folder out of /Applications into ~/oldmac, never delete it: it may
+# hold the only saves on that machine. No-op on every run after the first.
 ssh "$HOST" "mkdir -p '$BENCH_DIR'
-  if [ ! -e '$BENCH_DIR/id1' ] && [ -d ~/Desktop/quake/id1 ]; then
-    ditto ~/Desktop/quake/id1 '$BENCH_DIR/id1'
-    echo '[deploy] migrated legacy ~/Desktop/quake/id1 -> $BENCH_DIR/id1'
+  if [ ! -e '$BENCH_DIR/id1' ]; then
+    for src in /Applications/QuakeSpasm-Bench/id1 ~/Desktop/quake/id1; do
+      if [ -d \"\$src\" ]; then
+        ditto \"\$src\" '$BENCH_DIR/id1'
+        echo \"[deploy] seeded $BENCH_DIR/id1 from \$src\"
+        break
+      fi
+    done
+  fi
+  if [ -d /Applications/QuakeSpasm-Bench ]; then
+    mkdir -p ~/oldmac/quakespasm/retired
+    mv /Applications/QuakeSpasm-Bench ~/oldmac/quakespasm/retired/QuakeSpasm-Bench-\$(date +%Y%m%d-%H%M%S) &&
+      echo '[deploy] moved retired /Applications/QuakeSpasm-Bench to ~/oldmac/quakespasm/retired/'
   fi" 2>&1 | sed 's/^/[deploy] /' || true
 
 echo "[deploy] ship to $HOST:$BENCH_DIR/"
@@ -302,11 +315,11 @@ LOCAL_ICN_MD5=$(md5sum "$REPO_ROOT/MacOSX/QuakeSpasm.icns" | awk '{print $1}')
 # block — the exact mistake caught in review before this shipped.
 REMOTE_VERIFY=$(ssh "$HOST" '
   if command -v md5 >/dev/null 2>&1; then
-    BIN_MD5=$(md5 -q /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null)
-    ICN_MD5=$(md5 -q /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null)
+    BIN_MD5=$(md5 -q /Applications/QuakeSpasm/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null)
+    ICN_MD5=$(md5 -q /Applications/QuakeSpasm/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null)
   else
-    BIN_MD5=$(md5sum /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | awk "{print \$1}")
-    ICN_MD5=$(md5sum /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null | awk "{print \$1}")
+    BIN_MD5=$(md5sum /Applications/QuakeSpasm/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | awk "{print \$1}")
+    ICN_MD5=$(md5sum /Applications/QuakeSpasm/Quakespasm.app/Contents/Resources/QuakeSpasm.icns 2>/dev/null | awk "{print \$1}")
   fi
   echo "$BIN_MD5 $ICN_MD5"
 ' 2>/dev/null)
@@ -319,7 +332,7 @@ if [ "$LOCAL_ICN_MD5" != "$REMOTE_ICN_MD5" ]; then
   echo "[deploy] WARN: icon md5 mismatch on $HOST (local $LOCAL_ICN_MD5 vs remote $REMOTE_ICN_MD5)"
 fi
 
-ssh "$HOST" 'chmod +x /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null
+ssh "$HOST" 'chmod +x /Applications/QuakeSpasm/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null
 
 # Round v4 §14.7: scrub any custom-icon overlay left from a previous
 # Get-Info-paste icon edit. The canonical icon now lives at
@@ -328,7 +341,7 @@ ssh "$HOST" 'chmod +x /Applications/QuakeSpasm-Bench/Quakespasm.app/Contents/Mac
 # pasted overlay because kHasCustomIcon makes the Icon\r resource fork
 # win over CFBundleIconFile. find -name "Icon?" matches the literal
 # Icon-followed-by-CR filename without the inline-CR-quoting hell.
-APP=/Applications/QuakeSpasm-Bench/Quakespasm.app
+APP=/Applications/QuakeSpasm/Quakespasm.app
 find "$APP" -maxdepth 1 -name "Icon?" -exec rm -f {} \; 2>/dev/null
 # SetFile is in /Developer/Tools on Tiger and at /usr/bin on Lion. -a c
 # clears the kHasCustomIcon flag (lowercase = clear, capital = set).

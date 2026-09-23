@@ -104,7 +104,7 @@ if [ "$SKIP_YOSEMITE" = "0" ]; then
 
   # Sanity check: the binary on yosemite must be -pg instrumented. The
   # `nm` symbol __mcount appears in any -pg binary (libgmon hook).
-  if ! ssh yosemite "nm Desktop/quake/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | grep -q __mcount\\\$"; then
+  if ! ssh yosemite "nm /Applications/QuakeSpasm/Quakespasm.app/Contents/MacOS/quakespasm 2>/dev/null | grep -q __mcount\\\$"; then
     echo "[profile-pass] WARN: yosemite binary not -pg instrumented."
     echo "[profile-pass]       Build with: BUILD_PG=1 scripts/build.sh g3"
     echo "[profile-pass]       Deploy:     scripts/deploy.sh yosemite"
@@ -116,7 +116,7 @@ if [ "$SKIP_YOSEMITE" = "0" ]; then
     # Don't kill the process; let timedemo+quit drive it. Use a
     # timeout in case timedemo hangs (paranoia).
     _claim yosemite ssh yosemite "
-      cd ~/Desktop/quake
+      cd /Applications/QuakeSpasm
       rm -f gmon.out
       [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
       ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
@@ -140,10 +140,10 @@ if [ "$SKIP_YOSEMITE" = "0" ]; then
     "
 
     # Fetch gmon.out + the timedemo line for cross-check.
-    scp -q "yosemite:Desktop/quake/gmon.out" "$OUT_DIR/yosemite_${DEMO}_${RES}.gmon" || {
+    scp -q "yosemite:/Applications/QuakeSpasm/gmon.out" "$OUT_DIR/yosemite_${DEMO}_${RES}.gmon" || {
       echo "[profile-pass] FAIL: gmon.out missing on yosemite (timedemo may have hung)"
     }
-    scp -q "yosemite:Desktop/quake/qconsole.log" "$OUT_DIR/yosemite_${DEMO}_${RES}.qconsole" || true
+    scp -q "yosemite:/Applications/QuakeSpasm/qconsole.log" "$OUT_DIR/yosemite_${DEMO}_${RES}.qconsole" || true
 
     # Run gprof on Ubuntu against the local binary copy.
     if [ -f "$OUT_DIR/yosemite_${DEMO}_${RES}.gmon" ]; then
@@ -185,7 +185,7 @@ for HOST in sawtooth quicksilver mini-g4; do
   # Start quakespasm with a long timedemo, then run `sample` against the PID
   # for SAMPLE_SECS seconds. Kill quakespasm cleanly after sample finishes.
   _claim "$HOST" ssh "$HOST" "
-    cd ~/Desktop/quake
+    cd /Applications/QuakeSpasm
     [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
       -fullscreen -width $W -height $H \
@@ -215,7 +215,7 @@ for HOST in sawtooth quicksilver mini-g4; do
     echo "[profile-pass] FAIL: sample.out missing on $HOST"
     continue
   }
-  scp -q "$HOST:Desktop/quake/qconsole.log" "$OUT_DIR/${HOST}_${DEMO}_${RES}.qconsole" || true
+  scp -q "$HOST:/Applications/QuakeSpasm/qconsole.log" "$OUT_DIR/${HOST}_${DEMO}_${RES}.qconsole" || true
 
   # Sample's output format: a header, then for each thread a tree of
   # call-stacks with sample counts. The "Total number in stack" line

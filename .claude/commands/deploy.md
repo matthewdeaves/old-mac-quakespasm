@@ -23,7 +23,7 @@ into `build/quakespasm-fat`.
 `deploy.sh` assembles the `Quakespasm.app` bundle (fat binary +
 codecs + SDL.framework + nib + icon + all 10 autoexec cfgs in
 `Contents/Resources/`) locally and rsyncs to
-`<machine>:~/Desktop/quake/`. The bundled `MacOSX/SDL.framework`
+`<machine>:/Applications/QuakeSpasm/`, the one game folder per Mac (#55). The bundled `MacOSX/SDL.framework`
 ships a Panther-compatible PPC slice in place (no per-host SDL swap).
 
 Don't manually scp binaries or hand-roll the bundle layout, the

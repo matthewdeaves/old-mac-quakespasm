@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Capture a series of in-game screenshots from a deployed Quakespasm fat
-# bundle running on a remote host. Saves into a per-host folder on that
-# machine's Desktop and (optionally) fetches copies back to the
+# bundle running on a remote host. Saves into a per-host folder under that
+# machine's ~/oldmac/quakespasm and (optionally) fetches copies back to the
 # orchestrator for blog/post-mortem use.
 #
 # usage: scripts/screenshot.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019> [--width WxH] [--no-fetch]
 #
-# pre:   Deploy the bundle first via `scripts/deploy.sh <host>`.
+# pre:   /Applications/QuakeSpasm installed (scripts/deploy.sh or deploy-dmg.sh).
 #        Host must reach login (ssh works).
-# post:  Per-host folder ~/Desktop/quakespasm-screens-<hostname>/ on the
+# post:  Per-host folder ~/oldmac/quakespasm/screens-<hostname>/ on the
 #        target machine contains spasm0000.png, spasm0001.png, … plus a
 #        manifest.txt naming each shot's vantage.
 #        Local copies land in benchmarks/screenshots/<hostname>/ unless
@@ -104,8 +104,10 @@ WAITS_BETWEEN_SHOTS=30      # ~0.5s on G4/Lion (60 fps), ~1.3s on G3 (24 fps)
 WAITS_INITIAL=60            # let map load + first frames render before shot 1
 WAITS_AFTER_SHOT=8          # tight — TGA write is fast (no zlib)
 
-REMOTE_DESKTOP_DIR="\$HOME/Desktop/quakespasm-screens-\$(hostname -s)"
-REMOTE_QUAKE="\$HOME/Desktop/quake"
+# One game folder per Mac, /Applications/QuakeSpasm; output under ~/oldmac,
+# never the Desktop (fleet tidy rule, #55).
+REMOTE_DESKTOP_DIR="\$HOME/oldmac/quakespasm/screens-\$(hostname -s)"
+REMOTE_QUAKE="/Applications/QuakeSpasm"
 LOCAL_FETCH_DIR="$REPO_ROOT/benchmarks/screenshots/$TARGET"
 
 # Build the +cmd1 +cmd2 ... cmdline. wait-pumps a cmd-buffer pause for
@@ -189,10 +191,10 @@ MANIFEST_TEXT="$(manifest)"
 #   1. wipe any previous spasm*.png in id1/ so we start clean
 #   2. launch the fat bundle with our cmd sequence
 #   3. wait for it to exit (or kill after timeout)
-#   4. mkdir Desktop folder, move PNGs there, write manifest
+#   4. mkdir the output folder, move PNGs there, write manifest
 ssh "$HOST" bash <<EOF
 set -e
-cd "\$HOME/Desktop/quake"
+cd "$REMOTE_QUAKE"
 
 # Pre-clean any prior screenshot output in id1/ so this run's PNGs
 # are unambiguous (engine names them spasm0000.<ext> upward, finding
@@ -207,7 +209,7 @@ cat > id1/screenshot.cfg <<'CFG_END'
 $CFG_TEXT
 CFG_END
 
-# Make sure the destination Desktop folder exists fresh. Move (not delete)
+# Make sure the destination folder exists fresh. Move (not delete)
 # any prior session's shots into a timestamped sibling so we never lose
 # a previous capture by accident.
 DEST="$REMOTE_DESKTOP_DIR"
@@ -223,7 +225,7 @@ mkdir -p "\$DEST"
 LOGFILE="/tmp/screenshot-${TARGET}.log"
 rm -f "\$LOGFILE"
 ./Quakespasm.app/Contents/MacOS/quakespasm \\
-  -nolauncher -basedir "\$HOME/Desktop/quake" \\
+  -nolauncher -basedir "$REMOTE_QUAKE" \\
   -fullscreen -width $WIDTH -height $HEIGHT \\
   -noarchautoexec \\
   +exec screenshot.cfg \\
@@ -253,7 +255,7 @@ if kill -0 \$PID 2>/dev/null; then
   kill -KILL \$PID 2>/dev/null || true
 fi
 
-# Move the screenshots into the Desktop folder. id1/ is the gamedir so
+# Move the screenshots into the output folder. id1/ is the gamedir so
 # they land directly there (gl_screen.c:797). Disable -e here so the
 # loop survives when a glob has no match (sh expands the literal pattern,
 # [ -f ] returns false, we move on to the next).
@@ -293,7 +295,7 @@ if [ "$DO_FETCH" -eq 1 ]; then
   RSYNC_LOG="$(mktemp -t qs-screenshot-rsync)"
   RSYNC_RC=0
   rsync -av --partial -e ssh \
-    "$HOST:Desktop/quakespasm-screens-$REMOTE_HN/" \
+    "$HOST:oldmac/quakespasm/screens-$REMOTE_HN/" \
     "$LOCAL_FETCH_DIR/" > "$RSYNC_LOG" 2>&1 || RSYNC_RC=$?
   tail -8 "$RSYNC_LOG"
 
@@ -320,7 +322,7 @@ if [ "$DO_FETCH" -eq 1 ]; then
   "$REPO_ROOT/tests/frame-check.py" "$LOCAL_FETCH_DIR" || FRAME_CHECK_RC=$?
 fi
 
-echo "[screenshot] done — host folder: ~/Desktop/quakespasm-screens-<hostname>/"
+echo "[screenshot] done — host folder: ~/oldmac/quakespasm/screens-<hostname>/"
 
 if [ "$FRAME_CHECK_RC" -ne 0 ]; then
   echo "[screenshot] FRAME CHECK FAILED (rc=$FRAME_CHECK_RC) — the frames are kept above for a human to look at." >&2

@@ -48,9 +48,9 @@
 #         saves raw qconsole.log to benchmarks/raw/
 #
 # Assumes scripts/deploy.sh has shipped the bundle to
-# /Applications/QuakeSpasm-Bench/ on the target (old-mac-quakespasm#47 —
-# migrated off the legacy ~/Desktop/quake/, deploy.sh migrates a machine's
-# existing id1/ there once on first run after the move).
+# /Applications/QuakeSpasm/ on the target (old-mac-quakespasm#47 —
+# migrated off the legacy ~/Desktop/quake/, and #55 retired the separate
+# /Applications/QuakeSpasm-Bench; deploy.sh seeds id1/ from either once).
 
 set -euo pipefail
 
@@ -169,7 +169,7 @@ if [ -f "$REPO_ROOT/scripts/bundle/autoexec-$MACHINE_CFG.cfg" ]; then
 else
   echo "[bench] no per-machine autoexec-$MACHINE_CFG.cfg — using autoexec-$ARCH_CFG.cfg only" >&2
 fi
-scp -q "$TMP_AE" "$HOST:/Applications/QuakeSpasm-Bench/id1/autoexec.cfg" || \
+scp -q "$TMP_AE" "$HOST:/Applications/QuakeSpasm/id1/autoexec.cfg" || \
   echo "[bench] WARN: failed to stage autoexec.cfg on $HOST — bench will run vanilla" >&2
 rm -f "$TMP_AE"
 
@@ -179,11 +179,11 @@ rm -f "$TMP_AE"
 # config.cfg exists yet (fresh deploy), record that too, so a config.cfg
 # this run creates gets removed rather than left behind as bench-only state.
 ssh -o ConnectTimeout=10 "$HOST" \
-  'if [ -f /Applications/QuakeSpasm-Bench/id1/config.cfg ]; then
-     cp -f /Applications/QuakeSpasm-Bench/id1/config.cfg /Applications/QuakeSpasm-Bench/id1/config.cfg.qsbench-orig
+  'if [ -f /Applications/QuakeSpasm/id1/config.cfg ]; then
+     cp -f /Applications/QuakeSpasm/id1/config.cfg /Applications/QuakeSpasm/id1/config.cfg.qsbench-orig
    else
-     rm -f /Applications/QuakeSpasm-Bench/id1/config.cfg.qsbench-orig
-     touch /Applications/QuakeSpasm-Bench/id1/.qsbench-no-config
+     rm -f /Applications/QuakeSpasm/id1/config.cfg.qsbench-orig
+     touch /Applications/QuakeSpasm/id1/.qsbench-no-config
    fi' 2>/dev/null || \
   echo "[bench] WARN: failed to snapshot config.cfg on $HOST — archived cvars from this run may stick (issue #28)" >&2
 
@@ -199,13 +199,13 @@ cleanup_autoexec () {
   # script ends normally, gets Ctrl-C'd, or dies mid-run (issue #28).
   ssh -o ConnectTimeout=10 "$HOST" 'if killall -TERM quakespasm 2>/dev/null; then sleep 3; fi
     killall -KILL quakespasm 2>/dev/null
-    rm -f /Applications/QuakeSpasm-Bench/id1/autoexec.cfg
-    if [ -f /Applications/QuakeSpasm-Bench/id1/config.cfg.qsbench-orig ]; then
-      mv -f /Applications/QuakeSpasm-Bench/id1/config.cfg.qsbench-orig /Applications/QuakeSpasm-Bench/id1/config.cfg
-    elif [ -f /Applications/QuakeSpasm-Bench/id1/.qsbench-no-config ]; then
-      rm -f /Applications/QuakeSpasm-Bench/id1/config.cfg
+    rm -f /Applications/QuakeSpasm/id1/autoexec.cfg
+    if [ -f /Applications/QuakeSpasm/id1/config.cfg.qsbench-orig ]; then
+      mv -f /Applications/QuakeSpasm/id1/config.cfg.qsbench-orig /Applications/QuakeSpasm/id1/config.cfg
+    elif [ -f /Applications/QuakeSpasm/id1/.qsbench-no-config ]; then
+      rm -f /Applications/QuakeSpasm/id1/config.cfg
     fi
-    rm -f /Applications/QuakeSpasm-Bench/id1/.qsbench-no-config
+    rm -f /Applications/QuakeSpasm/id1/.qsbench-no-config
     true' 2>/dev/null || true
 }
 trap cleanup_autoexec EXIT INT TERM
@@ -227,13 +227,13 @@ for i in $(seq 1 "$RUNS"); do
   # On qconsole.log match: SIGKILL — log is already on disk because Quake's
   # qconsole.log uses raw write() (no stdio buffering, see Quake/console.c:473).
   # `cd` MUST run BEFORE `&` (own line) so the parent shell's cwd is
-  # /Applications/QuakeSpasm-Bench — otherwise `[ -f qconsole.log ]` checks
+  # /Applications/QuakeSpasm — otherwise `[ -f qconsole.log ]` checks
   # $HOME and never matches. (`cd && X &` backgrounds the whole chain in a
   # subshell.)
   ssh "$HOST" "if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
     killall -KILL quakespasm 2>/dev/null || true
     sleep 1
-    cd /Applications/QuakeSpasm-Bench
+    cd /Applications/QuakeSpasm
     [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
     ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
       -fullscreen \\
@@ -286,7 +286,7 @@ for i in $(seq 1 "$RUNS"); do
   # run 3, which was the decals-ON leg's run 3, because qconsole.log was
   # missing on the target that run.
   rm -f "$RAW_DIR/$LOG_NAME"
-  if scp -q "$HOST:/Applications/QuakeSpasm-Bench/qconsole.log" "$RAW_DIR/$LOG_NAME" 2>/dev/null; then
+  if scp -q "$HOST:/Applications/QuakeSpasm/qconsole.log" "$RAW_DIR/$LOG_NAME" 2>/dev/null; then
     FPS_VAL=$(grep -E 'frames.*seconds.*fps' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | awk '{print $5}' || true)
     MODE_VAL=$(grep -E 'Video mode [0-9]+x[0-9]+' "$RAW_DIR/$LOG_NAME" 2>/dev/null | tail -1 | sed -E 's/.*Video mode ([0-9]+x[0-9]+).*/\1/' || true)
     [ -n "$MODE_VAL" ] && RENDERED_RES="$MODE_VAL"

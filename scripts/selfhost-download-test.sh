@@ -44,7 +44,10 @@ if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [
 fi
 
 MAP="dltest"
-QDIR='~/Desktop/quake'
+# The server host's one game folder (#55): the same install deploy.sh and
+# deploy-dmg.sh write. `stop` removes the staged test map again, so
+# /Applications keeps only the build and the game data.
+QDIR='/Applications/QuakeSpasm'
 BIN='./Quakespasm.app/Contents/MacOS/quakespasm'
 
 stage_map () {
@@ -55,8 +58,8 @@ stage_map () {
   ssh "$HOST" "python2.7 - <<'PY'
 from __future__ import print_function
 import struct, os
-pak = os.path.expanduser('~/Desktop/quake/id1/PAK0.PAK')
-outdir = os.path.expanduser('~/Desktop/quake/id1/maps')
+pak = '/Applications/QuakeSpasm/id1/PAK0.PAK'
+outdir = '/Applications/QuakeSpasm/id1/maps'
 out = os.path.join(outdir, 'dltest.bsp')
 f = open(pak, 'rb')
 magic, dirofs, dirlen = struct.unpack('<4sii', f.read(12))
@@ -101,8 +104,9 @@ start)
   echo "  On G5 / mini-g4 console:   allow_download 1 ; connect ${IP}:26000"
   ;;
 stop)
-  ssh "$HOST" "killall -TERM quakespasm 2>/dev/null; sleep 1; killall -KILL quakespasm 2>/dev/null || true"
-  echo "[selfhost] stopped"
+  ssh "$HOST" "killall -TERM quakespasm 2>/dev/null; sleep 1; killall -KILL quakespasm 2>/dev/null || true
+    rm -f $QDIR/id1/maps/$MAP.bsp; rmdir $QDIR/id1/maps 2>/dev/null || true"
+  echo "[selfhost] stopped, test map removed"
   ;;
 status)
   ssh "$HOST" "cd $QDIR && tail -20 qconsole.log 2>/dev/null || echo '(no qconsole.log)'"

@@ -44,7 +44,7 @@ the gotchas.
 
 - Sources: this working tree, rsynced to the build host automatically.
 - Build artifacts: `build/quakespasm-{g3,g4,g5,lion,fat}`, gitignored.
-- Deploy targets: `<machine>:~/Desktop/quake/Quakespasm.app`
+- Deploy targets: `<machine>:/Applications/QuakeSpasm/Quakespasm.app` (one game folder per Mac, shared with deploy-dmg.sh; scratch output under `~/oldmac/quakespasm/`, #55)
 - Bench rows: `benchmarks/results.csv`, schema
   `timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cvars,rendered_res`.
   Median is over runs 2 and 3; run 1 includes texture-upload warmup.
