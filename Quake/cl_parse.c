@@ -269,6 +269,14 @@ void CL_KeepaliveMessage (void)
 	time = Sys_DoubleTime ();
 	if (time - lastmsg < 5)
 		return;
+	// Never send while a reliable message is still unacknowledged: outside
+	// DEBUG builds Datagram_SendMessage does not refuse, it overwrites the
+	// in-flight message and advances sendSequence, so every later ACK reads
+	// "Stale"/"Duplicate" and canSend never comes back (the channel wedges,
+	// "CL_SendCmd: can't send" forever). Hit when a missing map makes the
+	// precache loop run long enough for two keepalives (#59). Retry next call.
+	if (!NET_CanSendMessage (cls.netcon))
+		return;
 	lastmsg = time;
 
 // write out a nop
