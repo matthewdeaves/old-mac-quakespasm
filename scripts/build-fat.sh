@@ -40,7 +40,7 @@ cd "$REPO_ROOT"
 # git describe per-slice — same value in practice, but pinning it is correct and
 # documents intent). git describe gives "v1.9" on a tagged build, else a
 # descriptive off-tag string. Overridable via the environment.
-export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo unknown)}"
 echo "[build-fat] stamping port version: $QS_PORT_VERSION"
 
 # Pin ONE Intel build host for the whole fat build and claim it up front.

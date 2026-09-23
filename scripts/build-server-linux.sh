@@ -64,7 +64,7 @@ esac
 # Version: an explicit --version wins, otherwise describe against the tags so a
 # build off a non-tagged commit is visibly not a release.
 if [ -z "$VERSION" ]; then
-	VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo unknown)"
+	VERSION="$(git describe --tags --match 'server-v[0-9]*' --always --dirty 2>/dev/null || echo unknown)"
 fi
 
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"

@@ -139,7 +139,7 @@ cp "$REPO_ROOT/scripts/bundle/Info.plist" "$STAGE/Quakespasm.app/Contents/Info.p
 # static plist carries upstream's engine version (0.97.0), which never changes
 # between our releases and so identifies nothing. Same source of truth as the
 # binary's own version string: QS_PORT_VERSION, i.e. `git describe`.
-QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo unknown)}"
 /usr/libexec/PlistBuddy \
   -c "Set :CFBundleShortVersionString 0.97.0-oldmac-$QS_PORT_VERSION" \
   -c "Add :CFBundleVersion string $QS_PORT_VERSION" \

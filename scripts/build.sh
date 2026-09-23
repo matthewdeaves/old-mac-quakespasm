@@ -95,7 +95,7 @@ trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" -
 # builds self-identify. Makefile.darwin turns QS_PORT_VERSION into
 # -DQUAKESPASM_VER_SUFFIX. Overridable via env so build-fat.sh stamps all five
 # slices with one identical value.
-QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo unknown)}"
 
 # Serialize concurrent invocations. Both targets rsync to the same
 # lion:$REMOTE_TREE/ path and `make -j2` in lion:$REMOTE_TREE/Quake/ — running

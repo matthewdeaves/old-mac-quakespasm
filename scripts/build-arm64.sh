@@ -28,7 +28,7 @@ if [ "$(uname -m)" != "arm64" ]; then
   exit 1
 fi
 
-export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
+export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo unknown)}"
 
 VMIN=11.0
 # 11.0 rather than 10.x: there is no arm64 Mac that shipped earlier, so a
