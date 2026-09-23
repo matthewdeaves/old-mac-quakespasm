@@ -100,7 +100,9 @@ docker info >/dev/null 2>&1 || {
 mkdir -p "$WORK" "$OUT_DIR"
 
 echo "[server] building container image"
-docker build --platform "$DOCKER_PLATFORM" \
+# --pull: the legacy builder otherwise reuses whatever arch the local debian:11
+# tag holds, so an amd64 build on an arm64 host got an arm64 base (2026-09-23).
+docker build --pull --platform "$DOCKER_PLATFORM" \
 	-t "$IMAGE" -f scripts/docker/server-build.Dockerfile scripts/docker >/dev/null
 
 # Stage the source. Building in a copy keeps object files out of the working

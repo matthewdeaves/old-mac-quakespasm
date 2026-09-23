@@ -9,13 +9,14 @@
 #
 # This is the same reasoning as the 10.6 deployment target on the Intel Mac
 # slice: build against the floor, run everywhere above it.
-# Pinned for reproducibility: the base by digest (multi-arch index), and apt to
-# a snapshot.debian.org date. Debian 11 LTS ended 2026-08-31 and bullseye is
+# apt is pinned to a snapshot.debian.org date. Debian 11 LTS ended 2026-08-31 and bullseye is
 # leaving the live mirrors (404s on amd64, 2026-09-23); archive.debian.org
 # fails against this newer image ("held broken packages"). The snapshot keeps
 # glibc 2.31-13+deb11u14, so the Debian 11 / Ubuntu 20.04 floor is unchanged.
 # Measured by old-mac-build-host, 2026-09-23.
-FROM debian:11@sha256:99cdf7792e25416bd801861ccd8e2fb27fb527b25e8d9a8704ebc3ead2015675
+# Not pinned by digest: the local image's RepoDigest is the per-arch manifest,
+# and pinning that made the amd64 build pull the arm64 base (2026-09-23).
+FROM debian:11
 
 ARG SNAPSHOT=20260820T000000Z
 RUN printf 'deb http://snapshot.debian.org/archive/debian/%s bullseye main\ndeb http://snapshot.debian.org/archive/debian/%s bullseye-updates main\ndeb http://snapshot.debian.org/archive/debian-security/%s bullseye-security main\n' \
