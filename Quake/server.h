@@ -132,6 +132,7 @@ typedef struct client_s
 		int		size;		// total file bytes
 		int		sent;		// bytes sent so far (start of next chunk to send)
 		char		name[MAX_QPATH];
+		qboolean	flush;		// download traffic queued in message: send it before spawn
 	} download;
 } client_t;
 

@@ -1156,9 +1156,14 @@ void SV_SendClientMessages (void)
 				// (it withholds prespawn until the map arrives): cl_downloadbegin,
 				// the data chunks, and cl_downloadfinished are all queued in
 				// host_client->message and MUST be flushed now or the download
-				// stalls forever. Fall through to the send block when data is
-				// pending; otherwise keepalive as before.
-				if (!host_client->message.cursize)
+				// stalls forever. Flush only when download traffic is queued
+				// (download.flush). Anything else queued here, such as another
+				// player's frag or name update, waits for the next signon stage
+				// as upstream does: the client may be loading the map inside
+				// CL_KeepaliveMessage, which treats any reliable message as a
+				// Host_Error ("received a message"). Seen on real joins
+				// 2026-09-22/23 against a populated server.
+				if (!host_client->message.cursize || !host_client->download.flush)
 				{
 					if (realtime - host_client->last_message > 5)
 						SV_SendNop (host_client);
@@ -1223,6 +1228,7 @@ void SV_SendClientMessages (void)
 					SV_DropClient (true);	// if the message couldn't send, kick off
 				SZ_Clear (&host_client->message);
 				host_client->last_message = realtime;
+				host_client->download.flush = false;
 				if (host_client->sendsignon == PRESPAWN_FLUSH)
 					host_client->sendsignon = PRESPAWN_DONE;
 			}

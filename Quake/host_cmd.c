@@ -1651,6 +1651,19 @@ static void Host_Pause_f (void)
 #define DL_CHUNK 1024   // bytes per download chunk
 
 /*
+Host_DownloadStufftext
+Queue a download control command (cl_downloadbegin / cl_downloadfinished)
+and mark it for sending before the client has spawned. SV_SendClientMessages
+flushes a not-yet-spawned client's message only when this flag is set.
+*/
+static void Host_DownloadStufftext (client_t *cl, const char *text)
+{
+	MSG_WriteByte (&cl->message, svc_stufftext);
+	MSG_WriteString (&cl->message, text);
+	cl->download.flush = true;
+}
+
+/*
 Host_AppendDownloadChunk
 Read and send the next DL_CHUNK bytes from host_client->download.file.
 Appends a svcdp_downloaddata message to host_client->message.
@@ -1692,8 +1705,7 @@ static void Host_AppendDownloadChunk (client_t *cl)
 		fclose (cl->download.file);
 		cl->download.file = NULL;
 
-		MSG_WriteByte (&cl->message, svc_stufftext);
-		MSG_WriteString (&cl->message,
+		Host_DownloadStufftext (cl,
 		    va("cl_downloadfinished %d %d \"%s\"\n",
 		       cl->download.size, (int)crc, cl->download.name));
 
@@ -1709,6 +1721,7 @@ static void Host_AppendDownloadChunk (client_t *cl)
 	MSG_WriteLong  (&cl->message, start);
 	MSG_WriteShort (&cl->message, (short)n);
 	SZ_Write       (&cl->message, buf, n);
+	cl->download.flush = true;
 }
 
 /*
@@ -1731,8 +1744,7 @@ static void Host_Download_f (void)
 
 	if (!allow_download.value)
 	{
-		MSG_WriteByte (&host_client->message, svc_stufftext);
-		MSG_WriteString (&host_client->message,
+		Host_DownloadStufftext (host_client,
 		    va("cl_downloadbegin -1 \"%s\"\n", Cmd_Argv(1)));
 		return;
 	}
@@ -1741,8 +1753,7 @@ static void Host_Download_f (void)
 
 	if (!COM_DownloadNameOkay (name))
 	{
-		MSG_WriteByte (&host_client->message, svc_stufftext);
-		MSG_WriteString (&host_client->message,
+		Host_DownloadStufftext (host_client,
 		    va("cl_downloadbegin -1 \"%s\"\n", name));
 		return;
 	}
@@ -1752,8 +1763,7 @@ static void Host_Download_f (void)
 	f = fopen (path, "rb");
 	if (!f)
 	{
-		MSG_WriteByte (&host_client->message, svc_stufftext);
-		MSG_WriteString (&host_client->message,
+		Host_DownloadStufftext (host_client,
 		    va("cl_downloadbegin -1 \"%s\"\n", name));
 		return;
 	}
@@ -1764,8 +1774,7 @@ static void Host_Download_f (void)
 
 	if (size > 50*1024*1024)
 	{
-		MSG_WriteByte (&host_client->message, svc_stufftext);
-		MSG_WriteString (&host_client->message,
+		Host_DownloadStufftext (host_client,
 		    va("cl_downloadbegin -1 \"%s\"\n", name));
 		return;
 	}
@@ -1780,8 +1789,7 @@ static void Host_Download_f (void)
 	host_client->download.file = fopen (path, "rb");
 	if (!host_client->download.file)
 	{
-		MSG_WriteByte (&host_client->message, svc_stufftext);
-		MSG_WriteString (&host_client->message,
+		Host_DownloadStufftext (host_client,
 		    va("cl_downloadbegin -1 \"%s\"\n", name));
 		return;
 	}
@@ -1792,8 +1800,7 @@ static void Host_Download_f (void)
 	q_strlcpy (host_client->download.name, name,
 	           sizeof(host_client->download.name));
 
-	MSG_WriteByte (&host_client->message, svc_stufftext);
-	MSG_WriteString (&host_client->message,
+	Host_DownloadStufftext (host_client,
 	    va("cl_downloadbegin %d \"%s\"\n", (int)size, name));
 }
 
