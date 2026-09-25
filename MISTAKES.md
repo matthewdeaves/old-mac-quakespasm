@@ -13,6 +13,43 @@ live in the ADR named at the end of the entry and are not repeated here.
 
 ---
 
+## 2026-09-25: batching multiple download chunks per server tick wedged the download on real hardware (#64)
+
+Measured (self-host rig, mini-intel server + mini-g4 client, negligible LAN
+RTT) that in-protocol download throughput was bounded by `sys_ticrate`
+(one `svcdp_downloaddata` chunk queued per server tick, ~50ms default) and
+not by ack round-trip time. The obvious fix looked like: queue several
+chunks per tick instead of one, flushed together. First cut moved the
+queuing off the per-ack trigger onto the tick itself (to avoid a related
+burst-of-acks-in-one-`SV_ReadClientMessage`-pass bug that the naive
+per-ack version hit first). That version got much further -- then died on
+real hardware the moment one flush's payload passed a few KB:
+`UDP_Write, sendto: Message too long`. `Datagram_SendMessage`'s own
+fragmentation (`net_dgrm.c`, chopping at `MAX_DATAGRAM`) only fires above
+64000 bytes, so anything smaller than that goes out as one raw `sendto()`
+-- and real UDP sockets reject a send bigger than the path can carry
+without fragmentation long before 64000. The codebase already knew this:
+`SV_SendClientMessages`'s signon-buffer flush batches multiple buffers per
+send **only for a local (same-process) client**, `if (!local) break;`
+after one for everybody else. A batched-download-chunks fix would have
+broken that same constraint for every real network client, having never
+been exercised above roughly a normal per-frame message's size before.
+
+Shipped instead: a bigger single chunk (1024 -> 1400 bytes, one raw
+Ethernet-MTU-safe UDP datagram, still one chunk per tick). ~1.3x, not the
+~8x batching would have been if it had worked, but it doesn't wedge.
+`gl_fullbright_zbias`-style toggleability wasn't needed here since there's
+no per-machine tradeoff, just a hardware-real ceiling.
+
+**Lesson: this codebase already draws the "one flush, one send, no
+batching for a real network client" line once (the signon-buffer local-vs-
+network split) -- check for that line before assuming a bigger single
+reliable message is free just because the in-memory buffer (`MAX_MSGLEN`
+64000) has room for it. The buffer size and the safe wire size are not the
+same number, and only real hardware exposes the gap.**
+
+---
+
 ## 2026-08-31: imac-2019's DMG-installed launch hung on a live Desktop-folder TCC prompt, not a crash
 
 Cutting the v1.15.7 release DMG, `deploy-dmg.sh` + `smoke-dmg.sh` (the real

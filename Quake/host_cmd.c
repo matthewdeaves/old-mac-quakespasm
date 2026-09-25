@@ -1648,7 +1648,28 @@ static void Host_Pause_f (void)
 // DP-style in-protocol file download (server side)
 //===========================================================================
 
-#define DL_CHUNK 1024   // bytes per download chunk
+// #64: measured on the self-host rig that throughput is bounded by
+// sys_ticrate (one chunk queued per server tick, not by ack round-trip --
+// LAN RTT is negligible next to the 50ms default tick), so the first fix
+// tried was batching several chunks into one flush. That failed hard on
+// real hardware: `UDP_Write, sendto: Message too long` the moment one
+// flush's payload passed a few KB, because Datagram_SendMessage only
+// fragments (net_dgrm.c's MAX_DATAGRAM chop) above 64000 bytes, so
+// anything smaller goes out as ONE raw sendto() -- and this project's own
+// signon-buffer flush already knows real UDP paths can't take an
+// arbitrarily large single datagram: it batches multiple signon buffers
+// per flush ONLY for a local (same-process) client, `if (!local) break;`
+// after one for everybody else (sv_main.c, SV_SendClientMessages). A
+// batched-chunks fix would violate that same constraint for a real
+// network client. So the safe, wire-compatible win is a bigger single
+// chunk, not more chunks per tick: 1400 fits one UDP datagram without
+// fragmentation on any realistic path (1500 Ethernet MTU minus IP/UDP
+// headers, with room to spare for a smaller-MTU tunnel/VPN hop), and an
+// old client already accepts any chunk up to its `buf[4096]` bound
+// (cl_download.c), so no client-side or protocol change is needed either
+// way. ~1.4x over the previous 1024, not the 8x batching would have been,
+// but it doesn't wedge on real hardware.
+#define DL_CHUNK 1400   // bytes per download chunk -- MTU-safe, see above
 
 /*
 Host_DownloadStufftext
