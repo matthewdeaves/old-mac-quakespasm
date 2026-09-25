@@ -187,6 +187,19 @@ if [ -z "${_QS_DMG_STAGED:-}" ]; then
       ssh "$DMG_STAGE_HOST" "mkdir -p $REMOTE_TREE/build"
       scp -q "$BIN" "$DMG_STAGE_HOST:$REMOTE_TREE/build/quakespasm-fat"
 
+      # The remote leg's own clear-launch-quarantine.sh call (below, via
+      # _QS_DMG_STAGED=1) has no old-mac-build-host checkout to resolve the
+      # shared-scripts pin from -- $DMG_STAGE_HOST's rsynced tree is just this
+      # port's source. Same gap deploy.sh's remote quarantine-clear call
+      # solves (docs/DEVELOPMENT.md): resolve the script here, where the
+      # checkout exists, and scp the cached copy over to run directly,
+      # bypassing shared.sh on the remote end entirely. Best-effort -- an
+      # unresolvable pin just skips the quarantine-clear step remotely too.
+      CLQ_CACHED="$("$REPO_ROOT/scripts/shared.sh" --resolve clear-launch-quarantine.sh 2>/dev/null || true)"
+      if [ -n "$CLQ_CACHED" ] && [ -f "$CLQ_CACHED" ]; then
+        scp -pq "$CLQ_CACHED" "$DMG_STAGE_HOST:.qs-clear-launch-quarantine.sh" || true
+      fi
+
       mkdir -p "$REPO_ROOT/dist"
       echo "[make-dmg] running make-dmg.sh on $DMG_STAGE_HOST"
       ssh "$DMG_STAGE_HOST" "cd $REMOTE_TREE && \
@@ -547,7 +560,17 @@ fi
 # would otherwise inherit it independently, and it means an install that
 # reaches a machine any other way than a fresh browser download (rsync,
 # scp+ditto, a file share) is never quarantined via this DMG's own contents.
-"$REPO_ROOT/scripts/shared.sh" clear-launch-quarantine.sh "$APP"
+# On the DMG_STAGE_HOST remote leg (_QS_DMG_STAGED=1) the local invocation
+# above pre-stages a resolved copy at ~/.qs-clear-launch-quarantine.sh,
+# because this leg's rsynced tree has no old-mac-build-host checkout of its
+# own to resolve the pin through shared.sh. Prefer that if present; it is
+# never left behind on a normal (non-staged) run.
+if [ -x ~/.qs-clear-launch-quarantine.sh ]; then
+  ~/.qs-clear-launch-quarantine.sh "$APP"
+  rm -f ~/.qs-clear-launch-quarantine.sh
+else
+  "$REPO_ROOT/scripts/shared.sh" clear-launch-quarantine.sh "$APP"
+fi
 
 SRC_SUMS=$(cd "$IMG" && for f in $VERIFY_FILES; do \
              printf '%s  %s\n' "$(md5sum "$f" | cut -d' ' -f1)" "$f"; done)
