@@ -111,11 +111,23 @@ than `R_LERPLIGHT_MAXDELTA` (8, in a..z units) are kept sharp. Costs a
 per-frame lightmap rebuild on every surface touching an animated style
 (`d_lightstylevalue` changes every frame instead of every 0.1 s,
 `r_brush.c:494` cached_light compare), so it's enabled only where the GPU
-has bandwidth headroom: **on** quicksilver / mini-g4 / imac-2019 autoexec,
-**off** (defensive 0) in the ppc7400 / ppc970 / x86_64 / ppc750 baselines so it
-never drifts onto sawtooth / mini-intel / iMac G5 / G3. Same-session A/B 2026-05-29:
-quicksilver demo2 1024 62.9 vs 63.5 / demo3 61.4 vs 62.5 (~1.5%, holds 60
-floor); mini-g4 within noise (~0%). Registered in `gl_rmisc.c` `R_Init`.
+has bandwidth headroom: **on** quicksilver / mini-g4 / imac-2019 / **mini-intel**
+autoexec, **off** (defensive 0) in the ppc7400 / ppc970 / x86_64 / ppc750
+baselines so it never drifts onto sawtooth / iMac G5 / G3. Same-session A/B
+2026-05-29: quicksilver demo2 1024 62.9 vs 63.5 / demo3 61.4 vs 62.5 (~1.5%,
+holds 60 floor); mini-g4 within noise (~0%). Registered in `gl_rmisc.c` `R_Init`.
+
+**#69 round, 2026-09-25:** mini-intel (Lion, GMA 950 + Core 2 Duo) same-session
+A/B, demo3 (rendered at desktop 1920x1080): **44.35 fps both ways**, identical
+per-run numbers (44.3/44.4/44.3) — zero measurable cost. Lion is CPU-strong /
+fillrate-weak, the opposite of the constraint that keeps this off elsewhere, so
+this is a free win; shipped `r_lerplightstyles 1` in `autoexec-mini-intel.cfg`.
+yosemite (G3) same-session A/B, demo3 800x600, tested post-v1.15.19-install:
+29.40 fps off vs 27.80 fps on (median of runs 2,3) — a directional ~5% cost,
+consistent with the existing "no fillrate for per-frame lightmap rebuilds"
+reasoning. G3 sits at the tightest floor margin (~1.5x) of any class, so this
+stayed off rather than shipping a borderline-negative result; recorded as
+tested, not re-proposable without new evidence (`autoexec-ppc750.cfg`).
 
 ## G3 client-array brush pool (2026-05-29: code-review finding #4)
 
