@@ -14,6 +14,16 @@
 # SDL 1.2 upstream never produced an arm64 build, so there is no SDL 1.2 to
 # link (docs/adr/0003). Each slice of a fat Mach-O carries its own
 # LC_LOAD_DYLIB, so this changes nothing for the other four.
+#
+# SDL2 is a vendored, prebuilt dylib (MacOSX/codecs/lib/libSDL2.dylib +
+# headers at MacOSX/codecs/include/SDL2/), not a Framework: built once from
+# the same pinned libsdl.org 2.32.4 source + sha256 halflife/quake2/quake3
+# verify against upstream tag retro/arm64-base (#61), packaged the same way
+# this port already vendors its codec dylibs (@executable_path/<name>.dylib
+# install name, picked up by deploy.sh/make-dmg.sh's existing *.dylib glob)
+# rather than hand-rolling a multi-arch .framework bundle CLI-side for the
+# one slice that needs it. Until #61, this linked the upstream-prebuilt
+# MacOSX/SDL2.framework (2.0.22) instead.
 
 set -euo pipefail
 
@@ -32,8 +42,8 @@ export QS_PORT_VERSION="${QS_PORT_VERSION:-$(git -C "$REPO_ROOT" describe --tags
 
 VMIN=11.0
 # 11.0 rather than 10.x: there is no arm64 Mac that shipped earlier, so a
-# lower deployment target would only be a fiction. It also keeps the SDL2
-# framework's own minimum satisfied.
+# lower deployment target would only be a fiction. It also keeps the vendored
+# SDL2 build's own minimum (built at the same 11.0 floor) satisfied.
 
 echo "[build-arm64] compile (vmin=$VMIN, SDL2, port version $QS_PORT_VERSION)"
 
@@ -45,18 +55,26 @@ make -f Makefile.darwin clean >/dev/null 2>&1 || true
 # defines, the framework paths); a CFLAGS set on the make command line wins
 # over those `+=` lines and silently drops every one of them. The first
 # attempt at this build did exactly that and linked against the SDL 1.2 API.
+#
+# SDL_CFLAGS/SDL_LIBS are passed whole, not via SDL_FRAMEWORK_PATH: a
+# command-line-set make variable locks out every `+=` to that name inside
+# Makefile.darwin (GNU Make's override rule), so this replaces the
+# Makefile's own Framework-linking lines entirely rather than adding to
+# them. -DNO_SDL_CONFIG keeps quakedef.h/miniz.h on the <SDL2/SDL.h>
+# angle-bracket include path (the same macro the Framework build relied on
+# for that); the vendored headers at MacOSX/codecs/include/SDL2 are laid
+# out the same way `configure --prefix=X && make install` would produce.
+# The dylib's own install name (set once, when it was vendored) is what
+# ends up in quakespasm's LC_LOAD_DYLIB -- no post-link install_name_tool
+# rewrite needed, unlike the old Framework path.
 make -f Makefile.darwin MACH_TYPE=arm64 -j"$(sysctl -n hw.ncpu)" \
   USE_SDL2=1 \
   CC=clang \
   QS_PORT_VERSION="$QS_PORT_VERSION" \
   CPUFLAGS="-arch arm64 -mmacosx-version-min=$VMIN -O2" \
   LDFLAGS="-arch arm64 -mmacosx-version-min=$VMIN" \
-  SDL_FRAMEWORK_PATH=../MacOSX
-
-install_name_tool -change \
-  @executable_path/../Frameworks/SDL2.framework/Versions/A/SDL2 \
-  @executable_path/SDL2.framework/Versions/A/SDL2 \
-  quakespasm 2>/dev/null || true
+  SDL_CFLAGS="-D_GNU_SOURCE=1 -D_THREAD_SAFE -DNO_SDL_CONFIG -I../MacOSX/codecs/include" \
+  SDL_LIBS="-L../MacOSX/codecs/lib -lSDL2 -Wl,-framework,Cocoa"
 
 cd "$REPO_ROOT"
 mkdir -p build
