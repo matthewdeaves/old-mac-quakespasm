@@ -101,6 +101,28 @@ Per-machine configs live at
 | `vid_bpp` | cvar (CVAR_ARCHIVE) | **32** quicksilver + imac-2019; **16** (engine default) everywhere else | Colour depth, but really the depth/stencil allocation: `vid_bpp 16` → 16-bit z-buffer + **0 stencil** (so `r_shadows`' stencil self-intersection mask is inert, `gl_rmain.c:1081`, `if (gl_stencilbits)`); `vid_bpp 32` → 24-bit z-buffer + 8-bit stencil. 32 on quicksilver (Radeon 9000, verified, ~3%, holds the 60 floor) and imac-2019 (unverified, machine offline). **NOT** on mini-g4, nor on the fillrate-bound G3 / sawtooth / mini-intel. Needs a boot `vid_restart` in the per-machine autoexec to apply (VID_Init runs before the autoexec). ADR 0007. | `scripts/bundle/autoexec-{quicksilver,imac-2019}.cfg` |
 | `vid_fsaa` | cvar (CVAR_ARCHIVE) | **8** imac-2019 only; 0 elsewhere | MSAA sample count. Only imac-2019's Radeon Pro 580X gets it (8x, "spend the headroom"); the PPC GPUs lack `ARB_multisample` (sawtooth, G3) or are fillrate-bound near floor (Radeons/GMA950). **Required engine fix:** `VID_Restart` (gl_vidsdl.c) now re-reads the file-scope `fsaa` global from `vid_fsaa` before `VID_SetMode`, upstream only set it in VID_Init / `-fsaa` cmdline, so a `vid_fsaa` in autoexec + `vid_restart` was silently ignored. Inert where `vid_fsaa` is 0. | `gl_vidsdl.c` `VID_Restart`; `scripts/bundle/autoexec-imac-2019.cfg` |
 
+**imac-g5 A/B, #69, 2026-09-25 — measured, NOT shipped.** Tested via the
+boot-time `-fsaa N` cmdline flag (`COM_CheckParm`, `gl_vidsdl.c` ~2285), which
+applies at the SAME one-shot mode creation `-width`/`-height` use — never a
+live `vid_restart` mid-session, so it doesn't touch the R300 live-mode-switch
+hazard `vid_lock` exists for (ADR 0007). Machine confirmed responsive after
+each run. Results, demo3 1024 (native 1440x900), vs the 87.55 fps baseline:
+2x = 51.85 fps median (**-40.8%**, still 2.07x the 25 fps floor); 4x = 31.9
+fps single-run (**-63.6%**, only 1.28x the floor — too close given demo3 is
+already this port's heaviest demo, not shipped). 2x clears the floor with
+real margin but at a much steeper cost than any other G5 knob shipped so far
+(for comparison, G4's `r_shadows` was called out as expensive at -11%).
+**Not shipped as the autoexec default**, for a second reason beyond cost:
+`autoexec-imac-g5.cfg` (the per-machine overlay) loads AFTER the ppc970
+baseline's own boot-time `vid_restart` + `vid_lock` (`autoexec-ppc970.cfg`
+lines ~82/117), so a `vid_fsaa` cvar set in the overlay cannot trigger its
+own restart to take visual effect on a fresh deploy the way `-fsaa` did in
+this test — verifying whether a real player's *second* launch would pick it
+up via the CVAR_ARCHIVE config.cfg round-trip (like `vid_width`/`vid_height`
+does on G3) is unverified engineering, not just an A/B call, and out of
+scope for this pass. Open question, not re-proposable as a quick cvar flip
+without resolving it first.
+
 ## Smooth lightstyle interpolation (2026-05-29: code-review finding #5)
 
 `r_lerplightstyles` (cvar, CVAR_ARCHIVE, default 0) interpolates the 10 Hz

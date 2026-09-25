@@ -800,3 +800,6 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-09-25T14:02:09Z,01baa8c8,yosemite,demo3,800x600,26.7,26.3,29.3,27.80,"+r_lerplightstyles 1",800x600
 2026-09-25T14:18:02Z,65080e94,imac-g5,demo3,1024x768,87.4,87.4,87.7,87.55,"",1440x900
 2026-09-25T14:20:14Z,65080e94,imac-g5,demo3,1024x768,87.4,87.5,87.6,87.55,"+r_shadow_distance 0",1440x900
+2026-09-25T14:25:10Z,30b58505,imac-g5,demo3,1024x768,53.0,NA,NA,53.0,"-fsaa 2",1440x900
+2026-09-25T14:26:39Z,30b58505,imac-g5,demo3,1024x768,53.1,51.5,52.2,51.85,"-fsaa 2",1440x900
+2026-09-25T14:28:37Z,30b58505,imac-g5,demo3,1024x768,31.9,NA,NA,31.9,"-fsaa 4",1440x900
