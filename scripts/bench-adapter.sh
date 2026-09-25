@@ -114,7 +114,7 @@ bench_effective_config() {
 	printf '%s\n' "$raw" | grep -F \
 		-e 'GL_RENDERER' -e 'GL_VENDOR' \
 		-e ' vid_vsync "' -e ' vid_width "' -e ' vid_height "' -e ' vid_bpp "' \
-		-e ' r_shadows "' -e ' r_decals "' \
+		-e ' vid_fsaa "' -e ' r_shadows "' -e ' r_decals "' \
 	| sed -n \
 		-e 's/.*GL_RENDERER: */renderer=/p' \
 		-e 's/.*GL_VENDOR: */vendor=/p' \
@@ -122,6 +122,7 @@ bench_effective_config() {
 		-e 's/.* vid_width "\([^"]*\)".*/vid_width=\1/p' \
 		-e 's/.* vid_height "\([^"]*\)".*/vid_height=\1/p' \
 		-e 's/.* vid_bpp "\([^"]*\)".*/vid_bpp=\1/p' \
+		-e 's/.* vid_fsaa "\([^"]*\)".*/vid_fsaa=\1/p' \
 		-e 's/.* r_shadows "\([^"]*\)".*/r_shadows=\1/p' \
 		-e 's/.* r_decals "\([^"]*\)".*/r_decals=\1/p'
 }
