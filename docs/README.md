@@ -24,8 +24,9 @@ their evidence live in [`adr/`](adr/README.md). Recorded negative results live i
 - [`NETPLAY_DOWNLOAD_PLAN.md`](NETPLAY_DOWNLOAD_PLAN.md), online network play,
   DPMaster server browser, auto-download of missing maps. Copies QSS's
   in-protocol UDP download (no TLS, no curl, no new libs); gated behind
-  `allow_download`, default 0. The full loop was hardware-verified once, but the
-  download currently stalls before it starts (#59).
+  `allow_download`, default 0. The full loop is hardware-verified end-to-end
+  (#59); it's slow (one 1024-byte chunk per ack round-trip, ~17.5 KB/s
+  measured), tracked separately (#64).
 - [`LIGHTNING_BOLT_DEBUG.md`](LIGHTNING_BOLT_DEBUG.md), root-cause post-mortem
   for the dark lightning bolt on Radeon 9200 and GMA 950. Decoded the
   `bolt2.mdl` skin (the bright core is fullbright-palette texels split into the

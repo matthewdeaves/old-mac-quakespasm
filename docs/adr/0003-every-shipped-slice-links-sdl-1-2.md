@@ -57,14 +57,22 @@ is SDL 1.2.15.
 same conclusion as the Quake II and Quake III sister ports, independently: SDL
 1.2 for the PowerPC machines.
 
-**Trusting the vendored `SDL2.framework` as evidence of anything.** It is real
-(2.0.22, `x86_64 i386 arm64`, no PowerPC) and it is unused by every shipped Mac
-build. Commit `fd507839` asserted that "QuakeSpasm was easy because it is on
-SDL2 and its bundled framework was already fat with arm64 in it", and used that
-to argue the port was structurally ahead of the two siblings. That was wrong,
-and it was wrong because a property of the artifact was inferred from the
-contents of the source tree. One `otool -L` would have settled it. Corrected
-2026-08-20 (`b9a7fff9`).
+**Trusting the vendored `SDL2.framework` as evidence of anything.** At the time
+of this ADR it was real (2.0.22, `x86_64 i386 arm64`, no PowerPC) and unused by
+every shipped Mac build. Commit `fd507839` asserted that "QuakeSpasm was easy
+because it is on SDL2 and its bundled framework was already fat with arm64 in
+it", and used that to argue the port was structurally ahead of the two
+siblings. That was wrong, and it was wrong because a property of the artifact
+was inferred from the contents of the source tree. One `otool -L` would have
+settled it. Corrected 2026-08-20 (`b9a7fff9`).
+
+**2026-09-25 (#61, v1.15.18): `MacOSX/SDL2.framework` no longer exists.** The
+arm64 slice does now link SDL2 (this ADR's five non-arm64 slices are
+unaffected), but as a vendored `MacOSX/codecs/lib/libSDL2.dylib` (2.32.4, built
+from the same pinned libsdl.org source + sha256 halflife/quake2/quake3 verify,
+upstream tag `retro/arm64-base`) matching this port's existing codec-dylib
+pattern, not the Framework this ADR describes. `scripts/build-arm64.sh` has the
+current recipe.
 
 ## Consequences
 

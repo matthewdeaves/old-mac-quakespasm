@@ -165,7 +165,7 @@ and [**old-mac-quake3**](https://github.com/matthewdeaves/old-mac-quake3)
 GPL-2.0-or-later, inherited verbatim from upstream QuakeSpasm. See
 [`LICENSE.txt`](LICENSE.txt). Chain: id Software (1996–2001) → John Fitzgibbons /
 FitzQuake → QuakeSpasm developers ([sezero/quakespasm](https://github.com/sezero/quakespasm)).
-Bundled SDL 1.2.15 is LGPL-2.1; SDL2.framework (arm64 only) is zlib.
+Bundled SDL 1.2.15 is LGPL-2.1; the vendored SDL2 2.32.4 build (arm64 only) is zlib.
 
 ### Where to put it on Apple Silicon and modern macOS
 
