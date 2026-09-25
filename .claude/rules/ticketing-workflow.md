@@ -31,7 +31,7 @@ approved: work it.
 
 **Close your own tickets once fixed and tested.** Evidence in a closing comment
 on the issue, then move it to `Done` yourself (`user, 2026-09-22`,
-`retro-agents/briefs/_shared.md:32`). Still never write `Closes #12` or
+`retro-agents/POLICY.md`, "Board"). Still never write `Closes #12` or
 `Fixes #12` in a commit message: GitHub acts on those immediately, which can
 close an issue before its evidence comment is posted or before an unrelated
 commit means to touch it at all. Write `Refs #12` in commits, then close the
