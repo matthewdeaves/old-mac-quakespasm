@@ -22,6 +22,12 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Build arm64 via Makefile.darwin
+      # Mirrors scripts/build-arm64.sh: arm64 links the vendored SDL2 dylib
+      # (MacOSX/codecs/lib/libSDL2.dylib), not a Framework, since #61. A
+      # command-line SDL_FRAMEWORK_PATH would still work with Makefile.darwin's
+      # own Framework-linking lines, but the Framework itself was deleted in
+      # 1c190496, so that path 404s at link time. SDL_CFLAGS/SDL_LIBS replace
+      # those lines wholesale instead of trying to add to them.
       run: |
         make -f Makefile.darwin --directory=Quake --jobs=3 \
           MACH_TYPE=arm64 \
@@ -30,7 +36,8 @@ jobs:
           QS_PORT_VERSION=ci \
           CPUFLAGS="-arch arm64 -mmacosx-version-min=11.0 -O2" \
           LDFLAGS="-arch arm64 -mmacosx-version-min=11.0" \
-          SDL_FRAMEWORK_PATH=../MacOSX
+          SDL_CFLAGS="-D_GNU_SOURCE=1 -D_THREAD_SAFE -DNO_SDL_CONFIG -I../MacOSX/codecs/include" \
+          SDL_LIBS="-L../MacOSX/codecs/lib -lSDL2 -Wl,-framework,Cocoa"
 
     - name: Confirm it produced an arm64 binary
       run: |
