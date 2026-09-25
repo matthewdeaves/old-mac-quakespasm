@@ -1751,6 +1751,8 @@ static void Host_Download_f (void)
 
 	name = Cmd_Argv(1);
 
+	Con_DPrintf ("Host_Download_f: request received for %s\n", name);
+
 	if (!COM_DownloadNameOkay (name))
 	{
 		Host_DownloadStufftext (host_client,
@@ -1800,6 +1802,7 @@ static void Host_Download_f (void)
 	q_strlcpy (host_client->download.name, name,
 	           sizeof(host_client->download.name));
 
+	Con_DPrintf ("Host_Download_f: sending cl_downloadbegin %d \"%s\"\n", (int)size, name);
 	Host_DownloadStufftext (host_client,
 	    va("cl_downloadbegin %d \"%s\"\n", (int)size, name));
 }

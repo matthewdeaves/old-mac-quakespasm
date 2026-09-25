@@ -78,6 +78,8 @@ static void CL_Download_Begin_f (void)
 	size = atoi(Cmd_Argv(1));
 	name = Cmd_Argv(2);
 
+	Con_DPrintf ("CL_Download_Begin_f: received size=%d name=%s\n", size, name);
+
 	if (!cls.download.active)
 	{
 		Con_DPrintf ("cl_downloadbegin: no pending download\n");
@@ -410,6 +412,7 @@ qboolean CL_CheckDownloads (void)
 			cls.download.active = true;
 			cls.download.file   = NULL;
 
+			Con_DPrintf ("CL_CheckDownloads: requesting model %s\n", cl.model_name[i]);
 			MSG_WriteByte (&cls.message, clc_stringcmd);
 			MSG_WriteString (&cls.message,
 			    va("download \"%s\"\n", cl.model_name[i]));
@@ -436,6 +439,7 @@ qboolean CL_CheckDownloads (void)
 			cls.download.active = true;
 			cls.download.file   = NULL;
 
+			Con_DPrintf ("CL_CheckDownloads: requesting sound %s\n", cl.sound_name[i]);
 			MSG_WriteByte (&cls.message, clc_stringcmd);
 			MSG_WriteString (&cls.message,
 			    va("download \"%s\"\n", cl.sound_name[i]));
