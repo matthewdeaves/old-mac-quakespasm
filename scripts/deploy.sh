@@ -47,10 +47,10 @@ TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|min
 # RETRO_BENCH_LOCK guards against the re-exec recursing.
 # BENCH_NO_LOCK=1 skips the lock, for when the picker itself is what you are
 # debugging. It is not a way to get past a machine someone else is using.
-_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.sh"
 if [ "${RETRO_BENCH_LOCK:-}" != "$TARGET" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$TARGET"
-	exec "$_PICK" --run "$TARGET" "deploy" -- "$0" "$@"
+	exec "$_PICK" pick-bench-host.sh --run "$TARGET" "deploy" -- "$0" "$@"
 fi
 
 # MacOSX/SDL.framework is a 3-arch fat (x86_64 + i386 + ppc) where the
@@ -303,11 +303,24 @@ ssh "$HOST" "rm -f '$BENCH_DIR/id1/autoexec.cfg' \
 rsync -av --partial --checksum $RSYNC_EXTRA -e 'ssh -o ServerAliveInterval=15' \
   "$STAGE/" "$HOST:$BENCH_DIR/" | tail -8
 
-# Shared primitive (issue #35), scp'd over for the remote block below to run
-# and then delete. Best-effort — an old checkout without it just skips the
-# quarantine-clear/lsregister step, same as command -v codesign above.
-if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
-  scp -pq "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$HOST:.qs-clear-launch-quarantine.sh"
+# Shared primitive (issue #35), routed through the build-host#105 pin
+# (quakespasm#68) and scp'd over for the remote block below to run and then
+# delete. shared.sh always execs once it resolves a script rather than
+# offering a resolve-only mode (no such flag exists yet -- flagged to
+# buildhost as a gap in the pin model, same shape as alephone#43's
+# BENCH_ADAPTER/DMG_PORT_CONF findings), so populate its on-disk cache with a
+# harmless no-arg call (usage-exits 2, `|| true` absorbs that under
+# set -euo pipefail) and scp the cached copy straight off disk instead: the
+# remote $HOST has no old-mac-build-host checkout of its own to resolve the
+# pin. Best-effort — an unresolvable pin just skips the quarantine-clear/
+# lsregister step, same as command -v codesign above.
+"$REPO_ROOT/scripts/shared.sh" clear-launch-quarantine.sh >/dev/null 2>&1 || true
+CLQ_PIN="$(tr -d '[:space:]' < "$REPO_ROOT/shared-scripts.pin" 2>/dev/null || true)"
+CLQ_BUILDHOST_REPO="${OLDMAC_BUILDHOST_REPO:-$REPO_ROOT/../old-mac-build-host}"
+CLQ_RESOLVED="$(git -C "$CLQ_BUILDHOST_REPO" rev-parse --verify -q "${CLQ_PIN}^{commit}" 2>/dev/null || true)"
+CLQ_CACHED="${RETRO_SHARED_CACHE:-$HOME/.cache/retro-shared}/$CLQ_RESOLVED/clear-launch-quarantine.sh"
+if [ -n "$CLQ_RESOLVED" ] && [ -f "$CLQ_CACHED" ]; then
+  scp -pq "$CLQ_CACHED" "$HOST:.qs-clear-launch-quarantine.sh"
 fi
 
 # Post-deploy verification: md5 the binary and the icon on the target

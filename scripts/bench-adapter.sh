@@ -19,6 +19,13 @@
 # all: there is nothing for vid_lock to need to catch. +cvarlist is spliced
 # in so bench_effective_config has real read-back data.
 #
+# #68 (build-host#105 pin migration): bench-evidence.sh now runs from
+# old-mac-build-host's pinned-revision cache (~/.cache/retro-shared/<sha>/),
+# not from this repo's scripts/ next to this file, so its own
+# `$SELF_DIR/bench-adapter.sh` default can no longer find this file. Always
+# invoke it as:
+#   BENCH_ADAPTER="$REPO_ROOT/scripts/bench-adapter.sh" scripts/shared.sh bench-evidence.sh <host> <round> ...
+#
 # This buys evidence-of-validity, not scripts/bench.sh's finer per-machine
 # fps tuning -- different job, see docs/bench-evidence.md.
 

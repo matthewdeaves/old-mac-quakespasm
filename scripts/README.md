@@ -2,7 +2,7 @@
 
 Multi-host workflow: edit on the orchestration Mac → build on a claimed Intel
 Lion mini (`mini-intel` or `mini-intel2`, `build.sh` / `build-fat.sh` ask
-`pick-build-host.sh --acquire` for a free one) → run on the 7 bench machines. SSH config aliases (`yosemite`,
+`scripts/shared.sh pick-build-host.sh --acquire` for a free one, #68) → run on the 7 bench machines. SSH config aliases (`yosemite`,
 `yosemite-tiger`, `sawtooth`, `quicksilver`, `mini-g4`, `imac-g5`,
 `mini-intel`, `imac-2019`) expected in `~/.ssh/config` (`imac-g5` / Leopard
 needs the same legacy-crypto block as the other PPC boxes).
@@ -71,8 +71,10 @@ scripts/make-dmg.sh v1.9
 # the production config (the path that caught the Q2 corrupt-DMG crash).
 # deploy-dmg first removes any older QuakeSpasm-OldMac-*.dmg on the target.
 # It stages a fresh /Applications/QuakeSpasm install and copies legacy Desktop id1/.
-scripts/deploy-dmg.sh yosemite v1.9     # scp + mount + verified /Applications install
-scripts/smoke-dmg.sh  yosemite demo1    # launch installed copy, report res + fps
+# #68: run through the pin, with DMG_PORT_CONF set and a full DMG path (not
+# a bare version string — see docs/DEVELOPMENT.md's "Shared fleet scripts").
+DMG_PORT_CONF="$PWD/scripts/dmg-port.conf" scripts/shared.sh deploy-dmg.sh yosemite "$PWD/dist/QuakeSpasm-OldMac-v1.9.dmg"
+DMG_PORT_CONF="$PWD/scripts/dmg-port.conf" scripts/shared.sh smoke-dmg.sh  yosemite demo1
 
 # Run a single bench
 scripts/bench.sh quicksilver demo1 1024x768
@@ -121,8 +123,8 @@ before that commit use the old names, rows after use the new names.
 | `build-fat.sh` | call `build.sh g3` + `build.sh g4` + `build.sh g5` + `build.sh lion`, then `lipo -create` the four slices into `build/quakespasm-fat`. This is the binary `deploy.sh` ships. |
 | `deploy.sh <machine>` | assemble `Quakespasm.app` bundle (fat binary + codecs + SDL + nib + icon + Info.plist + per-arch and per-machine autoexec cfgs in `Contents/Resources/`) and rsync to `<machine>:/Applications/QuakeSpasm/`, the same folder deploy-dmg.sh installs releases into (#55). Same bundle for every machine, host.c picks the right slice + per-machine cfg at boot. It has no `workstation` case and always uses ssh, so it cannot target the arm64 orchestration Mac itself; for an arm64 smoke there, build a DMG (`make-dmg.sh`) and use `deploy-dmg.sh workstation` / `smoke-dmg.sh workstation` instead, which already run locally with no ssh (#65). |
 | `make-dmg.sh [version]` | stage the same `Quakespasm.app` + `quakespasm.pak` + a user-facing `README.txt`, then build a compressed `.dmg` via `hdiutil` on a Mac. Output `dist/QuakeSpasm-OldMac-<version>.dmg`, one image installs on every supported Mac. `DMG_HOST` defaults to the first reachable **Tiger** box (mini-g4 → quicksilver → sawtooth), never the G3 or Lion; `DMG_HOST=` overrides. After building it **content-verifies** the engine binary + codec dylibs + SDL inside the image against source (md5, 3 retries, fail loud) and md5-checks the scp-back. Why all of that: ADR 0005. |
-| `deploy-dmg.sh <machine> [ver]` | buildhost's shared installer (build-host#96, synced, never edit here): installs the release DMG into `/Applications/QuakeSpasm/`, replacing only the owned paths, never `id1/`, keeping no rollback. Our settings are in `dmg-port.conf`. Default ver = newest `dist/QuakeSpasm-OldMac-*.dmg`. |
-| `smoke-dmg.sh <machine> [demo]` | shared (build-host#96): launches the installed copy with the **production** config and `+timedemo`; PASS iff an fps line appears. The install→launch path that `deploy.sh` + bench would miss. |
+| `deploy-dmg.sh <machine> [ver\|path]` | buildhost's shared installer (build-host#96), run via `scripts/shared.sh deploy-dmg.sh` at this repo's pinned revision (build-host#105, #68), never edited here: installs the release DMG into `/Applications/QuakeSpasm/`, replacing only the owned paths, never `id1/`, keeping no rollback. Our settings are in `dmg-port.conf` (pass `DMG_PORT_CONF=$PWD/scripts/dmg-port.conf`). A bare version string resolves against the wrong `dist/` once pinned — always pass a full DMG path. |
+| `smoke-dmg.sh <machine> [demo]` | shared (build-host#96), same pin as above: launches the installed copy with the **production** config and `+timedemo`; PASS iff an fps line appears. The install→launch path that `deploy.sh` + bench would miss. |
 | `bench.sh <machine> <demo> <WxH> [runs]` | run timedemo on already-deployed bundle; append row to `benchmarks/results.csv`. Honors `$COMMIT` env (callers pin HEAD); exits non-zero on any NA run. mini-intel uses 60 s timeout (Core 2 Duo finishes timedemo fast); G4s 120 s (sawtooth 180 s, slower CPU); yosemite 240 s. |
 | `full-bench.sh [<machine>\|ppc\|intel\|all] [--quick]` | sweep demo1/demo2/demo3 × 1024x768/640x480 × 3 runs (sequential when more than one machine); `--quick` = demo1 only. `ppc` = the 5 PPC machines, `intel` = the 2 Intel machines, `all` = all 7 (default). |
 | `parallel-bench.sh [--reset] [--quick] [--no-<machine> ...]` | same sweep on all 7 machines concurrently. Default appends to `results.csv` (rolling history). `--reset` wipes both CSV + raw/ after backup; `--keep-csv` is a deprecated no-op kept for muscle memory. `--no-<machine>` flags skip individual machines if one is offline. Pins `$COMMIT` from HEAD at start so side commits during the bench can't drift the row tags. Wall time is dominated by the slowest leg (yosemite). |

@@ -59,6 +59,12 @@ skip claiming a DIFFERENT machine. Compare against the target instead:
 `[ "${RETRO_BENCH_LOCK:-}" != "$TARGET" ]`. Ten scripts here were wrong; fixed in
 77b78a02.
 
+**This repo runs `pick-build-host.sh`/`pick-bench-host.sh` (and every other
+build-host shared script) through `scripts/shared.sh <name>.sh ...`, not a
+synced copy** (build-host#105 pin, #68): no more `scripts/pick-bench-host.sh`
+file here to invoke directly. See `docs/DEVELOPMENT.md`'s "Shared fleet
+scripts" section for the two env-var overrides this needs.
+
 Labels, the same four in every repo: **`from:infra`** raised by the server side
 for a port to act on, **`from:port`** raised by a port for another repo,
 **`needs-measurement`** the claim has no number or hardware repro behind it yet,

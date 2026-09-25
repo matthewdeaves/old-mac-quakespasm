@@ -36,16 +36,16 @@ HOST="${SELFHOST_HOST:-mini-intel}"
 # #38), so a `start` under its own `--run` has its server killed the moment it
 # returns, and every client gets "CL_Connect: connect failed" (found on #58).
 # So `start` refuses unless the caller already holds $HOST:
-#   scripts/pick-bench-host.sh --run mini-intel -- bash -c \
+#   scripts/shared.sh pick-bench-host.sh --run mini-intel -- bash -c \
 #     'scripts/selfhost-download-test.sh start; <client test>; scripts/selfhost-download-test.sh stop'
-_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.sh"
 if [ "${1:-start}" = start ] && [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ]; then
 	echo "selfhost: run 'start' inside your own claim on $HOST (see the comment above); refusing" >&2
 	exit 2
 fi
 if [ "${RETRO_BENCH_LOCK:-}" != "$HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$HOST"
-	exec "$_PICK" --run "$HOST" "selfhost" -- "$0" "$@"
+	exec "$_PICK" pick-bench-host.sh --run "$HOST" "selfhost" -- "$0" "$@"
 fi
 
 MAP="dltest"

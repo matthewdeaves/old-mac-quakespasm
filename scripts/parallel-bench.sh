@@ -150,10 +150,10 @@ fi
 # STEP INSIDE already-claimed work must not re-claim, and the guard is what
 # tells the two cases apart.
 echo "[parallel-bench] pre-flight: clearing stale quakespasm processes (TERM-grace-KILL — Rage 128 LUT fix)"
-_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+_PICK="$REPO_ROOT/scripts/shared.sh"
 for LEG in "${ACTIVE_LEGS[@]}"; do
   if [ "${RETRO_BENCH_LOCK:-}" != "$LEG" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
-    "$_PICK" --run "$LEG" "preflight" -- \
+    "$_PICK" pick-bench-host.sh --run "$LEG" "preflight" -- \
       ssh -o ConnectTimeout=5 "$LEG" 'if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
         killall -KILL quakespasm 2>/dev/null || true' &
   else

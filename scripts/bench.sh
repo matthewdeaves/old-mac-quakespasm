@@ -71,10 +71,10 @@ TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|min
 # RETRO_BENCH_LOCK guards against the re-exec recursing.
 # BENCH_NO_LOCK=1 skips the lock, for when the picker itself is what you are
 # debugging. It is not a way to get past a machine someone else is using.
-_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.sh"
 if [ "${RETRO_BENCH_LOCK:-}" != "$TARGET" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$TARGET"
-	exec "$_PICK" --run "$TARGET" "bench" -- "$0" "$@"
+	exec "$_PICK" pick-bench-host.sh --run "$TARGET" "bench" -- "$0" "$@"
 fi
 DEMO="${2:?demo name required (demo1|demo2|demo3)}"
 RES="${3:?resolution required (e.g. 1024x768)}"

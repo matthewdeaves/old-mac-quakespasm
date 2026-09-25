@@ -53,10 +53,10 @@ TARGET="$1"
 #
 # Placed before the `shift` below: the re-exec passes "$@" through unchanged, so
 # it has to still hold the target.
-_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pick-bench-host.sh"
+_PICK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.sh"
 if [ "${RETRO_BENCH_LOCK:-}" != "$TARGET" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$TARGET"
-	exec "$_PICK" --run "$TARGET" "screenshot" -- "$0" "$@"
+	exec "$_PICK" pick-bench-host.sh --run "$TARGET" "screenshot" -- "$0" "$@"
 fi
 
 shift

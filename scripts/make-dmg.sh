@@ -84,10 +84,10 @@ fi
 # still checked, because acquiring is not reentrant: pick-bench-host.sh:246 is a
 # bare mkdir that fails even for the current owner, and cmd_run at :306 releases
 # unconditionally, so a nested claim would free the box mid-run.
-_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+_PICK="$REPO_ROOT/scripts/shared.sh"
 if [ "${RETRO_BENCH_LOCK:-}" != "$DMG_HOST" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$DMG_HOST" DMG_HOST
-	exec "$_PICK" --run "$DMG_HOST" "make-dmg" -- "$0" "$@"
+	exec "$_PICK" pick-bench-host.sh --run "$DMG_HOST" "make-dmg" -- "$0" "$@"
 fi
 VOLNAME="QuakeSpasm OldMac $VERSION"
 OUT="$REPO_ROOT/dist/QuakeSpasm-OldMac-$VERSION.dmg"
@@ -161,9 +161,9 @@ if [ -z "${_QS_DMG_STAGED:-}" ]; then
     # drop this claim. DMG_HOST's own claim above is a single --run (acquire +
     # wrapped command + release in one call) and needs no nonce; this one does.
     export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
-    if STAGE_HOST_RESOLVED="$("$REPO_ROOT/scripts/pick-bench-host.sh" --acquire "$DMG_STAGE_HOST" "make-dmg stage" 2>/dev/null)"; then
+    if STAGE_HOST_RESOLVED="$("$REPO_ROOT/scripts/shared.sh" pick-bench-host.sh --acquire "$DMG_STAGE_HOST" "make-dmg stage" 2>/dev/null)"; then
       DMG_STAGE_HOST="$STAGE_HOST_RESOLVED"
-      trap "$REPO_ROOT/scripts/pick-bench-host.sh --release '$DMG_STAGE_HOST' >/dev/null 2>&1; true" EXIT
+      trap "$REPO_ROOT/scripts/shared.sh pick-bench-host.sh --release '$DMG_STAGE_HOST' >/dev/null 2>&1; true" EXIT
       echo "[make-dmg] staging + shipping on $DMG_STAGE_HOST instead of this workstation"
 
       . "$REPO_ROOT/scripts/source-stamp.sh"
@@ -547,9 +547,7 @@ fi
 # would otherwise inherit it independently, and it means an install that
 # reaches a machine any other way than a fresh browser download (rsync,
 # scp+ditto, a file share) is never quarantined via this DMG's own contents.
-if [ -f "$REPO_ROOT/scripts/clear-launch-quarantine.sh" ]; then
-  "$REPO_ROOT/scripts/clear-launch-quarantine.sh" "$APP"
-fi
+"$REPO_ROOT/scripts/shared.sh" clear-launch-quarantine.sh "$APP"
 
 SRC_SUMS=$(cd "$IMG" && for f in $VERIFY_FILES; do \
              printf '%s  %s\n' "$(md5sum "$f" | cut -d' ' -f1)" "$f"; done)

@@ -33,11 +33,55 @@ Shared read-only: `/Developer/SDKs/{MacOSX10.3.9,MacOSX10.4u,MacOSX10.5}.sdk`,
 
 Concurrent builds are safe (separate dirs, separate locks), though serial is
 faster than 2× concurrent on a 2-core Core 2 Duo. Host arbitration across repos
-is `pick-build-host.sh` (ADR 0005).
+is `pick-build-host.sh` (ADR 0005), run via `scripts/shared.sh pick-build-host.sh`
+(#68).
 
 Tell-tale of accidental conflation: `build.sh` ever rsyncing to `mini-intel:~/`
 or `mini-intel:quake2/` overwrites Q2. It hard-codes `mini-intel:quakespasm/`;
 never rely on a relative or env-derived path.
+
+## Shared fleet scripts (build-host#105 pin, #68)
+
+This repo no longer carries copies of `pick-build-host.sh`, `pick-bench-host.sh`,
+`deploy-dmg.sh`, `smoke-dmg.sh`, `bench-evidence.sh`, `bench-compare.sh`,
+`lay-out-dmg.sh` or `clear-launch-quarantine.sh`. `shared-scripts.pin` (repo
+root) names the `old-mac-build-host` revision they're fetched from; run any of
+them as `scripts/shared.sh <name>.sh [args...]` (needs a sibling
+`../old-mac-build-host` checkout, or `OLDMAC_BUILDHOST_REPO` set).
+`source-stamp.sh`/`source-stamp-excludes.sh` stay real copies — the first is
+sourced, not exec'd, so it can't go through the wrapper (`.claude/rules/
+legacy-mac-hardware.md`); the excludes list is this port's own data, never
+synced.
+
+Two scripts need an explicit override every time, because they locate
+port-specific files relative to their OWN path, which is the pin's read-only
+cache once fetched (`~/.cache/retro-shared/<sha>/`), not this repo:
+
+- **`bench-evidence.sh`** needs `BENCH_ADAPTER="$REPO_ROOT/scripts/bench-adapter.sh"`.
+- **`deploy-dmg.sh`** / **`smoke-dmg.sh`** need `DMG_PORT_CONF="$REPO_ROOT/scripts/dmg-port.conf"`.
+- **`deploy-dmg.sh`** additionally derives its `dist/*.dmg` lookup from its own
+  path when given a bare version string (e.g. `v1.2.0`) — resolves to the
+  wrong directory once pinned. Always pass a full path instead:
+  `scripts/shared.sh deploy-dmg.sh <host> "$REPO_ROOT/dist/QuakeSpasm-OldMac-v1.2.0.dmg"`.
+- **`deploy-dmg.sh`** also claims its own host lock via a co-located
+  `pick-bench-host.sh` next to itself (`$SELF_DIR/pick-bench-host.sh`) rather
+  than through `shared.sh`. That resolves fine once `pick-bench-host.sh` has
+  already been fetched into the SAME pin's cache directory by an earlier
+  `scripts/shared.sh pick-bench-host.sh ...` call this session, but on a
+  stone-cold cache (deploy-dmg.sh is the very first pinned script run) the
+  `-x` guard is false and it silently skips claiming the host — no error, no
+  lock. Work around it by warming the cache first: run any `scripts/shared.sh
+  pick-bench-host.sh --status` (or similar) before the first `deploy-dmg.sh`
+  call in a fresh session.
+
+Both gaps (no resolve-only mode in `shared.sh`, and `deploy-dmg.sh`'s own
+`$SELF_DIR`-relative assumptions) are pin-model gaps, not this port's bug —
+flagged to buildhost, not worked around silently here beyond the two
+documented overrides above. `deploy.sh`'s own remote-scp use of
+`clear-launch-quarantine.sh` (staging it onto a target Mac that has no
+`old-mac-build-host` checkout to resolve the pin itself) pre-warms the cache
+with a harmless no-arg call and scp's the resolved cache file directly —
+see the comment at the call site.
 
 ## Hot files (optimisation phase)
 

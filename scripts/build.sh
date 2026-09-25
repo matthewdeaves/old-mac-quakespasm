@@ -49,8 +49,8 @@ if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
 	# separate process and has to present the same claim this acquire made.
 	export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
 	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
-		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build.sh $TARGET")" || {
-		echo "build.sh: no free Intel build host; see scripts/pick-build-host.sh --status" >&2
+		"$REPO_ROOT/scripts/shared.sh" pick-build-host.sh --acquire "quakespasm build.sh $TARGET")" || {
+		echo "build.sh: no free Intel build host; see scripts/shared.sh pick-build-host.sh --status" >&2
 		exit 1
 	}
 	BUILD_HOST_CLAIMED=1
@@ -71,8 +71,8 @@ elif [ -z "${QS_BUILD_HOST_PRECLAIMED:-}" ]; then
 	export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
 	BUILD_HOST="${BUILD_HOST:-$LION}"
 	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
-		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire-host "$BUILD_HOST" "quakespasm build.sh $TARGET")" || {
-		echo "build.sh: could not claim $BUILD_HOST; see scripts/pick-build-host.sh --status" >&2
+		"$REPO_ROOT/scripts/shared.sh" pick-build-host.sh --acquire-host "$BUILD_HOST" "quakespasm build.sh $TARGET")" || {
+		echo "build.sh: could not claim $BUILD_HOST; see scripts/shared.sh pick-build-host.sh --status" >&2
 		exit 1
 	}
 	BUILD_HOST_CLAIMED=1
@@ -86,7 +86,7 @@ LION="$BUILD_HOST"  # keep the LION name in scope for the `ssh "$LION"` lines be
 # also holds deploy-dmg.sh's incoming/ + backups/ and, on imac-2019, the
 # *-legacy dirs build-host moved there. A sync into the parent would wipe them.
 REMOTE_TREE="oldmac/quakespasm/src"
-trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
+trap '[ "$BUILD_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/shared.sh" pick-build-host.sh --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
 
 # Port release label stamped into the binary's version string. Computed HERE on
 # the orchestration host (the rsync below excludes .git, so the cross-build host has no

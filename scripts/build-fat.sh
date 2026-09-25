@@ -57,13 +57,13 @@ if [ -z "${BUILD_HOST:-}" ] && [ -z "${LION:-}" ]; then
 	# separate process and has to present the same claim this acquire made.
 	export BENCH_LOCK_CLAIM="${BENCH_LOCK_CLAIM:-$$.$(date +%s).${RANDOM:-0}}"
 	BUILD_HOST="$(BUILD_LOCK_WAIT="${BUILD_LOCK_WAIT:-900}" \
-		"$REPO_ROOT/scripts/pick-build-host.sh" --acquire "quakespasm build-fat")" || {
-		echo "[build-fat] no free Intel build host; see scripts/pick-build-host.sh --status" >&2
+		"$REPO_ROOT/scripts/shared.sh" pick-build-host.sh --acquire "quakespasm build-fat")" || {
+		echo "[build-fat] no free Intel build host; see scripts/shared.sh pick-build-host.sh --status" >&2
 		exit 1
 	}
 	export BUILD_HOST
 	# Absolute path: the trap must still resolve if anything ever cd's away.
-	trap '"$REPO_ROOT/scripts/pick-build-host.sh" --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
+	trap '"$REPO_ROOT/scripts/shared.sh" pick-build-host.sh --release "$BUILD_HOST" >/dev/null 2>&1; true' EXIT
 	echo "[build-fat] claimed build host: $BUILD_HOST (held for all five mini-built slices)"
 else
 	export BUILD_HOST="${BUILD_HOST:-$LION}"
@@ -87,7 +87,7 @@ echo "[build-fat] sub-build 2/5: g4"
 # below, for the identical reason (see that comment).
 G34_HOST=""
 G34_HOST_CLAIMED=0
-if G34_HOST="$("$REPO_ROOT/scripts/pick-bench-host.sh" --acquire imac-2019 "quakespasm build-fat g3/g4" 2>/dev/null)"; then
+if G34_HOST="$("$REPO_ROOT/scripts/shared.sh" pick-bench-host.sh --acquire imac-2019 "quakespasm build-fat g3/g4" 2>/dev/null)"; then
   G34_HOST_CLAIMED=1
   echo "[build-fat] g3/g4 sub-builds routed to $G34_HOST"
 else
@@ -96,7 +96,7 @@ else
 fi
 BUILD_HOST="$G34_HOST" scripts/build.sh g3
 BUILD_HOST="$G34_HOST" scripts/build.sh g4
-[ "$G34_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-bench-host.sh" --release "$G34_HOST" >/dev/null 2>&1
+[ "$G34_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/shared.sh" pick-bench-host.sh --release "$G34_HOST" >/dev/null 2>&1
 true
 
 echo "[build-fat] sub-build 3/5: g5"
@@ -122,7 +122,7 @@ echo "[build-fat] sub-build 5/5: i386"
 # imac-2019's real OS correctly; use that instead.
 I386_HOST=""
 I386_HOST_CLAIMED=0
-if I386_HOST="$("$REPO_ROOT/scripts/pick-bench-host.sh" --acquire imac-2019 "quakespasm build-fat i386" 2>/dev/null)"; then
+if I386_HOST="$("$REPO_ROOT/scripts/shared.sh" pick-bench-host.sh --acquire imac-2019 "quakespasm build-fat i386" 2>/dev/null)"; then
   I386_HOST_CLAIMED=1
   echo "[build-fat] i386 sub-build routed to $I386_HOST"
 else
@@ -130,7 +130,7 @@ else
   echo "[build-fat] imac-2019 unavailable for i386; falling back to $BUILD_HOST"
 fi
 BUILD_HOST="$I386_HOST" scripts/build.sh i386
-[ "$I386_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/pick-bench-host.sh" --release "$I386_HOST" >/dev/null 2>&1
+[ "$I386_HOST_CLAIMED" = 1 ] && "$REPO_ROOT/scripts/shared.sh" pick-bench-host.sh --release "$I386_HOST" >/dev/null 2>&1
 true
 
 # All five mini-buildable slices present?

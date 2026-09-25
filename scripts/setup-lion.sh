@@ -25,10 +25,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # claim it twice: setup-lion.sh honours $BUILD_HOST, so being driven under an
 # existing lock is a legitimate way to run it. Same re-exec as bench.sh:60.
 # BENCH_NO_LOCK=1 is for debugging the picker, not for taking a busy machine.
-_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+_PICK="$REPO_ROOT/scripts/shared.sh"
 if [ "${RETRO_BENCH_LOCK:-}" != "$LION" ] && [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ -x "$_PICK" ]; then
 	export RETRO_BENCH_LOCK="$LION"
-	exec "$_PICK" --run "$LION" "setup-lion" -- "$0" "$@"
+	exec "$_PICK" pick-bench-host.sh --run "$LION" "setup-lion" -- "$0" "$@"
 fi
 SKIP_XCODE=0
 SKIP_SDL=0

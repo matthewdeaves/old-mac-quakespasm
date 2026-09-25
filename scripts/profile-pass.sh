@@ -50,7 +50,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # file -- and the run itself is now serialised, which is the harm that mattered.
 # Closing the gap properly means one claim around the whole per-machine section,
 # which is a restructure of this script rather than a lock fix.
-_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+_PICK="$REPO_ROOT/scripts/shared.sh"
 _claim () {  # _claim <host> -- run the rest under a claim on <host>
   local h="$1"; shift
   if [ "${BENCH_NO_LOCK:-0}" != 1 ] && [ "${RETRO_BENCH_LOCK:-}" != "$h" ] && [ -x "$_PICK" ]; then
@@ -59,7 +59,7 @@ _claim () {  # _claim <host> -- run the rest under a claim on <host>
     # try_acquire is a bare mkdir (pick-bench-host.sh:246) so a second claim
     # fails even from the owner, and cmd_run releases unconditionally (:306) so
     # a nested one would free the box mid-run.
-    RETRO_BENCH_LOCK="$h" "$_PICK" --run "$h" "profile" -- "$@"
+    RETRO_BENCH_LOCK="$h" "$_PICK" pick-bench-host.sh --run "$h" "profile" -- "$@"
   else
     "$@"
   fi

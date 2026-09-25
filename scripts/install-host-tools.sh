@@ -21,7 +21,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO_ROOT/scripts/host-bin"
 
-_PICK="$REPO_ROOT/scripts/pick-bench-host.sh"
+_PICK="$REPO_ROOT/scripts/shared.sh"
 
 # --one-host does the work for a SINGLE machine and is what the loop below runs
 # under a claim. It exists because this script drives up to eight machines in one
@@ -54,7 +54,7 @@ for host in "${HOSTS[@]}"; do
     if [ "${BENCH_NO_LOCK:-0}" = 1 ] || [ ! -x "$_PICK" ]; then
         "$0" --one-host "$host" || echo "[$host] failed"
     else
-        "$_PICK" --run "$host" "install-host-tools" -- "$0" --one-host "$host" \
+        "$_PICK" pick-bench-host.sh --run "$host" "install-host-tools" -- "$0" --one-host "$host" \
             || echo "[$host] skipped: busy, unreachable, or install failed"
     fi
 done

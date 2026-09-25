@@ -25,7 +25,8 @@ bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
 - **make-dmg.sh** defaults to a reachable Tiger host and content-verifies the
   binaries inside the image against source. **deploy-dmg.sh / smoke-dmg.sh**
   install and production-launch it. They are buildhost's shared scripts
-  (build-host#96), synced byte-identical: change `dmg-port.conf`, or send
+  (build-host#96), run via `scripts/shared.sh` at this repo's pinned revision
+  (build-host#105, #68), never edited here: change `dmg-port.conf`, or send
   buildhost the fix. ADR 0005.
 - **bench-and-commit.sh** refuses dirty trees and any NA fps cell; the
   manual-commit override for a lone transient is in ADR 0009.

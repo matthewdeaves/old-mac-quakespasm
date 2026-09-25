@@ -23,7 +23,7 @@ reinvent them inline.
 `yosemite` and `yosemite-tiger` are one Mac on one IP, one OS booted at a time,
 so they are mutually exclusive bench legs. Cross-building happens on a claimed
 Intel Lion mini (`mini-intel` or `mini-intel2`), picked by
-`scripts/pick-build-host.sh`; `mini-intel` is also a bench reference.
+`scripts/shared.sh pick-build-host.sh` (#68); `mini-intel` is also a bench reference.
 
 ## When to use
 
