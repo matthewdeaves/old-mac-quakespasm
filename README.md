@@ -77,7 +77,7 @@ release. Everything else is measured on the v1.14 build.
 
 The iMac G5 runs native 1440×900 only (its Leopard driver hangs on a mode
 switch) at ~102 fps; the 2019 iMac runs over 1500 fps. The G3 defaults to
-800×600, where demo1 runs 25.5 fps on Panther and 25.1 on Tiger. Targets: ≥ 60 fps
+800×600, where demo1 runs 25.5 fps on Panther and 25.1 on Tiger. Targets: ≥ 25 fps
 on the G4/G5/Lion machines, ≥ 20 on the G3. Full history and all three demos in
 [`benchmarks/results.csv`](benchmarks/results.csv).
 

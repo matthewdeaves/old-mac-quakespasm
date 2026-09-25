@@ -2,7 +2,7 @@
 
 QuakeSpasm as ONE fat binary across PowerPC, Intel and Apple Silicon Macs, from a single `Quakespasm.app`, 10.3.9 Panther through modern macOS.
 
-**Goal:** Best-looking QuakeSpasm on G3 Panther/Tiger, G4 Tiger, G5 Leopard and Lion Intel, staying playable on each: **≥ 20 fps on the G3, ≥ 60 fps on the G4s, G5 and Lion**, uncapped on modern hardware. Above the floor, effects beat fps.
+**Goal:** Best-looking QuakeSpasm on G3 Panther/Tiger, G4 Tiger, G5 Leopard and Lion Intel, staying playable on each: **≥ 20 fps on the G3, ≥ 25 fps on the G4s, G5 and Lion**, uncapped on modern hardware. Above the floor, effects beat fps; win frame rate by optimising code, not by dropping features.
 
 ## Commands Reference
 

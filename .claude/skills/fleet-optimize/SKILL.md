@@ -31,9 +31,10 @@ It is the optimization *loop*; it uses the build/deploy/bench mechanics (see the
    **Never KILL a fullscreen app** (it can wedge the GPU driver until a reboot).
    Recover a wedged Mac with `ssh <m> '~/bin/qsreboot.sh'` and confirm it cycles.
    Don't build g3 + g4 in parallel.
-3. **Respect the envelope.** Floors/targets: **G3 ≥ 20 fps, G4/Lion ≥ 60 fps**,
+3. **Respect the envelope.** Floors/targets: **G3 ≥ 20 fps, G4/Lion ≥ 25 fps**,
    G5/modern uncapped. Above the floor, **effects > fps** (user preference): prefer
-   adding a graphical feature to chasing fps nobody needs.
+   adding a graphical feature to chasing fps nobody needs. Win frame rate by
+   optimising code, not by switching a feature off.
 4. **Measure, don't guess.** A change without a known bottleneck is a guess.
    Profile the target class first; know if it's CPU-bound or fill-bound.
 5. **Discipline.** 3 runs, median of 2 & 3; two commits (code, then bench data);

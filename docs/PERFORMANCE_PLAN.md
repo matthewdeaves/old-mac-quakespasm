@@ -46,7 +46,7 @@ modern shader, and simulation/render projects remain outside this batch.
 ## Objective and scope
 
 Keep one fat Quakespasm.app across PowerPC, Intel, and Apple Silicon. Aim for
-at least 20 FPS on G3 and 60 FPS on G4, G5, and Lion Intel at their selected
+at least 20 FPS on G3 and 25 FPS on G4, G5, and Lion Intel at their selected
 play resolutions. Above those floors, spend useful headroom on graphics.
 Support high-refresh rendering on modern machines without changing game physics.
 
