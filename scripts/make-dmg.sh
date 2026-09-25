@@ -275,18 +275,17 @@ cp    "$REPO_ROOT/MacOSX/codecs/lib"/*.dylib "$APP/Contents/MacOS/"
 #      (could be app or framework)", so the .app cannot be signed at all, and an
 #      unsigned/invalid bundle is killed on Apple Silicon before it runs.
 cp -a "$REPO_ROOT/MacOSX/SDL.framework"      "$APP/Contents/MacOS/"
-# SDL2 as well, and it is NOT optional. The arm64 slice is the only one that
-# links SDL2 rather than SDL 1.2 (build-arm64.sh), and it links it as
-# @executable_path/SDL2.framework/Versions/A/SDL2. Shipping only SDL.framework
-# meant every Apple Silicon Mac got a bundle whose arm64 slice could not
-# resolve its own SDL, and the app died at launch, before main(), with
+# SDL2 for the arm64 slice (the only one that links SDL2 rather than SDL 1.2,
+# build-arm64.sh) is NOT optional — omitting it means the app dies at launch on
+# every Apple Silicon Mac, before main(), with
 #   Termination Reason: Namespace DYLD, Code 1, Library missing
-#   Library not loaded: @executable_path/SDL2.framework/Versions/A/SDL2
-# macOS shows that as "Quakespasm quit unexpectedly", which reads like an
-# engine crash rather than a missing file. Shipped broken in v1.15.
-# SDL.framework has no arm64 slice and SDL2.framework has no ppc slice, so
-# both have to be here: neither is a substitute for the other.
-cp -a "$REPO_ROOT/MacOSX/SDL2.framework"     "$APP/Contents/MacOS/"
+#   Library not loaded: @executable_path/libSDL2.dylib
+# which macOS shows as "Quakespasm quit unexpectedly", reading like an engine
+# crash rather than a missing file. Shipped broken in v1.15. Through v1.15.17
+# this was a second `cp -a` of MacOSX/SDL2.framework here; #61 (v1.15.18)
+# replaced that Framework with a vendored MacOSX/codecs/lib/libSDL2.dylib, so
+# it now arrives via the *.dylib glob above — nothing extra to copy, but the
+# requirement (and the exact crash if it's ever missing again) is unchanged.
 cp    "$BIN" "$APP/Contents/MacOS/quakespasm"
 chmod +x "$APP/Contents/MacOS/quakespasm"
 # Engine's own pak (menu/UI assets) ships in the gamedir root, beside id1/.
@@ -434,7 +433,8 @@ RSYNC_EXTRA=""
 [ "$DMG_HOST" = "yosemite" ] && RSYNC_EXTRA="--protocol=29"
 
 # Every corruptible code artifact we ship inside the bundle, asserted end-to-end:
-# the 6-arch engine binary, the audio codec dylibs, and the SDL framework binary.
+# the 6-arch engine binary, the audio codec dylibs, the vendored arm64 SDL2
+# dylib, and the SDL 1.2 framework binary.
 # The staged $IMG copies are plain local `cp` of the source tree, so the $IMG
 # md5s ARE the true-source md5s. (Paths are space-free, so word-splitting them
 # into the SRC_SUMS loop is safe; the IN-DMG list is hardcoded in the remote
@@ -451,6 +451,7 @@ Quakespasm/Quakespasm.app/Contents/MacOS/libopusfile.dylib \
 Quakespasm/Quakespasm.app/Contents/MacOS/libvorbis.dylib \
 Quakespasm/Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
 Quakespasm/Quakespasm.app/Contents/MacOS/libxmp.dylib \
+Quakespasm/Quakespasm.app/Contents/MacOS/libSDL2.dylib \
 Quakespasm/Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL"
 
 # ---- ad-hoc code-sign the staged bundle ----------------------------------
@@ -587,6 +588,7 @@ for f in Quakespasm/Quakespasm.app/Contents/MacOS/quakespasm \
          Quakespasm/Quakespasm.app/Contents/MacOS/libvorbis.dylib \
          Quakespasm/Quakespasm.app/Contents/MacOS/libvorbisfile.dylib \
          Quakespasm/Quakespasm.app/Contents/MacOS/libxmp.dylib \
+         Quakespasm/Quakespasm.app/Contents/MacOS/libSDL2.dylib \
          Quakespasm/Quakespasm.app/Contents/MacOS/SDL.framework/Versions/A/SDL; do
   printf '%s  %s\n' "$(md5 "$MP/$f" 2>/dev/null | awk '{print $NF}')" "$f"
 done
