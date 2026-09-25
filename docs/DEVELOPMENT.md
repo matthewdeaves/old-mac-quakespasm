@@ -65,23 +65,18 @@ cache once fetched (`~/.cache/retro-shared/<sha>/`), not this repo:
   `scripts/shared.sh deploy-dmg.sh <host> "$REPO_ROOT/dist/QuakeSpasm-OldMac-v1.2.0.dmg"`.
 - **`deploy-dmg.sh`** also claims its own host lock via a co-located
   `pick-bench-host.sh` next to itself (`$SELF_DIR/pick-bench-host.sh`) rather
-  than through `shared.sh`. That resolves fine once `pick-bench-host.sh` has
-  already been fetched into the SAME pin's cache directory by an earlier
-  `scripts/shared.sh pick-bench-host.sh ...` call this session, but on a
-  stone-cold cache (deploy-dmg.sh is the very first pinned script run) the
-  `-x` guard is false and it silently skips claiming the host — no error, no
-  lock. Work around it by warming the cache first: run any `scripts/shared.sh
-  pick-bench-host.sh --status` (or similar) before the first `deploy-dmg.sh`
-  call in a fresh session.
+  than through `shared.sh`. On a stone-cold cache (deploy-dmg.sh is the very
+  first pinned script run) that used to silently skip claiming the host — no
+  error, no lock (build-host#118). Fixed at shared-v5: `shared.sh --resolve
+  <script>` fetches a script into the cache and prints its path without
+  exec'ing it, and `deploy-dmg.sh` now pre-warms its own `pick-bench-host.sh`
+  dependency through `$RETRO_SHARED_WRAPPER --resolve` before re-execing
+  under it. No manual cache-warming call needed as of shared-v5.
 
-Both gaps (no resolve-only mode in `shared.sh`, and `deploy-dmg.sh`'s own
-`$SELF_DIR`-relative assumptions) are pin-model gaps, not this port's bug —
-flagged to buildhost, not worked around silently here beyond the two
-documented overrides above. `deploy.sh`'s own remote-scp use of
-`clear-launch-quarantine.sh` (staging it onto a target Mac that has no
-`old-mac-build-host` checkout to resolve the pin itself) pre-warms the cache
-with a harmless no-arg call and scp's the resolved cache file directly —
-see the comment at the call site.
+`deploy.sh`'s own remote-scp use of `clear-launch-quarantine.sh` (staging it
+onto a target Mac that has no `old-mac-build-host` checkout to resolve the
+pin itself) pre-warms the cache with a harmless no-arg call and scp's the
+resolved cache file directly — see the comment at the call site.
 
 ## Hot files (optimisation phase)
 
