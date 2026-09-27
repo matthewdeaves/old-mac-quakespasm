@@ -48,3 +48,6 @@ Quake/quakespasm.ppc
 
 # Python bytecode from tests/
 __pycache__/
+
+# Codex CLI state
+.codex/
