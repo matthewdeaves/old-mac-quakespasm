@@ -18,6 +18,8 @@
 #   mini-g4      PowerMac10,1  Mac mini G4 1.25 GHz / Radeon 9200 / 10.4.11
 #   mini-intel   Macmini2,1    C2D 2.33 GHz / GMA 950 / 10.7.5 Lion
 #   imac-g5      PowerMac8,2   iMac G5 2.0 GHz / Radeon 9600 128 MB / 10.5.8 Leopard
+#   qemu-tiger3d QemuMac VM on this Mac: emulated G4 + Radeon 9700 PRO / 10.4
+#                (scripts/qemu-vm.sh up first; SSH alias qemu-tiger3d)
 #
 # env: EXTRA_CVARS  optional cmdline cvar overrides spliced into the launch
 #                   line right before +timedemo. Spliced as stuffcmds, so
@@ -125,6 +127,8 @@ case "$TARGET" in
   g5-tiger)    HOST="g5-tiger";   TIMEOUT=180; ARCH_CFG="ppc970"; COOLDOWN=3 ;;
   quad-leopard)
                HOST="quad-leopard"; TIMEOUT=110; ARCH_CFG="ppc970"; COOLDOWN=2 ;;  # PowerMac11,2 quad 2.5 GHz + GeForce 6600, Leopard
+  qemu-tiger3d)
+               HOST="qemu-tiger3d"; TIMEOUT=300; ARCH_CFG="ppc7400"; COOLDOWN=3 ;;  # QemuMac VM: emulated G4 + emulated Radeon 9700 (R300), Tiger; fps follows host load. scripts/qemu-vm.sh up first (issue #71)
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
 MACHINE_CFG="${MACHINE_CFG:-$TARGET}"
