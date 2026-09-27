@@ -193,3 +193,17 @@ host keys + pubkeys, pre-2014 KEX, RSA `id_rsa_tiger`, not ed25519);
 For yosemite specifically, rsync runs in `--protocol=29` mode because
 Panther ships rsync 2.5.x. The orchestration host also needs a real
 rsync rather than macOS 15+'s openrsync (`/CLAUDE.md`).
+
+### Tiger VM host capture
+
+`scripts/screenshot.sh qemu-tiger3d` uses the `old-mac-build-host` shared
+QEMU monitor capture instead of guest `glReadPixels` (qemu#7). It plays `demo1`,
+waits for an engine marker, captures one frame, runs `tests/frame-check.py`, and
+lets the engine quit normally. `DEMO=demo2` selects another stock demo.
+The shared bench lock and running-game check prevent overlapping launches;
+the SSH session stays connected for Tiger's GUI bootstrap lifetime.
+
+Verified on 2026-09-27 at 1024x768: gameplay frame passed the image check and
+visual inspection, and the engine exited normally. This capture run uses
+`-nosound`; it is not an audio test. Central builds and CI remain owned by
+`old-mac-build-host`.

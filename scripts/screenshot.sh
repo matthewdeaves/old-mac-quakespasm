@@ -4,15 +4,29 @@
 # machine's ~/oldmac/quakespasm and (optionally) fetches copies back to the
 # orchestrator for blog/post-mortem use.
 #
-# usage: scripts/screenshot.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019> [--width WxH] [--no-fetch]
+# usage: scripts/screenshot.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|qemu-tiger3d> [--width WxH] [--no-fetch]
 #
 # pre:   /Applications/QuakeSpasm installed (scripts/deploy.sh or deploy-dmg.sh).
-#        Host must reach login (ssh works).
+#        Host must reach login (ssh works). qemu-tiger3d must already be up
+#        (scripts/shared.sh qemu-vm.sh up).
 # post:  Per-host folder ~/oldmac/quakespasm/screens-<hostname>/ on the
 #        target machine contains spasm0000.png, spasm0001.png, … plus a
 #        manifest.txt naming each shot's vantage.
 #        Local copies land in benchmarks/screenshots/<hostname>/ unless
 #        --no-fetch is passed.
+#
+# qemu-tiger3d is a different mechanism, not just another host in that list:
+# the engine's own glReadPixels-based `screenshot` command comes back solid
+# black on QemuMac's emulated Radeon 9700 (qemu#7, reproduced independently
+# for quake2 in old-mac-quake2#97) even while the game visibly renders and
+# bench-evidence's fps numbers are fine, so the cfg-driven multi-shot capture
+# below would just waste time capturing more black frames. That target skips
+# straight to a single host-side screendump instead (build-host#123's
+# `qemu-vm.sh screendump`, reading QEMU's own framebuffer over its HMP
+# monitor socket rather than asking the guest for one), lands one PNG in
+# benchmarks/screenshots/qemu-tiger3d/, and runs it through the same
+# tests/frame-check.py as every other target. See old-mac-quakespasm#72's
+# evidence for the manual run this automates.
 #
 # Map: e1m1 (Slipgate Complex). Picked because it hits all four blog
 # categories the user asked for in one map:
@@ -37,7 +51,7 @@
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
-  echo "usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019> [--width WIDTHxHEIGHT] [--no-fetch]" >&2
+  echo "usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019|qemu-tiger3d> [--width WIDTHxHEIGHT] [--no-fetch]" >&2
   exit 2
 fi
 
@@ -72,14 +86,83 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# qemu-tiger3d: host-side screendump, not the cfg-driven multi-shot capture
+# below. See the header comment for why. This branch exits before the
+# real-hardware TARGET validation, since qemu-tiger3d is not an ssh alias
+# in that list -- it IS an ssh alias (VM_HOST default in qemu-vm.sh), just
+# not one this script drives with the in-game screenshot command.
+if [ "$TARGET" = "qemu-tiger3d" ]; then
+  DEMO="${DEMO:-demo1}"
+  case "$DEMO" in ''|*[!a-zA-Z0-9_]*) echo "invalid demo name" >&2; exit 2;; esac
+  case "$WIDTH:$HEIGHT" in *[!0-9:]*|:*|*:) echo "invalid dimensions" >&2; exit 2;; esac
+
+  ST="$("$_PICK" qemu-vm.sh status 2>&1)" || true
+  case "$ST" in
+    stopped*)
+      echo "[screenshot] qemu-tiger3d is not up -- run: scripts/shared.sh qemu-vm.sh up" >&2
+      exit 2 ;;
+  esac
+
+  OUT_DIR="$REPO_ROOT/benchmarks/screenshots/qemu-tiger3d"
+  mkdir -p "$OUT_DIR"
+  OUT_PNG="$OUT_DIR/spasm-vm-$(date -u +%Y%m%dT%H%M%SZ).png"
+
+  echo "[screenshot] qemu-tiger3d: launching $DEMO at ${WIDTH}x${HEIGHT} (host-side screendump)"
+
+  # Keep SSH alive until the engine exits: Tiger GUI startup needs its
+  # bootstrap session. A cfg quits through the engine, never SIGKILL.
+  ssh "$TARGET" 'ps -axc -o ucomm | grep -E "^(quakespasm|ioquake3|quake2|xash3d|xash3d.bin|Aleph One) *$"' && {
+    echo "[screenshot] a game is already running" >&2; exit 2;
+  }
+  ssh "$TARGET" ": > /tmp/qs-vm-screendump.log"
+  ssh "$TARGET" bash <<REMOTE &
+set -e
+cd /Applications/QuakeSpasm
+trap 'rm -f id1/vmshot.cfg' EXIT
+{
+  i=0; while [ \$i -lt 120 ]; do echo wait; i=\$((i+1)); done
+  echo 'echo VM_CAPTURE_READY'
+  i=0; while [ \$i -lt 900 ]; do echo wait; i=\$((i+1)); done
+  echo quit
+} > id1/vmshot.cfg
+./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug -fullscreen -width $WIDTH -height $HEIGHT +playdemo $DEMO +exec vmshot.cfg > /tmp/qs-vm-screendump.log 2>&1
+REMOTE
+  SESSION_PID=$!
+  captured=0
+  for ((i=0; i<120; i++)); do
+    kill -0 "$SESSION_PID" 2>/dev/null || break
+    if ssh "$TARGET" 'grep -q VM_CAPTURE_READY /tmp/qs-vm-screendump.log'; then
+      "$_PICK" qemu-vm.sh screendump "$OUT_PNG"
+      captured=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$captured" != 1 ]; then
+    echo "[screenshot] engine did not reach the capture marker" >&2
+    wait "$SESSION_PID" || true
+    exit 1
+  fi
+  wait "$SESSION_PID"
+
+  if [ ! -s "$OUT_PNG" ]; then
+    echo "[screenshot] FAIL: screendump produced no file" >&2
+    exit 1
+  fi
+
+  echo "[screenshot] frame check on 1 captured frame"
+  "$REPO_ROOT/tests/frame-check.py" "$OUT_PNG"
+  exit $?
+fi
+
 # TARGET == SSH alias.
 case "$TARGET" in
   yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|imac-2019) HOST="$TARGET" ;;
   *) echo "unknown target: $TARGET" >&2; exit 2 ;;
 esac
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
 
 # Demo playback schedule. We use Quake's stock demos (id1/pak0.pak ships
 # demo1.dem, demo2.dem, demo3.dem) instead of teleporting via setpos to
