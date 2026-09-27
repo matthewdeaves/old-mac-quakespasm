@@ -26,9 +26,11 @@ defaults: `scripts/bundle/autoexec-<machine>.cfg`. Per-script gotchas:
 | imac-2019   | iMac19,1     i5-9600K 3.70 GHz (6c), Radeon Pro 580X 8 GB, Sequoia 15.7.5 | `quakespasm-lion` |
 | qemu-tiger3d | QemuMac VM on the workstation: emulated G4 7400 + emulated Radeon 9700 PRO (R300 on Metal), Tiger 10.4 | release `.dmg` |
 
-`qemu-tiger3d` is a VM, not a Mac: start it with `scripts/qemu-vm.sh up` (setup in
-that script's header), and read its fps as relative, since it follows the host's
-load. It is the one PPC target that is always free, and the loop that fixed #70.
+`qemu-tiger3d` is a VM, not a Mac: start it with `scripts/shared.sh qemu-vm.sh up`
+(setup in that script's header), and read its fps as relative, since it follows
+the host's load. It is the one PPC target that is always free, and the loop that
+fixed #70. `qemu-vm.sh`/`qemu-profile.sh` are buildhost's shared scripts
+(build-host#120), not a copy in this repo — see the Scripts table below.
 
 `imac-g5` (the only GL-2.0 GPU) is forced to the GL 1.x path and benches
 **native-res only** (1440×900). ADR 0007.
@@ -137,7 +139,8 @@ before that commit use the old names, rows after use the new names.
 | `bench-and-commit.sh "<phase>"` | bench HEAD + commit the data in one shot. Refuses dirty trees, pins HEAD, then `parallel-bench.sh "$@"`, stages CSV + new raw logs, lands `bench: <phase> (HEAD <hash>)` commit with median fps summary. The canonical second-of-two commits per phase. |
 | `parse_qconsole.py <log>` | extract fps + GL info from a `qconsole.log` (`--json` for machine-readable) |
 | `make-icon.py [source.png]` | regenerate `MacOSX/QuakeSpasm.icns` from a source PNG (default: `MacOSX/newiconfinal.png`). **Legacy-only ICNS chunks** (Panther/Tiger compat, see file header for why iconutil is wrong). Default also refreshes `docs/images/quakespasm-icon{,-256}.png` (README hero strip); `--no-readme-refresh` to skip. `--keep-bg` to skip auto bg-removal if the source already has alpha (canonical Photoshop-touch-up workflow). Requires `~/quakespasm/.venv` (Pillow + numpy + scipy). |
-| `qemu-vm.sh up\|down\|status` | start (detached, waits for the desktop), stop or check the QemuMac Tiger 3D VM behind the `qemu-tiger3d` bench target. Setup in its header. |
+| `qemu-vm.sh up\|down\|status\|doctor` | buildhost's shared control script (build-host#120), run via `scripts/shared.sh qemu-vm.sh`, never edited here: start (detached, waits for the desktop), stop, check, or diagnose one-time setup for the QemuMac Tiger 3D VM behind the `qemu-tiger3d` bench target. Setup in its header. |
+| `qemu-profile.sh <game-process> [seconds] [out.txt]` | buildhost's shared profiler (build-host#120), same pin, run via `scripts/shared.sh qemu-profile.sh`: waits for the given process to appear in the running `qemu-tiger3d` guest, then `sample`s the host-side QEMU process and prints where guest CPU time goes. |
 | `install-host-tools.sh [hosts...]` | push `scripts/host-bin/*` to `~/bin/` on every bench Mac. Idempotent. Default hosts: `yosemite sawtooth quicksilver mini-g4 imac-g5 mini-intel imac-2019`. Re-run after editing the source scripts in `scripts/host-bin/` or adding a new bench machine. |
 | `host-bin/qsreboot.sh` | runs **on the Mac**. SSH-side reboot. Tier 1: `sudo -n /sbin/reboot` (definite kernel reboot, works through wedged Finder / corrupt Rage 128 LUT). Tier 2: Finder Apple Event. Use as `ssh <machine> '~/bin/qsreboot.sh'`. |
 | `host-bin/qsreboot-setup.sh` | runs **on the Mac**. ONE-TIME `sudo ~/bin/qsreboot-setup.sh` per machine to install the NOPASSWD sudoers entry that enables Tier 1 above. Backs up `/etc/sudoers`, validates with `visudo -c`, restores backup on failure. Idempotent re-runs. |
