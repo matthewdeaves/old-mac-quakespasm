@@ -804,3 +804,4 @@ timestamp,commit,machine,demo,res,run1_fps,run2_fps,run3_fps,median_fps,extra_cv
 2026-09-25T14:26:39Z,30b58505,imac-g5,demo3,1024x768,53.1,51.5,52.2,51.85,"-fsaa 2",1440x900
 2026-09-25T14:28:37Z,30b58505,imac-g5,demo3,1024x768,31.9,NA,NA,31.9,"-fsaa 4",1440x900
 2026-09-27T12:03:37Z,b71931e8,qemu-tiger3d,demo1,1024x768,25.7,24.1,15.0,19.55,"",1024x768
+2026-09-27T12:25:26Z,f041106d,qemu-tiger3d,demo1,1024x768,21.3,32.0,29.4,30.70,"",1024x768
