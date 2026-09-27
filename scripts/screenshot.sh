@@ -121,6 +121,7 @@ if [ "$TARGET" = "qemu-tiger3d" ]; then
   ssh "$TARGET" bash <<REMOTE &
 set -e
 cd /Applications/QuakeSpasm
+[ ! -e id1/vmshot.cfg ] || { echo "vmshot.cfg already exists" >&2; exit 2; }
 trap 'rm -f id1/vmshot.cfg' EXIT
 {
   i=0; while [ \$i -lt 120 ]; do echo wait; i=\$((i+1)); done
