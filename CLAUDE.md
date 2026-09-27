@@ -14,10 +14,13 @@ QuakeSpasm as ONE fat binary across PowerPC, Intel and Apple Silicon Macs, from 
 
 ## Context Routing
 
-This is a lightweight router. For specific scenarios, consult the following isolated rule files:
-
-- **`.claude/rules/legacy-mac-hardware.md`**: Read when making code changes, dealing with build outputs, hardware specifics, or benching. Contains hard rules, codebase facts, and operational gotchas for old-Mac hardware.
-- **`.claude/rules/ticketing-workflow.md`**: Read when handling issues, PRs, or working alongside other repositories in the agentic ecosystem. Contains project management and hardware locking rules.
+`.claude/rules/legacy-mac-hardware.md` (hard rules, codebase facts, operational
+gotchas for old-Mac hardware) auto-loads via its own `paths:` frontmatter
+whenever you touch `scripts/`, `Quake/`, `MacOSX/`, `docs/KNOBS.md`,
+`docs/adr/` or `MISTAKES.md` — no need to read it separately first.
+`.claude/rules/ticketing-workflow.md` holds only what fleet POLICY doesn't
+already cover (this repo's lock-export gotchas, issue labels, public/private
+repo boundary) and always loads.
 
 ## Read on Demand
 

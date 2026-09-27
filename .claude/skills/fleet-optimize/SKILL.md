@@ -8,8 +8,9 @@ description: Find and apply the next fps or graphics-quality win for the old-Mac
 Goal: the best-looking build that stays **playable** on each machine class,
 controlled entirely by **cvars from one fat binary** (auto-config by `hw.model`).
 This skill runs **one disciplined iteration**, invoke it again for the next.
-It is the optimization *loop*; it uses the build/deploy/bench mechanics (see the
-`ppc-ops` skill), it does not reinvent them.
+It is the optimization *loop*; it uses the build/deploy/bench mechanics already
+documented in `scripts/README.md` and `scripts/CLAUDE.md`, it does not reinvent
+them.
 
 ## Before you touch anything: read these (they encode hard-won limits)
 - `MISTAKES.md`, what already broke. **Never re-chase a recorded negative.**

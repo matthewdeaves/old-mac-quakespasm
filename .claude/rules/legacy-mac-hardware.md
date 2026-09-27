@@ -1,3 +1,14 @@
+---
+paths:
+  - "scripts/**/*.sh"
+  - "Quake/**/*.c"
+  - "Quake/**/*.h"
+  - "MacOSX/**"
+  - "docs/KNOBS.md"
+  - "docs/adr/**/*.md"
+  - "MISTAKES.md"
+---
+
 ## Hard rules
 
 - **Never trust "done" or exit 0.** After every build: fresh mtimes on each
