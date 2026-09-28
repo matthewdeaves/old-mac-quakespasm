@@ -23,6 +23,7 @@ defaults: `scripts/bundle/autoexec-<machine>.cfg`. Per-script gotchas:
 | mini-g4     | PowerMac10,1 Mac mini G4 1.25 GHz, Radeon 9200 32 MB, Tiger 10.4.11   | `quakespasm-g4`       |
 | imac-g5     | PowerMac8,2  iMac G5 2.0 GHz, Radeon 9600 128 MB (R300), Leopard 10.5.8 | `quakespasm-g5`     |
 | mini-intel  | Macmini2,1   C2D 2.33 GHz, GMA 950 64 MB shared, Lion 10.7.5          | `quakespasm-lion`     |
+| mini-sl     | Macmini3,1   C2D, GeForce 9400 (shared), Snow Leopard 10.6.8 (#77, per-class `autoexec-mini-sl.cfg` matched at runtime by GL_RENDERER, not `hw.model`) | `quakespasm-lion` |
 | imac-2019   | iMac19,1     i5-9600K 3.70 GHz (6c), Radeon Pro 580X 8 GB, Sequoia 15.7.5 | `quakespasm-lion` |
 | qemu-tiger3d | QemuMac VM on the workstation: emulated G4 7400 + emulated Radeon 9700 PRO (R300 on Metal), Tiger 10.4 | release `.dmg` |
 

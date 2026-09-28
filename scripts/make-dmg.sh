@@ -329,7 +329,7 @@ chmod +x "$GAMEDIR/Fix Launch Problems.command"
 #
 # Stripping also keeps the combined baseline + overlay well inside Cbuf's fixed
 # 8 KB, which is the same reason the Quake II port strips its own.
-for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
+for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel mini-sl imac-2019 imac-g5 imac-g4; do
   sed -e 's,//.*,,' -e 's/[[:space:]]*$//' \
       "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" \
     | grep -v '^[[:space:]]*$' \

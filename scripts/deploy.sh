@@ -180,7 +180,7 @@ cp "$REPO_ROOT/Quake/quakespasm.pak" "$STAGE/"
 # codesign block's own "signed" report true while `codesign -v` on the
 # result fails with "a sealed resource is missing or invalid" -- caught
 # deploying to imac-2019 today.
-for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel imac-2019 imac-g5 imac-g4; do
+for cfg in ppc750 ppc7400 ppc970 i386 x86_64 arm64 yosemite sawtooth quicksilver mini-g4 mini-intel mini-sl imac-2019 imac-g5 imac-g4; do
   sed -e 's,//.*,,' -e 's/[[:space:]]*$//' \
       "$REPO_ROOT/scripts/bundle/autoexec-$cfg.cfg" \
     | grep -v '^[[:space:]]*$' \

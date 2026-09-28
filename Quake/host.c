@@ -1066,6 +1066,7 @@ void Host_Init (void)
 				};
 				char model[64];
 				size_t mlen = sizeof(model);
+				qboolean model_matched = false;
 				memset (model, 0, sizeof(model));
 				if (sysctlbyname("hw.model", model, &mlen, NULL, 0) == 0)
 				{
@@ -1075,9 +1076,28 @@ void Host_Init (void)
 						if (!strcmp(model, qs_machine_map[i].model))
 						{
 							QS_ExecConfigFromBundle (qs_machine_map[i].cfg);
+							model_matched = true;
 							break;
 						}
 					}
+				}
+
+				// mini-sl (Macmini3,1, GeForce 9400, Snow Leopard) has no
+				// stable hw.model entry above: Early 2009 Mac minis shipped
+				// as Macmini3,1 with EITHER a lone GeForce 9400M or a
+				// switchable 9400M+320M pair, so the model string alone
+				// can't tell them apart, and VID_Init (called well above
+				// this block) has already run by the time we get here --
+				// GL_RENDERER is known. Match on that instead, same
+				// pattern already used for this exact GPU's crash gates
+				// (gl_vidsdl.c's MT-GL and GLSL-alias checks). Only applies
+				// when no hw.model above already claimed this launch.
+				if (!model_matched)
+				{
+					const char *gl_renderer_str = NULL;
+					VID_GetGLStrings (NULL, &gl_renderer_str, NULL);
+					if (gl_renderer_str && strstr(gl_renderer_str, "GeForce 9400"))
+						QS_ExecConfigFromBundle ("autoexec-mini-sl");
 				}
 			}
 		}
