@@ -1,5 +1,7 @@
 # scripts/: build, deploy, bench tooling for QuakeSpasm
 
+Overview of the build, deploy and bench tooling: the multi-host workflow, a quick start, one line per script, parallel-safety notes and the bundle layout. Sections: Quick start, Scripts, Parallel-safety notes, Bundle layout, Why all the SSH knob-twiddling (`grep -n '^## ' scripts/README.md`). Per-script gotchas are in `scripts/CLAUDE.md`.
+
 Multi-host workflow: edit on the orchestration Mac → build on a claimed Intel
 Lion mini (`mini-intel` or `mini-intel2`, `build.sh` / `build-fat.sh` ask
 `scripts/shared.sh pick-build-host.sh --acquire` for a free one, #68) → run on the 7 bench machines. SSH config aliases (`yosemite`,

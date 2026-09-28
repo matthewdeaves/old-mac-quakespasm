@@ -18,6 +18,9 @@ their evidence live in [`adr/`](adr/README.md). Recorded negative results live i
 - [`DEVELOPMENT.md`](DEVELOPMENT.md), build path, build-host tenancy,
   optimisation hot files.
 - [`WATCHLINK.md`](WATCHLINK.md), the optional Apple Watch companion feed.
+- [`legacy-mac-hardware.md`](legacy-mac-hardware.md), full build/release rules, operational gotchas and codebase facts behind `.claude/rules/legacy-mac-hardware.md`.
+- [`ticketing.md`](ticketing.md), labels, lock exports, public/private boundary.
+- [`qemu-loop.md`](qemu-loop.md), the PPC test loop on qemu-tiger3d.
 
 ## Implemented features: design and post-mortem notes
 

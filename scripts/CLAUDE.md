@@ -1,8 +1,6 @@
 # scripts/: per-script gotchas
 
-The host matrix and what every script does live in `scripts/README.md`. The
-decisions behind the tooling are in `docs/adr/`. This file holds only the
-gotchas neither of those covers.
+Host matrix and script list: `scripts/README.md`. Decisions: `docs/adr/`. This file holds only the gotchas neither covers.
 
 Build TARGET names (`g3`/`g4`/`g5`/`lion`) are chip family plus SDK, not
 machines. Machine names (`yosemite`, `yosemite-tiger`, `sawtooth`,
@@ -35,28 +33,10 @@ bench Macs. `deploy.sh` **always ships the fat binary**; `build.sh` exists as
 
 ## Host-side reboot recovery
 
-When Quake hard-kills in fullscreen on the G3, Panther's Rage 128 driver leaves
-the display LUT corrupt: black screen, mouse moves, OS alive over SSH. The
-Apple-menu Restart fails because Finder itself can be wedged. After running
-`qsreboot-setup.sh` once per machine, `ssh <host> '~/bin/qsreboot.sh'` issues a
-kernel-level reboot regardless of display or Finder state. This is the canonical
-recovery path; do not power-cycle unless `qsreboot.sh` has been verified failed,
-which would mean sudoers got mangled and the in-script `visudo -c` restore
-should have caught it. Leopard's `sudo` has no `-n` (ADR 0007).
+A fullscreen hard-kill on the G3 leaves Panther's display LUT corrupt (black screen, mouse moves, ssh alive) and Finder may be wedged. After `qsreboot-setup.sh` once per machine, `ssh <host> '~/bin/qsreboot.sh'` reboots at kernel level. Do not power-cycle before it has failed. Tier details: `docs/legacy-mac-hardware.md`, ADR 0007.
 
-## ssh remote `cd && X &` puts the cd in the subshell
+## Shell traps
 
-`ssh host "cd /foo && rm -f bar && ./prog &"` parses as `(cd && rm && ./prog) &`
-because `&&` binds tighter than `&`. The whole chain runs in a background
-subshell, the parent shell's cwd never changes, and `[ -f bar ]` in the parent
-checks `$HOME/bar`, not `/foo/bar`. Put `cd` and `rm` on their own foreground
-lines and `&` only the long-running command.
-
-## Don't pipe `scp` through `tee` without `set -o pipefail`
-
-Exit codes get masked and failures go silent.
-
-## Don't pass `CPUFLAGS` via env to `make -f Makefile.darwin`
-
-The makefile resets it with `CPUFLAGS=`. Pass it on the make command line;
-`build.sh` already does.
+- `ssh host "cd /foo && ./prog &"` backgrounds the whole `cd && ./prog` chain in a subshell, so the parent's cwd never changes. Put `cd` and `rm` on foreground lines and `&` only the long command.
+- `scp | tee` without `set -o pipefail` masks failures.
+- Don't pass `CPUFLAGS` via env to `make -f Makefile.darwin`: the makefile resets it. Pass it on the command line (`build.sh` does).

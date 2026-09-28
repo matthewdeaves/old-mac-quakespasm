@@ -1,5 +1,7 @@
 # Online network play + auto-download missing maps: implementation plan
 
+Shipped design record for online play and auto-download of missing maps (QSS-style in-protocol download). Read for reasoning and rejected alternatives, not as a to-do list. Sections 1-9: decision, mechanism, integration points, phases, gating, testing, TLS, caveats, effort (`grep -n '^## ' docs/NETPLAY_DOWNLOAD_PLAN.md`).
+
 **Status: SHIPPED.** Evidence-gathered 2026-06-06 (codebase audit + QSS/FTE/
 DarkPlaces/ironwail source read); implemented and in the tree since. This
 document is kept for the reasoning and the rejected alternatives, not as a

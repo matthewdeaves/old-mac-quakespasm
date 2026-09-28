@@ -1,0 +1,246 @@
+# Bug-fix log
+
+One short entry per real bug fixed: what it was, what the fix was. Newest
+first. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
+
+- **2026-09-13 — `deploy-dmg.sh`'s new upgrade-with-backup logic reported
+  failure on every genuinely fresh install.** old-mac-quakespasm#47's
+  upgrade-with-backup remote script ended with
+  `[ -n "$BACKUP" ] && echo "rollback copy kept at..."` as its LAST
+  statement before the heredoc terminator. Under `set -e`, a fresh install
+  (no prior `/Applications/QuakeSpasm`, so `$BACKUP` is empty) makes that
+  `[ -n ]` test itself fail, and with nothing after it to absorb the
+  failure the whole remote script — and therefore `deploy-dmg.sh` —
+  exited 1 despite the install completing correctly. Caught live on
+  g5-panther's first-ever install (files present, id1 preserved, exit 1
+  anyway). Fix: `|| true` on that line. Re-ran on g5-panther, exit 0.
+
+- **2026-09-03 — `make-dmg.sh` staged and shipped every release over the
+  slow workstation link.** The .app bundle always assembled on whatever host
+  ran the script (normally this workstation) because the ARCHS check needed
+  a modern `lipo`, and only the workstation had one - so the staged bundle
+  always rsynced to DMG_HOST over the workstation's own slow link out to the
+  fleet, the same shape of transfer measured to hang mid-transfer on a
+  bigger port (old-mac-build-host#64). Fix: `DMG_STAGE_HOST` now defaults to
+  imac-2019, which has a working Xcode/lipo too and sits on the same fleet
+  LAN as every DMG_HOST candidate - staging and the bundle rsync become a
+  LAN hop, only the fat binary and the finished compressed .dmg still cross
+  the workstation link, each md5-checked. Needed a real fleet-SSH-trust gap
+  closed first (imac-2019 had no ssh config for mini-g4/quicksilver/
+  sawtooth) - old-mac-build-host fixed that live during this ticket.
+  Verified end-to-end twice, real DMG_HOST (mini-g4), content verified
+  byte-for-byte on both hops. Falls back to staging locally if imac-2019 is
+  busy/unreachable. #43.
+
+- **2026-09-03 — `Fix Launch Problems.command` silently no-op'd on macOS
+  that never had the bug it fixes.** App Translocation (the "couldn't load
+  gfx.wad, Basedir is .../AppTranslocation/..." failure the script clears)
+  was introduced in macOS 10.12 Sierra; Panther through Lion (10.3-10.11)
+  predate it entirely, so running the script there always did nothing while
+  looking like it might have. User's own words, direct: the script should
+  check and say so instead. Fix: reads `sw_vers -productVersion` first and
+  exits with a plain "you don't need this" below 10.12, before touching
+  anything; an unreadable/unrecognized version does not skip, so it fails
+  safe. Also corrected README.md's claim that these OSes "predate Gatekeeper
+  and quarantine entirely" -- wrong, quarantine started in Leopard 10.5 and
+  Gatekeeper in Lion 10.7.3; the real threshold for this specific bug is App
+  Translocation, 10.12. Tested both branches directly (faked `sw_vers` for
+  the old-OS exit, ran unmodified for the current-OS fix path). Shipped in
+  v1.15.12. Same session, imac-2019's standard smoke test hit the machine's
+  own known Desktop-folder TCC dialog (MISTAKES.md, 2026-08-31) -- confirmed
+  the same already-documented cause via the engine's own log (one startup
+  line then blocked, not a crash), not a new regression; needs one manual
+  click there, same as every release that changes the binary's signature.
+
+- **2026-09-03 — `sv_accelerate` was invisible to infra's webadmin, unlike
+  its three movement-cvar siblings (#42).** `sv_gravity`/`sv_friction`/
+  `sv_maxspeed` all carry `CVAR_NOTIFY|CVAR_SERVERINFO` plus a
+  `Host_Callback_Notify` registration -- live, no restart, broadcast to
+  players, visible in NetQuake's `CCREQ_RULE_INFO` rules poll (same
+  mechanism server-v1.18 used for `deathmatch`/`coop`, issue #13).
+  `sv_accelerate` sat right next to `sv_maxspeed` in `Quake/sv_user.c` with
+  neither: `CVAR_NONE`, no callback. #42 assumed all four already behaved
+  the same way; they didn't. Fixed both pieces to match. Verified A/B on a
+  real dedicated server built in the project's own container (ADR 0011),
+  queried with a `CCREQ_RULE_INFO` walker: before, `sv_accelerate` absent
+  from the nine-key rules reply; after, present as `sv_accelerate=10`.
+  Shipped in server-v1.19.
+
+- **2026-09-02 — arm64 launched windowed, not fullscreen, on real Apple
+  Silicon hardware (MacBook Air, Apple M5).** `autoexec-arm64.cfg` hardcoded
+  a literal `vid_width 1920 vid_height 1080 vid_fullscreen 1` (exclusive
+  mode). On this Retina/scaled panel that exact mode isn't SDL2-enumerable,
+  so `VID_ValidMode` fails, `VID_Restart` prints "1920x1080x32 60Hz
+  fullscreen is not a valid mode" and aborts without changing anything --
+  the window silently stayed at its small startup default. Reproduced 3x
+  live on the workstation. Fix: `vid_desktopfullscreen 1`, same mechanism
+  already used by every other per-machine cfg in the fleet
+  (`autoexec-imac-2019.cfg`, `autoexec-mini-intel.cfg`) -- arm64 was the one
+  cfg that had never adopted it, because there was no real Apple Silicon
+  hardware to test on until today. Explicit `vid_width`/`vid_height` are
+  dropped: SDL2 overrides them to the desktop's actual resolution once this
+  flag is set (measured: requesting 1920x1080 with the flag on still
+  produced "1710x1073", this laptop's real resolution). Measured working
+  end-to-end: three timedemo runs, 82.6 / 104.9 / 118.5 fps, comfortably
+  clear of any display refresh -- not run through `scripts/bench.sh`, which
+  has no local-workstation target yet (separate tooling gap).
+
+- **2026-09-02 — Reworked the DMG installer: no more copy to
+  ~/Applications, fix-in-place instead, matching alephone's convention
+  (user directive: "it should just run from same location as the fat
+  binary... make it like how the others work").** `Fix-and-Install.command`
+  (v1.15.8/9, copied Quakespasm.app to ~/Applications/Quakespasm) is gone;
+  replaced by `Fix Launch Problems.command`, which never copies anything --
+  it just clears quarantine and re-registers LaunchServices on whatever
+  folder it's already sitting in (`cd "$(dirname "$0")"`, same as
+  alephone's script). The DMG now ships one self-contained "Quakespasm"
+  folder at its root (`Quakespasm.app` + `quakespasm.pak` + empty `id1/` +
+  the fix script together), not loose files -- so a single Finder drag of
+  that one folder to wherever the player wants always brings the fix script
+  along. Also inlined the quarantine-clear logic instead of depending on a
+  hidden `.fix-support/clear-launch-quarantine.sh` sidecar: alephone hit
+  that exact failure live on imac-2019 the same day (Finder hides dotfiles,
+  so a real drag of only the visible items left the hidden helper behind
+  and the old script failed with "No such file or directory"). Updated
+  `make-dmg.sh` (staging + VERIFY_FILES + README.txt),
+  `scripts/deploy-dmg.sh` (mount source paths), and README.md to match.
+  Kept the id1/pak0.pak-missing warning from the previous entry.
+
+- **2026-09-02 — Fix-and-Install.command now warns if id1/pak0.pak is
+  missing.** Two real users hit "couldn't load gfx.wad" the same night after
+  running the installer without their own Quake data yet, with no way to
+  tell which of several plausible folders the engine actually wanted
+  (flagged by infra, retro-server-infra-43, who ruled out the served game
+  data — verified valid pak0.pak/pak1.pak — before pointing at the
+  installer's silence). The script now checks `$DEST/id1/pak0.pak` (and
+  common case variants) right before the final "Done" message and, if
+  missing, prints exactly where to put it. Pure shell/text change, engine
+  binary untouched.
+
+- **2026-09-02 — v1.15.8 formally deploy+smoke-tested on imac-2019 (standing
+  rule: every release must be, before it counts as live).** `deploy-dmg.sh
+  imac-2019 v1.15.8` + `smoke-dmg.sh imac-2019 demo1`: PASS, 216.8 fps,
+  2560x1440, world rendered to completion. In addition to the ad-hoc
+  Fix-and-Install.command verification done earlier the same day (see next
+  entry) — this is the standard fleet tooling path, on the exact machine
+  that broke.
+
+- **2026-09-02 — DMG launch failed on imac-2019: App Translocation, not a
+  crash.** User downloaded the release DMG via Safari, copied
+  `Quakespasm.app` + `quakespasm.pak` + `id1/` to `~/Desktop/quake/` by hand,
+  double-clicked, got "W_LoadWadFile: couldn't load gfx.wad, Basedir is:
+  /private/var/.../AppTranslocation/.../d". The quarantine flag Safari
+  stamps on download survives a plain file copy (it does not require a
+  fresh browser download each time), and macOS runs a quarantined app from a
+  random sandboxed copy instead of its real folder, so it can't see `id1/`
+  sitting next to it. Confirmed on-machine: `xattr -l` showed
+  `com.apple.quarantine` on the copied `.app`; running the existing
+  `scripts/clear-launch-quarantine.sh` against the folder cleared it, and
+  the app then launched from its real path (verified via `ps` showing the
+  real `~/Desktop/quake/...` path, not an AppTranslocation one). Shipped the
+  actual fix so a person doesn't have to know any of this: a new
+  `scripts/bundle/Fix-and-Install.command`, included on every DMG from this
+  release on, that a user right-click-Opens once -- it installs to
+  `~/Applications/Quakespasm` and clears quarantine for them. Wired into
+  `make-dmg.sh`; README.md and the in-DMG README.txt both lead with it now.
+- **2026-08-28 — i386 slice moved to imac-2019 (user directive, speed).**
+  Not a straight host swap: unlike the Lion minis (where "no isysroot"
+  naturally resolves to a compatible OS since the compiler runs ON a
+  Lion-class machine), imac-2019's default clang SDK is Sequoia's, a dozen
+  releases newer than the 10.4 deployment target. Pinned an explicit
+  `-isysroot` at the `MacOSX10.4u.sdk` already staged there (for #37's PPC
+  work) when `LION=imac-2019`; unchanged (`SDK=""`) on the Lion minis.
+  Verified via `otool -l`/`lipo -detailed_info`: correct `i386` architecture,
+  correct `LC_VERSION_MIN_MACOSX` 10.4, real quakespasm source (not a toy
+  test) built and linked clean. `build-fat.sh` claims imac-2019 for this one
+  sub-build, falls back to the main build host if it's unavailable. The
+  sibling `lion`/x86_64 slice was deliberately NOT moved -- no portable SDK
+  exists to pin it against elsewhere. `scripts/build.sh`, `scripts/build-fat.sh`,
+  ADR 0005.
+
+- **2026-08-28 — `qsreboot-setup.sh` printed the wrong host name in its own
+  "test this" suggestion.** `$(hostname -s)` is the target Mac's own
+  OS-reported name, not the ssh alias the orchestration host uses to reach
+  it -- that mapping only exists in the orchestration host's own
+  `~/.ssh/config` and isn't knowable from the target side. Printed a garbled
+  name on quad-tiger. Fixed: generic placeholder instead of a guess that can
+  be wrong. `scripts/host-bin/qsreboot-setup.sh`.
+
+- **2026-08-28 — bench/smoke/profile scripts deleted qconsole.log as a "clean
+  slate" before every run, destroying the previous run's evidence right when
+  something crashed (cross-port finding, halflife ADR 0018).** The engine's
+  own `LOG_Init` (`Quake/console.c:1332`) opens the log with `O_TRUNC`, so it
+  already truncates on its own next launch -- the `rm -f` bought nothing.
+  Fixed: rotate to `qconsole.prev.log` instead of deleting, across
+  `bench.sh`, `bench-arm64-local.sh`, `profile-pass.sh`,
+  `selfhost-download-test.sh`, `smoke-dmg.sh`. Verified live on mini-intel2.
+
+- **2026-08-28 — quarantined ad-hoc-signed launches killed by Gatekeeper ~18s
+  in, no crash report (#35).** `AppleSystemPolicy` terminates an ad-hoc-signed
+  (not Developer-ID) app under `com.apple.quarantine` a few seconds into an
+  apparently normal launch (window opens, no error dialog); `log show` caught
+  it: `ASP: Security policy would not allow process`. A separate, secondary
+  bug rode along: App Translocation redirects a quarantined, Finder-copied
+  app to an isolated read-only container, breaking its sibling `id1/` lookup
+  (`AppController.m -launchCore` derives its chdir from `gArgv[0]`). Fix:
+  `AppController.m` recovers the real pre-translocation path via
+  `SecTranslocateCreateOriginalPathForURL` (dlsym'd, no-ops pre-10.12 and on
+  the PPC/Lion/i386 SDKs that can't declare it); `deploy.sh`/`deploy-dmg.sh`
+  now clear quarantine + re-register LaunchServices on the target after
+  install via the shared `clear-launch-quarantine.sh` primitive
+  (old-mac-build-host#34); `deploy.sh` also gained the ad-hoc codesign step
+  it never had (make-dmg.sh had it, deploy.sh didn't -- an unsigned arm64
+  slice hard-crashes regardless of quarantine) and switched `SDL.framework`'s
+  copy from `cp -r` to `cp -a` (`-r` follows symlinks it meets while
+  recursing, flattening the framework -- one of three stacked causes of
+  MISTAKES.md's 2026-08-23 mini-sl "damaged or incomplete" entry, left
+  unfixed on the deploy.sh side until now). NOT fixed and not scriptable
+  without paid notarization: a genuine third-party browser download still
+  gets quarantined regardless of what packaging clears (Finder ties the flag
+  to the download/mount event, not the file object) -- the DMG readme's
+  right-click-to-Open is the remaining one-click Apple-sanctioned path.
+  `MacOSX/AppController.m`, `scripts/deploy.sh`, `scripts/deploy-dmg.sh`,
+  `scripts/make-dmg.sh`, `scripts/smoke-dmg.sh`,
+  `scripts/clear-launch-quarantine.sh`.
+
+- **2026-08-25 — `results.csv` recorded requested mode rather than rendered mode (#34).**
+  Machines with `vid_desktopfullscreen 1` (e.g. `imac-g5`, `mini-intel2`) capture
+  the desktop mode (e.g. 1440x900, 1280x1024), ignoring requested `+vid_width` /
+  `+vid_height`, so nominal 640x480 / 1024x768 cells actually rendered at desktop
+  res. Fix: parse initialized mode from `qconsole.log`, record `rendered_res` in
+  `results.csv` (11-column schema, preserving both requested and rendered resolution),
+  and backfill historical rows. `scripts/bench.sh`, `scripts/bench-arm64-local.sh`,
+  `scripts/parallel-bench.sh`, `scripts/parse_qconsole.py`, `Quake/cl_demo.c`.
+
+- **2026-08-23 — GeForce 9400 GPU corruption from client-storage lightmaps
+  (#30).** `APPLE_client_storage` handed the driver long-lived pointers into
+  `lm->data`; in-place rewrites raced queued draws (worker SIGSEGV) and the
+  free-after-map-change raced deferred deletes (kernel FIFO wedge, display
+  dead until power reset). Fix: client storage off by default on non-PowerPC
+  (`-client-storage` to force), `glFinish` before the lightmap frees where it
+  stays on, MTGL gated off on GeForce 9400 (`-forcemtgl` to force), batched
+  `glDeleteTextures` on map teardown. `gl_vidsdl.c`, `r_brush.c`,
+  `gl_texmgr.c`.
+
+- **2026-08-23 — `qsreboot.sh` graceful reboot hangs on a GPU-wedged
+  machine.** `/sbin/reboot` waits to kill every process; one stuck unkillably
+  in a GPU kernel fault blocks shutdown forever. Fix: `--force` tier =
+  `/sbin/reboot -q`. `scripts/host-bin/qsreboot.sh`.
+
+- **2026-08-23 — Finder launch "damaged or incomplete" on mini-sl.** Three
+  stacked causes: stale `_CodeSignature` from an old signed install that
+  `deploy.sh` neither creates nor removes; `SDL.framework` symlinks flattened
+  to real files by `deploy.sh`'s `cp -r`; stale LaunchServices registration
+  (`launch-disabled` flag, empty executable field). Fixed on the machine by
+  deleting the seal, re-shipping the framework with `ditto`, and
+  `lsregister -f`. deploy.sh-side prevention still open under #30.
+
+- **2026-08-23 — bench runs permanently re-configured machines via archived
+  cvars (#28).** Any `CVAR_ARCHIVE` cvar pinned with `EXTRA_CVARS` was written
+  into `id1/config.cfg` on exit and persisted for real play. Fix: `bench.sh`
+  snapshots `config.cfg` before the run and restores it in the EXIT trap.
+
+- **2026-08-23 — semicolons in `//` comments in bundle cfgs parsed as
+  commands (#31).** `Cbuf_Execute` splits on `;` before comment handling, so
+  comment text after a semicolon became console spam. Fixed across all 14
+  bundle cfgs; command-syntax examples rewritten one-per-line.
