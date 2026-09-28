@@ -32,12 +32,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 @implementation SDLApplication
 - (void)terminate:(id)sender
 {
-    /* Post a SDL_QUIT event */
+    /* Post a SDL_QUIT event and let the engine's own main loop quit it
+       cleanly (in_sdl.c: SDL_QUIT -> CL_Disconnect -> Sys_Quit ->
+       Host_Shutdown -> exit). Do NOT also call [super terminate:sender]:
+       that forces AppKit to run its own immediate termination sequence
+       (calling exit() from inside NSApplication's own teardown), racing
+       the engine's orderly shutdown. On ppc970 G5 hardware that race hit
+       AppKit tearing down a Cocoa object SDL's own QZ_UnsetVideoMode then
+       dereferenced during SDL_Quit, an EXC_BAD_ACCESS on every quit
+       (#74). */
     SDL_Event event;
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
-    
-    [super terminate:sender];
 }
 @end
 
