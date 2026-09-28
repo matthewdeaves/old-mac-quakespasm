@@ -1,4 +1,8 @@
-## What's specific to this repo (board/ticketing basics are in POLICY.md)
+# Ticketing and lock gotchas
+
+Repo-specific ticketing facts that fleet POLICY does not cover: picker lock exports, issue labels, and the public/private repo boundary. Linked from CLAUDE.md. Sections: Lock exports, Labels, Public repo.
+
+## Lock exports
 
 **`BENCH_NO_LOCK=1` is a local escape hatch some scripts honour to skip the
 claim, for debugging the picker itself — the shared picker does not read it,
@@ -17,6 +21,8 @@ skip claiming a DIFFERENT machine. Compare against the target instead:
 `[ "${RETRO_BENCH_LOCK:-}" != "$TARGET" ]`. Ten scripts here were wrong; fixed in
 77b78a02.
 
+## Labels
+
 **Issue labels, the same four in every repo:** `from:infra` raised by the server
 side for a port to act on, `from:port` raised by a port for another repo,
 `needs-measurement` the claim has no number or hardware repro behind it yet,
@@ -24,6 +30,8 @@ side for a port to act on, `from:port` raised by a port for another repo,
 one session raises at another starts in `Triage` with `needs-measurement` — an
 issue written by another agent carries no more evidence than the reasoning that
 produced it, but arrives looking like one backed by a bench run.
+
+## Public repo
 
 **This repo is PUBLIC.** `old-mac-build-host` is PRIVATE; `retro-server-infra`
 went public 2026-08-31. Both describe the topology, firewall rules and admin
