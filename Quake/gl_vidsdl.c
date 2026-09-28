@@ -2044,6 +2044,19 @@ static void VID_FSAA_f (cvar_t *var)
 	// don't print the warning if vid_fsaa is set during startup
 	if (vid_initialized)
 		Con_Printf("%s %d requires engine restart to take effect\n", var->name, (int)var->value);
+
+	// PPC port -- unlike vid_width/vid_bpp/etc (VID_Changed_f), this callback
+	// never marked vid_changed, so a `vid_fsaa N` + `vid_restart` in a
+	// per-machine autoexec silently no-op'd whenever fsaa was the ONLY vid_*
+	// cvar actually changing (e.g. vid_bpp already archived at its target
+	// value from a prior launch) -- VID_Restart's `if (... || !vid_changed)
+	// return;` guard (above) bailed before ever reaching the fsaa-global
+	// refresh a few lines up. Found on real hardware (quicksilver, #69):
+	// the imac-2019 vid_fsaa verification passed only because vid_bpp
+	// changed in the SAME launch and set vid_changed via its own callback,
+	// masking this. Mark it here too so vid_fsaa behaves like every other
+	// vid_* cvar.
+	vid_changed = true;
 }
 
 //==========================================================================
