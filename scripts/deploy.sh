@@ -2,7 +2,7 @@
 # Assemble a self-contained Quakespasm.app bundle and deploy it to the
 # target machine. Idempotent — safe to re-run.
 #
-# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger>
+# usage: scripts/deploy.sh <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger|qemu-tiger3d>
 #
 # pre:   build/quakespasm-fat must exist (scripts/build-fat.sh)
 #
@@ -30,7 +30,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger>}"
+TARGET="${1:?usage: $0 <yosemite|yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger|qemu-tiger3d>}"
 
 # Claim this machine for the whole run. See scripts/pick-bench-host.sh.
 #
@@ -65,7 +65,12 @@ case "$TARGET" in
     HOST="yosemite"
     RSYNC_EXTRA="--protocol=29"
     ;;
-  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger)
+  yosemite-tiger|sawtooth|quicksilver|mini-g4|mini-intel|mini-intel2|mini-sl|imac-2019|imac-g5|g5-desktop|g5-tiger|g5-panther|quad-leopard|quad-tiger|qemu-tiger3d)
+    # qemu-tiger3d: the QemuMac VM, an emulated PowerMac G4 "Sawtooth" on
+    # Tiger 10.4 (docs/qemu-vm.md in old-mac-build-host). ssh alias, not a
+    # physical host; pick-bench-host.sh brings the VM up on claim if it is
+    # not already running. Same rsync bucket as the other Tiger boxes
+    # (rsync 2.6.x, no --protocol downgrade needed).
     # mini-intel2: second Macmini2,1, same model as mini-intel. hw.model
     # matching in host.c's qs_machine_map hands it the autoexec-mini-intel
     # overlay automatically -- no per-machine file needed (issue #32).
@@ -229,6 +234,20 @@ if command -v codesign >/dev/null 2>&1; then
   codesign -v "$SAPP" >/dev/null 2>&1 \
     || echo "[deploy] WARN: signature still does not validate after signing" >&2
 fi
+
+# Preserve the EXACT bytes about to ship (post ad-hoc-sign, since codesign
+# rewrites the Mach-O's LC_CODE_SIGNATURE and changes its hash) as a stable
+# local build artefact. bench-evidence.sh's BENCH_ARTEFACT/INSTALL_BIN hash
+# check compares raw bytes with no thinning (old-mac-build-host's
+# bench-evidence.sh has no lipo step), and its own contract requires
+# BENCH_ARTEFACT to come from "the release DMG or build output, never pulled
+# fresh from the host under test" (docs/bench-evidence.md) -- so the
+# pre-sign build/quakespasm-fat can never satisfy it after this script
+# signs the copy that actually gets rsynced. Point BENCH_ARTEFACT at this
+# file, not build/quakespasm-fat, for any bench-evidence run following a
+# deploy.sh dev/bench deploy.
+cp "$STAGE/Quakespasm.app/Contents/MacOS/quakespasm" "$REPO_ROOT/build/quakespasm-fat-deployed"
+echo "[deploy] signed binary saved: build/quakespasm-fat-deployed (BENCH_ARTEFACT for bench-evidence.sh)"
 
 # One game folder per Mac (fleet rule, #55): dev and bench builds install into
 # the same /Applications/QuakeSpasm that deploy-dmg.sh installs releases into,
