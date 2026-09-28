@@ -198,19 +198,22 @@ ssh -o ConnectTimeout=10 "$HOST" \
    fi' 2>/dev/null || \
   echo "[bench] WARN: failed to snapshot config.cfg on $HOST — archived cvars from this run may stick (issue #28)" >&2
 
+GPID=""
 cleanup_autoexec () {
   # Also stop an engine left running. The per-run teardown covers the normal
   # path; this only matters when the SCRIPT dies (Ctrl-C, parent shell gone,
   # killed background job) with quakespasm still up on the target. That orphan
   # keeps the display captured and the next thing to launch goes fullscreen on
-  # top of it — the Rage 128 / R300 wedge. Same TERM-grace-KILL policy as the
-  # run loop. Costs nothing normally: there is no engine left to find.
+  # top of it — the Rage 128 / R300 wedge. Stopped through launch-game.sh
+  # (TERM only, ADR 0009; build-host#147), by the pid it handed back.
+  if [ -n "${GPID:-}" ]; then
+    "$_PICK" launch-game.sh --stop "$HOST" "$GPID" >/dev/null 2>&1 || true
+    GPID=""
+  fi
   #
   # config.cfg restore happens here too, same trap, so it fires whether the
   # script ends normally, gets Ctrl-C'd, or dies mid-run (issue #28).
-  ssh -o ConnectTimeout=10 "$HOST" 'if killall -TERM quakespasm 2>/dev/null; then sleep 3; fi
-    killall -KILL quakespasm 2>/dev/null
-    rm -f /Applications/QuakeSpasm/id1/autoexec.cfg
+  ssh -o ConnectTimeout=10 "$HOST" 'rm -f /Applications/QuakeSpasm/id1/autoexec.cfg
     if [ -f /Applications/QuakeSpasm/id1/config.cfg.qsbench-orig ]; then
       mv -f /Applications/QuakeSpasm/id1/config.cfg.qsbench-orig /Applications/QuakeSpasm/id1/config.cfg
     elif [ -f /Applications/QuakeSpasm/id1/.qsbench-no-config ]; then
@@ -225,50 +228,40 @@ declare -a FPS
 RENDERED_RES="$RES"
 for i in $(seq 1 "$RUNS"); do
   echo "[bench $TARGET $DEMO $RES] run $i/$RUNS"
-  # Belt-and-suspenders: kill any stale quakespasm before each run.
-  # Poll: integer `sleep 1` because Panther's /bin/sleep is integer-only
-  # (sleep 0.2 returns instantly → busy-spin, kills demo at ~20s in).
-  # Pre-run kill is the gentle TERM-grace-KILL pattern (same as the
-  # post-run pattern below). A prior aborted run can leave quakespasm
-  # in fullscreen; bare KILL without TERM trips Panther's Rage 128 LUT
-  # corruption (black screen, mouse moves, OS up — recoverable only via
-  # ~/bin/qsreboot.sh). `killall -TERM` returns 0 if anything matched,
-  # so the `if` only sleeps when there's actually a stale process to
-  # clean up. Costs 0s on the common case.
-  # On qconsole.log match: SIGKILL — log is already on disk because Quake's
-  # qconsole.log uses raw write() (no stdio buffering, see Quake/console.c:473).
-  # `cd` MUST run BEFORE `&` (own line) so the parent shell's cwd is
-  # /Applications/QuakeSpasm — otherwise `[ -f qconsole.log ]` checks
-  # $HOME and never matches. (`cd && X &` backgrounds the whole chain in a
-  # subshell.)
-  ssh "$HOST" "if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
-    killall -KILL quakespasm 2>/dev/null || true
-    sleep 1
-    cd /Applications/QuakeSpasm
-    [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
-    ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \\
-      -fullscreen \\
-      -noarchautoexec \\
-      +vid_width $W +vid_height $H +vid_vsync 0 \\
-      ${EXTRA_CVARS:+$EXTRA_CVARS }+timedemo $DEMO > /dev/null 2>&1 &
-    PID=\$!
+  # Start the engine through the shared launch guard (build-host#147): it
+  # refuses if ANY game already runs on the host, and arms a guest watchdog.
+  # A stale engine from an aborted run is therefore refused, not killed here:
+  # the picker reaps it when that run's claim ends. TERM-only stop, never KILL
+  # (ADR 0009: a KILL mid-fullscreen wedges the Rage 128 LUT / R300 driver).
+  # Poll with integer `sleep 1` (Panther's /bin/sleep is integer-only).
+  # `cd` runs before the exec so [ -f qconsole.log ] sees the game dir, and the
+  # engine is exec'd so the pid launch-game.sh returns is the engine itself.
+  ssh "$HOST" 'cd /Applications/QuakeSpasm && { [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log; true; }'
+  LAUNCH_ERR="$(mktemp)"
+  GPID="$("$_PICK" launch-game.sh "$HOST" quakespasm --max-secs $((TIMEOUT + 120)) -- \
+    sh -c "cd /Applications/QuakeSpasm && exec ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug -fullscreen -noarchautoexec +vid_width $W +vid_height $H +vid_vsync 0 ${EXTRA_CVARS:+$EXTRA_CVARS }+timedemo $DEMO" \
+    2>"$LAUNCH_ERR" | awk '/^PID/ {print $2}')" || true
+  if [ -z "$GPID" ]; then
+    echo "[bench $TARGET] FAIL: launch refused or failed:" >&2
+    cat "$LAUNCH_ERR" >&2; rm -f "$LAUNCH_ERR"
+    exit 3
+  fi
+  rm -f "$LAUNCH_ERR"
+  ssh "$HOST" "cd /Applications/QuakeSpasm
     j=0
     while [ \$j -lt $TIMEOUT ]; do
       if [ -f qconsole.log ] && grep -q 'frames.*seconds.*fps\\|Quake Error' qconsole.log 2>/dev/null; then break; fi
+      kill -0 $GPID 2>/dev/null || break
       sleep 1; j=\$((j+1))
-    done
-    # PPC port -- Panther's Rage 128 driver leaves the display LUT
-    # corrupt if Quake is hard-killed in fullscreen mode. Send TERM
-    # first so SDL_Quit has a chance to restore display state, then
-    # KILL the SDL/CoreAudio threads that don't respond to TERM.
-    killall -TERM quakespasm 2>/dev/null
-    sleep 2
-    killall -KILL quakespasm 2>/dev/null
-    wait \$PID 2>/dev/null
-    # Settle before the next run: the display driver needs a few seconds after a
-    # fullscreen exit, and going straight into the next launch can hang the box.
-    sleep $COOLDOWN
-    true" 2>&1 | grep -v "^$" | tail -3 || true
+    done" || true
+  if ! "$_PICK" launch-game.sh --stop "$HOST" "$GPID" >&2; then
+    echo "[bench $TARGET] FAIL: engine pid $GPID survived TERM; quit it by hand" >&2
+    exit 4
+  fi
+  GPID=""
+  # Settle before the next run: the display driver needs a few seconds after a
+  # fullscreen exit, and going straight into the next launch can hang the box.
+  sleep "$COOLDOWN"
 
   # Tag the log with the cvars when this is an A/B leg. Without it both legs
   # write ${COMMIT}_${TARGET}_${DEMO}_${RES}_runN.log and the second leg

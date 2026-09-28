@@ -73,26 +73,36 @@ bench_launch() {
 	v="SMOKE_TIMEOUT_$class"
 	tmo="${!v:-$SMOKE_TIMEOUT}"
 
-	local remote="set -u
-cd '$INSTALL_DIR' || exit 2
-if killall -TERM $PROC 2>/dev/null; then sleep 2; fi
-killall -KILL $PROC 2>/dev/null || true
-sleep 1
+	# build-host#147: the game starts through the shared launch guard (refuses
+	# if any game already runs on the host, TERM-only stop, guest watchdog),
+	# not an ad-hoc `&` in an ssh string.
+	local shared gpid lrc=0 stop_rc=0
+	shared="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.sh"
+	_sh_host "$host" "cd $INSTALL_DIR || exit 2
 [ -f $SMOKE_LOG ] && mv -f $SMOKE_LOG ${SMOKE_LOG}.prev
-./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug +cvarlist +timedemo $BENCH_DEMO > /dev/null 2>&1 &
-PID=\$!
+true" 2>/dev/null
+	gpid="$("$shared" launch-game.sh "$host" "$PROC" --max-secs $((tmo + 60)) -- \
+		sh -c "cd $INSTALL_DIR && exec ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug +cvarlist +timedemo $BENCH_DEMO" \
+		2>"$workdir/launch.err" | awk '/^PID/ {print $2}')"
+	if [ -z "$gpid" ]; then
+		lrc=3
+		out="$(cat "$workdir/launch.err" 2>/dev/null)"
+	else
+		out="$(_sh_host "$host" "cd $INSTALL_DIR
 j=0
 while [ \$j -lt $tmo ]; do
 	if [ -f $SMOKE_LOG ] && grep -qE '$PASS_RE|$FAIL_RE' $SMOKE_LOG 2>/dev/null; then break; fi
+	kill -0 $gpid 2>/dev/null || break
 	sleep 1; j=\$((j+1))
 done
-killall -TERM $PROC 2>/dev/null
-sleep 2
-killall -KILL $PROC 2>/dev/null
-wait \$PID 2>/dev/null
-cat $SMOKE_LOG 2>/dev/null"
-
-	out="$(_sh_host "$host" "$remote" 2>&1)"; rc=$?
+cat $SMOKE_LOG 2>/dev/null" 2>&1)"; rc=$?
+		"$shared" launch-game.sh --stop "$host" "$gpid" >>"$workdir/launch.err" 2>&1 || stop_rc=$?
+		if [ "$stop_rc" -ne 0 ]; then
+			echo "[bench-adapter] $host: game pid $gpid survived TERM (see $workdir/launch.err)" >&2
+			rc=1
+		fi
+	fi
+	if [ "$lrc" -ne 0 ]; then rc=$lrc; fi
 	printf '%s\n' "$out" > "$workdir/log.txt"
 
 	local fps

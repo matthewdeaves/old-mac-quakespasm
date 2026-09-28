@@ -118,23 +118,28 @@ if [ "$TARGET" = "qemu-tiger3d" ]; then
     echo "[screenshot] a game is already running" >&2; exit 2;
   }
   ssh "$TARGET" ": > /tmp/qs-vm-screendump.log"
-  ssh "$TARGET" bash <<REMOTE &
+  # build-host#147: the engine starts through the shared launch guard, which
+  # refuses if any game runs and arms a guest watchdog; stopped TERM-only.
+  ssh "$TARGET" bash <<REMOTE
 set -e
 cd /Applications/QuakeSpasm
 [ ! -e id1/vmshot.cfg ] || { echo "vmshot.cfg already exists" >&2; exit 2; }
-trap 'rm -f id1/vmshot.cfg' EXIT
 {
   i=0; while [ \$i -lt 120 ]; do echo wait; i=\$((i+1)); done
   echo 'echo VM_CAPTURE_READY'
   i=0; while [ \$i -lt 900 ]; do echo wait; i=\$((i+1)); done
   echo quit
 } > id1/vmshot.cfg
-./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug -fullscreen -width $WIDTH -height $HEIGHT +playdemo $DEMO +exec vmshot.cfg > /tmp/qs-vm-screendump.log 2>&1
 REMOTE
-  SESSION_PID=$!
+  GPID=""
+  trap '[ -n "$GPID" ] && "$_PICK" launch-game.sh --stop "$TARGET" "$GPID" >/dev/null 2>&1; ssh "$TARGET" "rm -f /Applications/QuakeSpasm/id1/vmshot.cfg" >/dev/null 2>&1; true' EXIT
+  GPID="$("$_PICK" launch-game.sh "$TARGET" quakespasm --max-secs 600 -- \
+    sh -c "cd /Applications/QuakeSpasm && exec ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug -fullscreen -width $WIDTH -height $HEIGHT +playdemo $DEMO +exec vmshot.cfg > /tmp/qs-vm-screendump.log 2>&1" \
+    | awk '/^PID/ {print $2}')" || true
+  [ -n "$GPID" ] || { echo "[screenshot] launch refused or failed" >&2; exit 2; }
   captured=0
   for ((i=0; i<120; i++)); do
-    kill -0 "$SESSION_PID" 2>/dev/null || break
+    ssh "$TARGET" "kill -0 $GPID" 2>/dev/null || break
     if ssh "$TARGET" 'grep -q VM_CAPTURE_READY /tmp/qs-vm-screendump.log'; then
       "$_PICK" qemu-vm.sh screendump "$OUT_PNG"
       captured=1
@@ -144,10 +149,10 @@ REMOTE
   done
   if [ "$captured" != 1 ]; then
     echo "[screenshot] engine did not reach the capture marker" >&2
-    wait "$SESSION_PID" || true
     exit 1
   fi
-  wait "$SESSION_PID"
+  "$_PICK" launch-game.sh --stop "$TARGET" "$GPID" >&2 && GPID="" || {
+    echo "[screenshot] engine pid $GPID survived TERM; quit it by hand" >&2; exit 1; }
 
   if [ ! -s "$OUT_PNG" ]; then
     echo "[screenshot] FAIL: screendump produced no file" >&2
@@ -273,8 +278,8 @@ MANIFEST_TEXT="$(manifest)"
 
 # Run on the remote host:
 #   1. wipe any previous spasm*.png in id1/ so we start clean
-#   2. launch the fat bundle with our cmd sequence
-#   3. wait for it to exit (or kill after timeout)
+#   2. launch the fat bundle with our cmd sequence (below, via launch-game.sh)
+#   3. wait for it to exit (or TERM after timeout)
 #   4. mkdir the output folder, move PNGs there, write manifest
 ssh "$HOST" bash <<EOF
 set -e
@@ -308,37 +313,35 @@ mkdir -p "\$DEST"
 # quit). Output to /tmp so we can debug if it dies.
 LOGFILE="/tmp/screenshot-${TARGET}.log"
 rm -f "\$LOGFILE"
-./Quakespasm.app/Contents/MacOS/quakespasm \\
-  -nolauncher -basedir "$REMOTE_QUAKE" \\
-  -fullscreen -width $WIDTH -height $HEIGHT \\
-  -noarchautoexec \\
-  +exec screenshot.cfg \\
-  > "\$LOGFILE" 2>&1 &
-PID=\$!
+EOF
 
-# Wait for engine exit, but cap wall time. Tiger's /usr/bin/seq doesn't
-# exist (it's a GNU coreutils thing), so we use a counter loop — works
-# in any sh-compatible shell. Budget: 3 demos × (init waits + N shots ×
-# inter-shot waits) frames at host fps. G3 worst case at ~24 fps:
-# (60 + 30*(30+8)) = 1200 waits/demo × 3 = ~150s wall. Plus 3 map loads
-# ≈ 180s. 600s ceiling gives plenty of headroom for the bigger shot
-# bank the user asked for (30 per demo × 3 demos = 90 shots per host),
-# without wedging forever if something genuinely went wrong.
-TIMEOUT=600
-ELAPSED=0
-while [ \$ELAPSED -lt \$TIMEOUT ]; do
-  if ! kill -0 \$PID 2>/dev/null; then break; fi
-  sleep 1
-  ELAPSED=\$((ELAPSED + 1))
-done
-
-if kill -0 \$PID 2>/dev/null; then
-  echo "[screenshot-remote] engine still running after \$TIMEOUT s, sending SIGTERM"
-  kill -TERM \$PID 2>/dev/null || true
-  sleep 2
-  kill -KILL \$PID 2>/dev/null || true
+# build-host#147: the engine starts through the shared launch guard (refuses if
+# any game runs on the host, guest watchdog, TERM-only stop), not an ad-hoc `&`
+# inside the ssh heredoc. A single +exec is well within the 256-char cmdline
+# cap; the cfg does the heavy lifting (map, settles, setpos, screenshot, quit).
+# Budget: 3 demos x (init waits + N shots x inter-shot waits) frames at host
+# fps. G3 worst case at ~24 fps is ~150s wall plus 3 map loads (~180s), so a
+# 600s ceiling leaves headroom for the 90-shot bank without wedging forever.
+SHOT_TIMEOUT=600
+SHOT_GPID=""
+trap '[ -n "$SHOT_GPID" ] && "$_PICK" launch-game.sh --stop "$HOST" "$SHOT_GPID" >/dev/null 2>&1; true' EXIT
+SHOT_GPID="$("$_PICK" launch-game.sh "$HOST" quakespasm --max-secs "$((SHOT_TIMEOUT + 60))" -- \
+  sh -c "cd $REMOTE_QUAKE && exec ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir $REMOTE_QUAKE -fullscreen -width $WIDTH -height $HEIGHT -noarchautoexec +exec screenshot.cfg > /tmp/screenshot-${TARGET}.log 2>&1" \
+  | awk '/^PID/ {print $2}')" || true
+[ -n "$SHOT_GPID" ] || { echo "[screenshot] launch refused or failed on $HOST" >&2; exit 2; }
+# Wait for engine exit, but cap wall time. Tiger has no /usr/bin/seq, so a
+# counter loop.
+ssh "$HOST" "j=0; while [ \$j -lt $SHOT_TIMEOUT ] && kill -0 $SHOT_GPID 2>/dev/null; do sleep 1; j=\$((j+1)); done" || true
+if ssh "$HOST" "kill -0 $SHOT_GPID" 2>/dev/null; then
+  echo "[screenshot] engine still running after $SHOT_TIMEOUT s, sending SIGTERM"
 fi
+"$_PICK" launch-game.sh --stop "$HOST" "$SHOT_GPID" >&2 && SHOT_GPID="" || {
+  echo "[screenshot] engine pid $SHOT_GPID survived TERM; quit it by hand" >&2; exit 1; }
 
+ssh "$HOST" bash <<EOF
+set -e
+cd "$REMOTE_QUAKE"
+DEST="$REMOTE_DESKTOP_DIR"
 # Move the screenshots into the output folder. id1/ is the gamedir so
 # they land directly there (gl_screen.c:797). Disable -e here so the
 # loop survives when a glob has no match (sh expands the literal pattern,

@@ -65,6 +65,51 @@ _claim () {  # _claim <host> -- run the rest under a claim on <host>
   fi
 }
 
+# build-host#147: the engine starts through the shared launch guard (refuses if
+# any game runs on the host, guest watchdog, TERM-only stop; ADR 0009), not an
+# ad-hoc `&` in an ssh string. Both helpers run inside a claim (_claim).
+_profile_launch () {  # _profile_launch <host> <cmd-tail>; sets PGID or returns 3
+  local h="$1"; shift
+  PGID="$("$_PICK" launch-game.sh "$h" quakespasm --max-secs 900 -- \
+    sh -c "cd /Applications/QuakeSpasm && exec ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug -fullscreen -width $W -height $H -noarchautoexec +vid_wait 0 $*" \
+    | awk '/^PID/ {print $2}')" || true
+  [ -n "$PGID" ] || { echo "[profile-pass] $h: launch refused or failed" >&2; return 3; }
+}
+
+_profile_yosemite () {
+  # +quit so libgmon writes gmon.out on a clean exit; capped in case the
+  # timedemo hangs (then gmon.out is sacrificed, the demo didn't run anyway).
+  ssh yosemite "cd /Applications/QuakeSpasm && rm -f gmon.out && { [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log; true; }"
+  _profile_launch yosemite "+timedemo $DEMO +quit" || return 3
+  ssh yosemite "i=0; while [ \$i -lt 360 ] && kill -0 $PGID 2>/dev/null; do sleep 1; i=\$((i+1)); done" || true
+  if ssh yosemite "kill -0 $PGID" 2>/dev/null; then
+    echo "[profile-pass] yosemite timedemo did not exit cleanly; stopping"
+  fi
+  "$_PICK" launch-game.sh --stop yosemite "$PGID" >&2 || echo "[profile-pass] yosemite pid $PGID survived TERM; quit it by hand" >&2
+  ssh yosemite "cd /Applications/QuakeSpasm && ls -la gmon.out qconsole.log 2>/dev/null | head -3"
+}
+
+_profile_sample () {
+  # Long timedemo, then `sample` against the engine pid for SAMPLE_SECS.
+  ssh "$HOST" "cd /Applications/QuakeSpasm && { [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log; true; }"
+  _profile_launch "$HOST" "+timedemo $DEMO" || return 3
+  # Give SDL+OpenGL ~3s to come up before sample attaches; otherwise sample's
+  # first samples land in window-creation code, not the perf loop we want.
+  ssh "$HOST" "sleep 3
+    if kill -0 $PGID 2>/dev/null; then
+      sample $PGID $SAMPLE_SECS -file /tmp/sample.out > /dev/null 2>&1 || true
+    else
+      echo '[profile-pass] $HOST quakespasm exited before sample could attach'
+      ls -la /tmp/sample.out 2>/dev/null || true
+    fi"
+  "$_PICK" launch-game.sh --stop "$HOST" "$PGID" >&2 || echo "[profile-pass] $HOST pid $PGID survived TERM; quit it by hand" >&2
+  ssh "$HOST" "cd /Applications/QuakeSpasm && ls -la /tmp/sample.out qconsole.log 2>/dev/null | head -3"
+}
+# _claim runs its command under the picker in a child process, so the helpers
+# and the variables they read have to be exported.
+export -f _profile_launch _profile_yosemite _profile_sample
+export W H DEMO SAMPLE_SECS _PICK
+
 DEMO=demo3
 RES=1024x768
 SAMPLE_SECS=30
@@ -115,29 +160,7 @@ if [ "$SKIP_YOSEMITE" = "0" ]; then
     # Run with +quit so libgmon writes gmon.out on clean exit.
     # Don't kill the process; let timedemo+quit drive it. Use a
     # timeout in case timedemo hangs (paranoia).
-    _claim yosemite ssh yosemite "
-      cd /Applications/QuakeSpasm
-      rm -f gmon.out
-      [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
-      ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
-        -fullscreen -width $W -height $H \
-        -noarchautoexec \
-        +vid_wait 0 \
-        +timedemo $DEMO +quit > /dev/null 2>&1 &
-      PID=\$!
-      # Poll for clean exit. If quakespasm is still running after 6 minutes,
-      # the timedemo hung; kill (which sacrifices gmon.out but the demo
-      # didn't run anyway).
-      i=0
-      while [ \$i -lt 360 ] && kill -0 \$PID 2>/dev/null; do
-        sleep 1; i=\$((i+1))
-      done
-      if kill -0 \$PID 2>/dev/null; then
-        echo '[profile-pass] yosemite timedemo did not exit cleanly; killing'
-        kill -KILL \$PID 2>/dev/null || true
-      fi
-      ls -la gmon.out qconsole.log 2>/dev/null | head -3
-    "
+    _claim yosemite bash -c _profile_yosemite
 
     # Fetch gmon.out + the timedemo line for cross-check.
     scp -q "yosemite:/Applications/QuakeSpasm/gmon.out" "$OUT_DIR/yosemite_${DEMO}_${RES}.gmon" || {
@@ -184,32 +207,7 @@ for HOST in sawtooth quicksilver mini-g4; do
 
   # Start quakespasm with a long timedemo, then run `sample` against the PID
   # for SAMPLE_SECS seconds. Kill quakespasm cleanly after sample finishes.
-  _claim "$HOST" ssh "$HOST" "
-    cd /Applications/QuakeSpasm
-    [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
-    ./Quakespasm.app/Contents/MacOS/quakespasm -nolauncher -basedir . -nosound -condebug \
-      -fullscreen -width $W -height $H \
-      -noarchautoexec \
-      +vid_wait 0 \
-      +timedemo $DEMO > /dev/null 2>&1 &
-    QPID=\$!
-    # Give SDL+OpenGL ~3s to come up before sample attaches; otherwise
-    # sample's first samples land in window-creation code which isn't
-    # the perf-loop we want.
-    sleep 3
-    if kill -0 \$QPID 2>/dev/null; then
-      sample \$QPID $SAMPLE_SECS -file /tmp/sample.out > /dev/null 2>&1 || true
-    else
-      echo '[profile-pass] $HOST quakespasm exited before sample could attach'
-      ls -la /tmp/sample.out 2>/dev/null || true
-    fi
-    # Clean up Quake — TERM-grace-KILL like bench.sh.
-    killall -TERM quakespasm 2>/dev/null || true
-    sleep 2
-    killall -KILL quakespasm 2>/dev/null || true
-    wait \$QPID 2>/dev/null || true
-    ls -la /tmp/sample.out qconsole.log 2>/dev/null | head -3
-  "
+  HOST="$HOST" _claim "$HOST" bash -c _profile_sample
 
   scp -q "$HOST:/tmp/sample.out" "$OUT_DIR/${HOST}_${DEMO}_${RES}.sample" || {
     echo "[profile-pass] FAIL: sample.out missing on $HOST"
