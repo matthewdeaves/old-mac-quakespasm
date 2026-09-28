@@ -26,10 +26,11 @@ HOST="${SELFHOST_HOST:-mini-intel}"
 # Claim the machine for the whole run. Same re-exec as bench.sh; see
 # scripts/pick-bench-host.sh.
 #
-# This one matters more than most: `stop` and the start path both run
-# `killall -KILL quakespasm` on $HOST. Unclaimed, that kills whatever the lock
-# holder is running -- another repo's timedemo mid-flight, with no error on
-# either side. The lock is the only thing arbitrating this hardware.
+# This one matters more than most: it starts and stops a game on $HOST.
+# Unclaimed, that races whatever the lock holder is running -- another repo's
+# timedemo mid-flight, with no error on either side. The lock is the only
+# thing arbitrating this hardware. The game itself goes through launch-game.sh
+# (build-host#147), which refuses while any game is already running.
 #
 # `start` must run INSIDE a claim the caller holds for the server's whole life:
 # releasing a claim TERMs any game still running on the host (pick-bench-host
@@ -87,33 +88,33 @@ case "${1:-start}" in
 start)
   stage_map
   echo "[selfhost] launching dedicated server on $HOST ..."
-  # TERM, grace, then KILL -- never straight to KILL. ADR 0007:120: a hard KILL
-  # of a fullscreen engine wedges the Rage 128 and hangs the R300, and recovery
-  # is a kernel reboot via ~/bin/qsreboot.sh, i.e. a machine off the fleet. This
-  # line went straight to KILL. $HOST defaults to mini-intel, where the target
-  # is a headless dedicated server with no GL context, but SELFHOST_HOST takes
-  # any alias including imac-g5, and this kills whatever quakespasm it finds,
-  # not just ours. The stop path at the bottom already did it correctly.
-  ssh "$HOST" "if killall -TERM quakespasm 2>/dev/null; then sleep 2; fi
-    killall -KILL quakespasm 2>/dev/null || true
-    sleep 1
-    cd $QDIR
-    [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log
-    # Subshell + nohup: detach from this ssh session so the server outlives
-    # it. A plain background job was killed when \`start\` returned, and
-    # every client got \"CL_Connect: connect failed\" (#58, 2026-09-23).
-    ( nohup $BIN -dedicated 4 -nolauncher -basedir . -nosound -condebug \
-      +developer 1 +allow_download 1 +sv_public 0 +map $MAP >/dev/null 2>&1 & )
+  # build-host#147: the server starts through the shared launch guard, which
+  # refuses if ANY game already runs on $HOST (whoever started it) and arms a
+  # guest watchdog, so there is no killall of a stale engine here. The claim
+  # is what arbitrates the hardware; a stale quakespasm is reported, not
+  # killed. The pid is kept on the host for `stop` (a separate invocation).
+  # Never KILL: ADR 0007:120, a hard KILL of a fullscreen engine wedges the
+  # Rage 128 and hangs the R300 (recovery is a reboot).
+  ssh "$HOST" "cd $QDIR && { [ -f qconsole.log ] && mv -f qconsole.log qconsole.prev.log; true; }"
+  GPID="$("$_PICK" launch-game.sh "$HOST" quakespasm --max-secs 3600 -- \
+    sh -c "cd $QDIR && exec $BIN -dedicated 4 -nolauncher -basedir . -nosound -condebug +developer 1 +allow_download 1 +sv_public 0 +map $MAP" \
+    | awk '/^PID/ {print $2}')" || true
+  [ -n "$GPID" ] || { echo "[selfhost] launch refused or failed on $HOST" >&2; exit 1; }
+  ssh "$HOST" "echo $GPID > /tmp/qs-selfhost.pid
     sleep 4
-    tail -8 qconsole.log 2>/dev/null || true"
+    cd $QDIR && tail -8 qconsole.log 2>/dev/null || true"
   IP=$(ssh "$HOST" "ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null")
   echo
   echo "[selfhost] server up: ${IP}:26000  map '${MAP}'  allow_download 1"
   echo "  On G5 / mini-g4 console:   allow_download 1 ; connect ${IP}:26000"
   ;;
 stop)
-  ssh "$HOST" "killall -TERM quakespasm 2>/dev/null; sleep 1; killall -KILL quakespasm 2>/dev/null || true
-    rm -f $QDIR/id1/maps/$MAP.bsp; rmdir $QDIR/id1/maps 2>/dev/null || true"
+  GPID="$(ssh "$HOST" 'cat /tmp/qs-selfhost.pid 2>/dev/null' || true)"
+  if [ -n "$GPID" ]; then
+    "$_PICK" launch-game.sh --stop "$HOST" "$GPID" >&2 || echo "[selfhost] server pid $GPID survived TERM; quit it by hand" >&2
+    ssh "$HOST" 'rm -f /tmp/qs-selfhost.pid'
+  fi
+  ssh "$HOST" "rm -f $QDIR/id1/maps/$MAP.bsp; rmdir $QDIR/id1/maps 2>/dev/null || true"
   echo "[selfhost] stopped, test map removed"
   ;;
 status)
