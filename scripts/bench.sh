@@ -46,8 +46,12 @@
 # restored by the same EXIT trap that cleans up autoexec.cfg, so this
 # applies regardless of EXTRA_CVARS, not just when it's set.
 #
-# output: appends row to benchmarks/results.csv,
-#         saves raw qconsole.log to benchmarks/raw/
+# output: appends row to benchmarks/results.csv, saves raw qconsole.log to
+#         benchmarks/raw/ -- or, when $BENCH_OUT_DIR is set (a peer driving
+#         this through old-mac-build-host's bench-evidence.sh contract,
+#         build-host#135), under $BENCH_OUT_DIR instead, so a peer-run bench
+#         never leaves uncommitted output in this repo's tree (quake2's
+#         bench.sh did exactly that, twice, before adopting this).
 #
 # Assumes scripts/deploy.sh has shipped the bundle to
 # /Applications/QuakeSpasm/ on the target (old-mac-quakespasm#47 —
@@ -146,8 +150,11 @@ COOLDOWN="${COOLDOWN:-2}"
 # Standalone invocations fall back to resolving HEAD here.
 COMMIT="${COMMIT:-$(git -C "$REPO_ROOT" rev-parse --short HEAD)}"
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-RAW_DIR="$REPO_ROOT/benchmarks/raw"
-CSV="$REPO_ROOT/benchmarks/results.csv"
+# BENCH_OUT_DIR (set by bench-evidence.sh for a peer-driven run, unset for an
+# owner's manual run) redirects both away from the tracked benchmarks/ tree.
+OUT_BASE="${BENCH_OUT_DIR:-$REPO_ROOT/benchmarks}"
+RAW_DIR="$OUT_BASE/raw"
+CSV="$OUT_BASE/results.csv"
 mkdir -p "$RAW_DIR"
 
 # CSV header (initialize once). Atomic via bash noclobber (`set -C` →

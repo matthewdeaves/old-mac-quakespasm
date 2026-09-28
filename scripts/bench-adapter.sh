@@ -28,6 +28,13 @@
 #
 # This buys evidence-of-validity, not scripts/bench.sh's finer per-machine
 # fps tuning -- different job, see docs/bench-evidence.md.
+#
+# build-host#135 (BENCH_OUT_DIR): this adapter never wrote into the tracked
+# benchmarks/ tree to begin with -- bench_launch below writes only to
+# $workdir, the bundle directory bench-evidence.sh already owns -- so it
+# needed no change to satisfy that contract. scripts/bench.sh (a different,
+# owner-driven tool this adapter does not call) is the one that honors
+# $BENCH_OUT_DIR explicitly.
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/dmg-port.conf
