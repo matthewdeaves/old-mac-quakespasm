@@ -10,6 +10,10 @@ QuakeSpasm as ONE fat binary across PowerPC, Intel and Apple Silicon Macs, from 
 - `scripts/build.sh <target>` - One slice; sub-step, or to diagnose a compile error
 - `scripts/deploy.sh <machine>` - Stage Quakespasm.app + ship; always the fat binary
 - `scripts/bench.sh <machine> <demo> <WxH>` - One 3-run cell into benchmarks/results.csv
+- qemu-tiger3d PPC-in-VM loop (claim first, `scripts/pick-bench-host.sh --run qemu-tiger3d <label> -- <script>`):
+  `scripts/deploy.sh qemu-tiger3d` → `scripts/smoke-dmg.sh qemu-tiger3d` →
+  `BENCH_ARTEFACT=$PWD/build/quakespasm-fat-deployed BENCH_ADAPTER=$PWD/scripts/bench-adapter.sh scripts/shared.sh bench-evidence.sh qemu-tiger3d <label>` →
+  `scripts/screenshot.sh qemu-tiger3d` for the frame check.
 - *Full script list in `scripts/README.md`. Per-script contracts in `scripts/CLAUDE.md`.*
 
 ## Context Routing
