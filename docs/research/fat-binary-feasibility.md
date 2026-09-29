@@ -1,5 +1,11 @@
 # Fat (Universal) Binary Feasibility for QuakeSpasm PPC + Intel
 
+Historical 2026-05-08 feasibility study for a G3/G4/x86_64 universal app.
+Implementation was deferred to round v4 when this report was written.
+Use current build docs for shipped slices; this report preserves the original reasoning.
+
+## Context
+
 > Research-only report drafted by an investigation agent on 2026-05-08
 > at the user's request. Goal: determine what it takes to ship a single
 > universal binary covering G3 (PPC 750), G4 (PPC 7400 + AltiVec), and

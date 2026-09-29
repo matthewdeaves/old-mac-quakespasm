@@ -1,5 +1,9 @@
 # 10. The bundle is a real .app: location-agnostic, carrying everything it needs
 
+Recorded decision: `scripts/deploy.sh` assembles a complete `Quakespasm.app` and rsyncs it to `<machine>:~/Desktop/quake/`.
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Alternatives rejected, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

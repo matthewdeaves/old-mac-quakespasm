@@ -1,5 +1,11 @@
 # Modern compiler warning triage: Linux build (Ubuntu gcc 15.2)
 
+A GCC 15.2 Linux build produced 1,595 warnings after the SDL2 flag plumbing was fixed.
+The triage separates real defects and PPC performance candidates from warning noise.
+The table and sections record each class and its disposition.
+
+## Overview
+
 **Run:** `scripts/build-linux.sh default`, full warning maxout against the
 same source the PPC + Lion ship binaries compile.
 

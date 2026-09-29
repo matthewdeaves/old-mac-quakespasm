@@ -1,5 +1,11 @@
 # scripts/: build, deploy, bench tooling for QuakeSpasm
 
+Build, deploy and benchmark script lookup for QuakeSpasm.
+Build targets name slices; fleet aliases name physical machines or boot partitions.
+Detailed script contracts are in `docs/SCRIPT-CONTRACTS.md`; compiler flags in `docs/TOOLCHAIN.md`.
+
+## Overview
+
 Overview of the build, deploy and bench tooling: the multi-host workflow, a quick start, one line per script, parallel-safety notes and the bundle layout. Sections: Quick start, Scripts, Parallel-safety notes, Bundle layout, Why all the SSH knob-twiddling (`grep -n '^## ' scripts/README.md`). Per-script gotchas are in `scripts/CLAUDE.md`.
 
 Multi-host workflow: edit on the orchestration Mac → build on a claimed Intel

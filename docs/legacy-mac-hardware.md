@@ -1,5 +1,9 @@
 # Legacy Mac hardware rules and gotchas
 
+Build, deployment and runtime hazards on the legacy Mac targets.
+Read the relevant ADR for the incident behind each constraint.
+Sections: Hard rules, Operational gotchas, Codebase facts.
+
 Full text of the rules that `.claude/rules/legacy-mac-hardware.md` summarises: build and release hard rules, operational gotchas for Panther through Lion boxes and the orchestration host, and codebase facts that grep will not show. Sections: Hard rules, Operational gotchas, Codebase facts you cannot grep for.
 
 ## Hard rules

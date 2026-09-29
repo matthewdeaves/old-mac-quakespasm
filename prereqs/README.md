@@ -1,5 +1,11 @@
 # prereqs/: installers and source tarballs
 
+Local installers and source tarballs required by `scripts/setup-lion.sh`.
+The payloads are not in git; the table records sizes and expected MD5 values.
+Use the download and setup sections for a fresh build host.
+
+## Context
+
 > **Not in git.** This directory is `.gitignore`d (~5 GB). Download the files
 > below into `prereqs/` once on a fresh clone; `scripts/setup-lion.sh` expects
 > them here. Verify MD5s after download.

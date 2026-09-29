@@ -1,5 +1,11 @@
 # Online network play + auto-download missing maps: implementation plan
 
+Shipped design for QSS-style map and asset downloads over the game UDP connection.
+The built-in server serves loose files only; files inside a pak are not downloadable by this path.
+Read for mechanisms and rejected alternatives, not as an outstanding implementation plan.
+
+## Overview
+
 Shipped design record for online play and auto-download of missing maps (QSS-style in-protocol download). Read for reasoning and rejected alternatives, not as a to-do list. Sections 1-9: decision, mechanism, integration points, phases, gating, testing, TLS, caveats, effort (`grep -n '^## ' docs/NETPLAY_DOWNLOAD_PLAN.md`).
 
 **Status: SHIPPED.** Evidence-gathered 2026-06-06 (codebase audit + QSS/FTE/

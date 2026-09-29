@@ -1,5 +1,11 @@
 # Perf candidates from compiler optimisation reports
 
+Round v5 A5 reviewed missed-vectorization reports from Ubuntu GCC 15.
+The result was mostly negative: hot paths already had AltiVec implementations or valid vectorization blockers.
+Candidates below distinguish G4 AltiVec work from G3 scalar work.
+
+## Overview
+
 Round v5 A5: capture `-fopt-info-vec-missed` from Ubuntu gcc 15 against
 the Linux build to surface loops that the modern vectoriser couldn't
 handle. Each missed loop is a candidate for hand-AltiVec on G4 or

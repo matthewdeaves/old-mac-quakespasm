@@ -1,5 +1,11 @@
 # QuakeSpasm dedicated server: Linux
 
+The headless Linux Quake server builds from the Mac port’s source.
+It ships as one ELF binary, without separately installed packages.
+The sections below cover building, game data, operation and configuration.
+
+## Overview
+
 A headless Quake server built from the same source as the Mac fat binary. One
 ELF binary, no packages to install.
 

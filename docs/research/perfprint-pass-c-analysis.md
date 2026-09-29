@@ -1,5 +1,11 @@
 # Pass C: Live `gl_perfprint` capture analysis (2026-05-08)
 
+Pass C compares live per-region timings with Pass A’s predicted bottlenecks.
+G3 demo1 and G4 demo3 ran at 1024x768 on commit 4bf1f771.
+The captured settings, raw files and measured priorities follow.
+
+## Overview
+
 Per PPC_PLAN.md §14.2 Pass C: exercise the Phase 7 instrumentation
 (commit 88bd6fb6) on real timedemo runs and capture per-region timing
 to ground the §14.3 prioritisation. Crosses Pass A's *predicted*

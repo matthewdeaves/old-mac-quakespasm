@@ -1,5 +1,9 @@
 # 1. Four slices: chosen by CPU capability and not by OS version
 
+Recorded decision: Ship four slices: `ppc750`, `ppc7400`, `ppc970`, `x86_64`, composed by `scripts/build-fat.sh` into `build/quakespasm-fat` (ADR 0004).
+Record status: accepted, G5 floor amended 2026-09-08. Date: 2026-08-20.
+Sections: Amendment, 2026-09-08, Context, Decision, Alternatives rejected, Consequences.
+
 Date: 2026-08-20
 Status: accepted, G5 floor amended 2026-09-08
 

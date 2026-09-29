@@ -1,5 +1,9 @@
 # 6. Settings are layered per-arch then per-machine: from inside the bundle
 
+Recorded decision: Two config layers ship inside `Quakespasm.app/Contents/Resources/`, both loaded through CFBundle by `QS_ExecConfigFromBundle` (`Quake/host.c:53`).
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Alternatives rejected, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

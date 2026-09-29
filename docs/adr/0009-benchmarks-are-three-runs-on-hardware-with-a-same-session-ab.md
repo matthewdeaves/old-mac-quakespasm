@@ -1,5 +1,9 @@
 # 9. Benchmarks are three runs on real hardware, and a verdict needs a same-session A/B
 
+Recorded decision: Canonical measurement is Quake's `timedemo demo1` / `demo2` / `demo3`, three runs, median of runs 2 and 3 (run 1 includes texture-upload warmup), on all targets for every change, captured via `-condebug` into `qconsole.log` and tagged `(commit, machine, demo, res)` in `benchmarks/results.csv`.
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Evidence: three verdicts that were wrong, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

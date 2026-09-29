@@ -1,5 +1,9 @@
 # 8. Every per-target knob is toggleable, and a split result is gated, not dropped
 
+Recorded decision: Every per-target visual or perf knob must be flippable at runtime (a cvar) or at launch (a `-flag` parsed in the relevant `*_Init`), without a rebuild.
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Evidence: the split results this exists for, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

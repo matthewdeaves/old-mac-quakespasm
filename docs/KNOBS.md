@@ -1,14 +1,10 @@
 # Toggleable knobs inventory
 
-Inventory of every runtime cvar and launch flag by feature area (AltiVec opt-outs, ATI/R300, video-mode lock, visual cvars, MSAA, lightstyles, surface batcher, decals, network). Find a knob with `grep -n <name> docs/KNOBS.md`, list sections with `grep -n '^## ' docs/KNOBS.md`, then `sed -n` one section. Per-machine defaults are in `scripts/bundle/autoexec-<machine>.cfg`.
-
-Every per-target visual or perf decision shipped to date can be flipped without
-a rebuild, most via cvars, some via a launch-time `-flag` parsed in the
-relevant `*_Init`. Why that is a hard requirement, and how a split result gets
-gated rather than dropped: ADR 0008. Per-machine shipping defaults live in
-`scripts/bundle/autoexec-<machine>.cfg`.
-
-Updated 2026-06-06.
+Inventory of every runtime cvar and launch flag by feature area (AltiVec opt-outs, ATI/R300, video-mode lock, visual cvars, MSAA, lightstyles, surface batcher, decals, network). Find a
+knob with `grep -n <name> docs/KNOBS.md`, list sections with `grep -n '^## ' docs/KNOBS.md`, then `sed -n` one section. Per-machine defaults are in
+`scripts/bundle/autoexec-<machine>.cfg`. Every per-target visual or perf decision shipped to date can be flipped without a rebuild, most via cvars, some via a launch-time `-flag` parsed
+in the relevant `*_Init`. Why that is a hard requirement, and how a split result gets gated rather than dropped: ADR 0008. Per-machine shipping defaults live in
+`scripts/bundle/autoexec-<machine>.cfg`. Updated 2026-06-06.
 
 ## AltiVec phase opt-outs (cmdline: G4 only, `-flag` to disable)
 

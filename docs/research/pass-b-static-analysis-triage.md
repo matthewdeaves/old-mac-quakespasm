@@ -1,5 +1,11 @@
 # QuakeSpasm PPC port: static-analysis Pass B (cleanup triage)
 
+The 2026-05-08 Pass B follows the build-warning survey with static analysis.
+It combines cppcheck, G4 compiler warnings and a manual disabled-code/default audit.
+Findings distinguish unreachable code, useful disabled features, latent bugs and noise.
+
+## Overview
+
 > Research-only report. 2026-05-08. Successor to
 > `docs/research/build-warning-survey.md`. Goal per the user's
 > 2026-05-08 policy: **don't just silence warnings, find code that's

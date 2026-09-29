@@ -1,6 +1,7 @@
-# Bug-fix log
-One entry per real bug fixed, newest first. Find one with `grep -n '#NNN' BUGFIXES.md` or `grep -n '^## ' BUGFIXES.md`.
-Full original text of every entry: docs/archive/BUGFIXES-full.md. Fuller accounts live in MISTAKES.md, the ADRs, or the issue named.
+# Bugfixes
+
+Search by ticket or date; entries are newest first.
+Archive: `docs/archive/BUGFIXES.md`.
 
 ## 2026-09-13 #47 deploy-dmg.sh reported failure on every genuinely fresh install
 The upgrade-with-backup remote script ended with `[ -n "$BACKUP" ] && echo "rollback copy kept..."` as its last statement.

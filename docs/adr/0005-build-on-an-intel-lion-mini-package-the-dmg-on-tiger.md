@@ -1,5 +1,9 @@
 # 5. Build on an Intel Lion mini: package the disk image on a Tiger box
 
+Recorded decision: All four slices cross-compile on a claimed Intel Lion mini.
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Alternatives rejected, Amendment, 2026-08-28: i386 may also build on imac-2019, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

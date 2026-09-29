@@ -88,3 +88,29 @@ context.
 - [`../scripts/README.md`](../scripts/README.md), tooling and host matrix.
 - [`../benchmarks/profiles/README.md`](../benchmarks/profiles/README.md), the
   `sample`-based profile captures.
+
+## Task guides and topic references
+
+- [LAUNCH.md](LAUNCH.md): Fleet engine launch
+- [RELEASE.md](RELEASE.md): Release inputs
+- [SCRIPT-CONTRACTS.md](SCRIPT-CONTRACTS.md): scripts/: per-script gotchas
+- [TESTS.md](TESTS.md): Test entry points
+- [TOOLCHAIN.md](TOOLCHAIN.md): MacOSX/: toolchain and flags on the build host
+- [adr/0001-four-slices-chosen-by-cpu-capability.md](adr/0001-four-slices-chosen-by-cpu-capability.md): 1. Four slices: chosen by CPU capability and not by OS version
+- [adr/0002-every-powerpc-slice-carries-its-exact-cpusubtype.md](adr/0002-every-powerpc-slice-carries-its-exact-cpusubtype.md): 2. Every PowerPC slice carries its exact cpusubtype, and the build asserts it
+- [adr/0003-every-shipped-slice-links-sdl-1-2.md](adr/0003-every-shipped-slice-links-sdl-1-2.md): 3. Every shipped slice links SDL 1.2, and the PowerPC slices are hand-built
+- [adr/0004-the-fat-is-composed-by-lipo-from-four-separate-builds.md](adr/0004-the-fat-is-composed-by-lipo-from-four-separate-builds.md): 4. The fat binary is composed by lipo from four separate builds, not one pass
+- [adr/0005-build-on-an-intel-lion-mini-package-the-dmg-on-tiger.md](adr/0005-build-on-an-intel-lion-mini-package-the-dmg-on-tiger.md): 5. Build on an Intel Lion mini: package the disk image on a Tiger box
+- [adr/0006-settings-are-layered-per-arch-then-per-machine.md](adr/0006-settings-are-layered-per-arch-then-per-machine.md): 6. Settings are layered per-arch then per-machine: from inside the bundle
+- [adr/0007-fragile-gpus-are-gated-on-the-renderer-string-and-mode-locked.md](adr/0007-fragile-gpus-are-gated-on-the-renderer-string-and-mode-locked.md): 7. Fragile GPUs are gated on the renderer string, and their video mode is locked
+- [adr/0008-every-knob-is-toggleable-gate-a-change-do-not-drop-it.md](adr/0008-every-knob-is-toggleable-gate-a-change-do-not-drop-it.md): 8. Every per-target knob is toggleable, and a split result is gated, not dropped
+- [adr/0009-benchmarks-are-three-runs-on-hardware-with-a-same-session-ab.md](adr/0009-benchmarks-are-three-runs-on-hardware-with-a-same-session-ab.md): 9. Benchmarks are three runs on real hardware, and a verdict needs a same-session A/B
+- [adr/0010-the-bundle-is-a-real-app-that-carries-everything-it-needs.md](adr/0010-the-bundle-is-a-real-app-that-carries-everything-it-needs.md): 10. The bundle is a real .app: location-agnostic, carrying everything it needs
+- [adr/0011-the-dedicated-server-is-a-linux-elf-built-in-a-container.md](adr/0011-the-dedicated-server-is-a-linux-elf-built-in-a-container.md): 11. The dedicated server is a Linux ELF built in a container
+- [adr/0012-we-ship-code-not-content.md](adr/0012-we-ship-code-not-content.md): 12. We ship code, not content
+- [adr/0013-two-more-slices-i386-for-2006-intel-and-arm64-for-apple-silicon.md](adr/0013-two-more-slices-i386-for-2006-intel-and-arm64-for-apple-silicon.md): 13. Two more slices: i386 for 2006 Intel, arm64 for Apple Silicon
+- [adr/0014-a-slice-is-fused-only-if-it-was-built-from-this-source.md](adr/0014-a-slice-is-fused-only-if-it-was-built-from-this-source.md): 14. A slice is fused only if it was built from this source
+
+## History archive
+
+Older and superseded accounts: [archive/](archive/). Search by ticket or date.

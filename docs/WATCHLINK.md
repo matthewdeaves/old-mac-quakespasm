@@ -1,5 +1,11 @@
 # watchlink: live player-state UDP feed (Apple Watch tactical computer)
 
+The optional watchlink feed emits player-state JSON over UDP.
+It shares Quake II’s port 27999, `_q2watch._udp` discovery and companion app.
+`watch_enable` defaults to 0; disabled means no socket, packets or per-frame work.
+
+## Overview
+
 `Quake/cl_watchlink.c` pushes the ranger's live in-game state out over UDP as
 newline-delimited JSON, so an external companion can render
 health / armor / ammo / weapon / powerups on a second screen.

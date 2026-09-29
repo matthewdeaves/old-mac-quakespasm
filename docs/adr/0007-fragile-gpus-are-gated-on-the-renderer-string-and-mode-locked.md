@@ -1,5 +1,9 @@
 # 7. Fragile GPUs are gated on the renderer string, and their video mode is locked
 
+Recorded decision: Gate on the GL renderer string, not on the CPU or the slice (`Quake/gl_vidsdl.c` `GL_CheckExtensions`, ~:1072-1090).
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Evidence and root causes, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

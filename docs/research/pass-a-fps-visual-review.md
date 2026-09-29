@@ -1,5 +1,11 @@
 # QuakeSpasm PPC port: Pass A code review (round v3 wrap)
 
+Research-only FPS and visual-opportunity review from 2026-05-08.
+The review inspected renderer paths and captured GL extension evidence; it made no code changes.
+Findings and the ranked recommendations are historical inputs to round v3.
+
+## Overview
+
 > Research-only sweep, 2026-05-08. Goal: surface unexploited fps + visual
 > opportunities not covered by §0/§13 of `PPC_PLAN.md`. No code written;
 > findings only. Ranked recommendation list at the end.

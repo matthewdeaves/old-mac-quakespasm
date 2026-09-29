@@ -1,5 +1,9 @@
 # Performance and graphics implementation plan
 
+Performance experiment plan and results ledger for the old-Mac port.
+The G5 compatibility and current-batch sections take precedence over the original execution order.
+Each experiment specifies its toggle, measurement and acceptance conditions.
+
 The 2026-09-08 plan for G4/G5 performance and graphics work: staged experiments (emissive cache, shadows, decal data, audio scratch, liquid visibility, shaders, high refresh), with baselines, acceptance rules and a results ledger. Start at "Current batch" and "Results ledger"; list sections with `grep -n '^## ' docs/PERFORMANCE_PLAN.md`. Negative results are in `MISTAKES.md`.
 
 Date: 2026-09-08

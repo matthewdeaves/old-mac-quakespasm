@@ -1,5 +1,9 @@
 # 13. Two more slices: i386 for 2006 Intel, arm64 for Apple Silicon
 
+Recorded decision: Ship both, taking six slices in total: `ppc750`, `ppc7400`, `ppc970`, `i386`, `x86_64`, `arm64`.
+Record status: accepted (built; arm64 and i386 not yet run on hardware). Date: 2026-08-20.
+Sections: Context, Decision, Two things that bite, arm64 is optional at fuse time, Ad-hoc signing, and why it is not cosmetic, Consequences.
+
 Date: 2026-08-20
 Status: accepted (built; arm64 and i386 not yet run on hardware)
 

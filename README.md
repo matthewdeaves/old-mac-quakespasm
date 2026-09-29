@@ -1,5 +1,11 @@
 # QuakeSpasm: old-Mac port
 
+QuakeSpasm ships as one fat binary for PowerPC, Intel and Apple Silicon Macs.
+At startup it reads the machine model and applies per-machine settings.
+The sections below cover tested targets, features, installation and build details.
+
+## Overview
+
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE.txt)
 [![Platform: PowerPC | Intel | Apple Silicon](https://img.shields.io/badge/Platform-PowerPC%20%7C%20Intel%20%7C%20Apple%20Silicon-lightgrey.svg)](#tested-machines)
 [![macOS: 10.3.9 → 15.7](https://img.shields.io/badge/macOS-10.3.9%20%E2%86%92%2015.7-success.svg)](#tested-machines)

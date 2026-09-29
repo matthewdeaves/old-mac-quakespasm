@@ -1,5 +1,9 @@
 # 3. Every shipped slice links SDL 1.2, and the PowerPC slices are hand-built
 
+Recorded decision: Every Mac slice links SDL 1.2.15.
+Record status: accepted. Date: 2026-08-20.
+Sections: Context, Decision, Alternatives rejected, Consequences.
+
 Date: 2026-08-20
 Status: accepted
 

@@ -1,5 +1,11 @@
 # QuakeSpasm Build Warning Survey: g3 / g4 / lion
 
+The 2026-05-08 survey compares G3, G4 and Lion compiler warnings.
+Three recommendations landed in 88bd6fb6; the remaining findings are recorded below.
+The report prioritizes defects and performance opportunities over suppression.
+
+## Overview
+
 > Research-only report drafted by an investigation agent on 2026-05-08
 > at the user's request. Goal: survey gcc/clang warnings emitted when
 > building QuakeSpasm for our three targets and report what's worth

@@ -1,5 +1,9 @@
 # 14. A slice is fused only if it was built from this source
 
+Recorded decision: Fingerprint the source a slice was built from, and refuse to fuse any slice whose fingerprint does not match the tree being fused.
+Record status: accepted (implemented; six-slice end-to-end passed on the fleet). Date: 2026-08-22.
+Sections: Context, Decision, Why not the cheaper checks, Consequences, Verification.
+
 Date: 2026-08-22
 Status: accepted (implemented; six-slice end-to-end passed on the fleet)
 
